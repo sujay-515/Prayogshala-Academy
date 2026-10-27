@@ -5,6 +5,7 @@ import {
   User,
   LogOut,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 import { UserAccount } from '../types';
 
@@ -18,6 +19,8 @@ interface NavbarProps {
   currentUser?: UserAccount | null;
   onOpenAuthModal?: () => void;
   onLogout?: () => void;
+  isAdmin?: boolean;
+  onReturnToAdmin?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,6 +33,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onOpenAuthModal,
   onLogout,
+  isAdmin = false,
+  onReturnToAdmin,
 }) => {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
@@ -42,15 +47,11 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="border-b border-slate-200/50 bg-white/40 px-3 sm:px-4 py-1.5 text-xs text-slate-500 backdrop-blur-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 sm:gap-3">
-            <span className="font-medium text-slate-700 hidden sm:inline">Clinical Laboratory Knowledge Base</span>
-            <span className="font-medium text-slate-700 sm:hidden">MedLab QBank</span>
-            <span className="text-slate-300">|</span>
-            <span className="text-slate-600 font-medium inline-flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-              {totalQuestionCount.toLocaleString()} MCQs
+            <span className="text-slate-700 font-medium text-xs">
+              {totalQuestionCount.toLocaleString()} Verified Questions
             </span>
             <span className="hidden md:inline text-slate-300">|</span>
-            <span className="hidden md:inline text-slate-500">ASCP, NHPC, PSC, DHA & AIMS</span>
+            <span className="hidden md:inline text-slate-500">ASCP · NHPC · PSC · DHA · AIMS</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -63,9 +64,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {currentUser ? (
               <div className="flex items-center gap-2">
+                {isAdmin && onReturnToAdmin && (
+                  <button
+                    onClick={onReturnToAdmin}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-900 text-cyan-300 hover:bg-slate-800 hover:text-cyan-200 border border-cyan-500/40 shadow-2xs transition-all cursor-pointer"
+                    title="Return to Staff Administration Console"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Admin Console</span>
+                  </button>
+                )}
                 <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5 truncate max-w-28 sm:max-w-none">
                   <User className="w-3.5 h-3.5 text-cyan-700 shrink-0" />
                   <span className="truncate">{currentUser.displayName}</span>
+                  {currentUser.role === 'admin' && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-900 border border-cyan-200">
+                      Staff
+                    </span>
+                  )}
                 </span>
                 {onLogout && (
                   <button
@@ -82,9 +98,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               onOpenAuthModal && (
                 <button
                   onClick={onOpenAuthModal}
-                  className="text-xs text-slate-600 hover:text-cyan-800 font-medium cursor-pointer"
+                  className="text-xs text-slate-600 hover:text-cyan-800 font-medium cursor-pointer flex items-center gap-1"
                 >
-                  Student Sign In
+                  <User className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Sign In</span>
                 </button>
               )
             )}
@@ -107,7 +124,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="font-semibold text-sm sm:text-base tracking-tight text-slate-900 block leading-tight">
                 MedLab QBank
               </span>
-              <span className="text-xs text-cyan-700 font-medium block">Clinical Pathology</span>
             </div>
           </div>
 

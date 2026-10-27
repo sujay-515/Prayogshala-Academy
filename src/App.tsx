@@ -287,8 +287,16 @@ export default function App() {
         if (data.stats) setStats(data.stats);
         if (data.user.role === 'admin') {
           setIsAdmin(true);
-          // Public student sign-in modal does NOT switch the user to the admin console.
-          // Staff administration console is strictly accessed by direct URL (/admin).
+          setIsViewingAsStudent(false);
+          setActiveTab('admin');
+          window.history.pushState(null, '', '/admin');
+        } else {
+          setIsAdmin(false);
+          setIsViewingAsStudent(false);
+          if (activeTab === 'admin') {
+            window.history.replaceState(null, '', '/');
+            setActiveTab('home');
+          }
         }
         setIsAuthModalOpen(false);
         setAuthPassword('');
@@ -677,6 +685,12 @@ export default function App() {
         setSearchQuery={setSearchQuery}
         totalQuestionCount={questions.length}
         currentUser={currentUser}
+        isAdmin={isAdmin || currentUser?.role === 'admin'}
+        onReturnToAdmin={() => {
+          setIsViewingAsStudent(false);
+          setActiveTab('admin');
+          window.history.pushState(null, '', '/admin');
+        }}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
       />
@@ -835,6 +849,12 @@ export default function App() {
               </button>
             </div>
 
+            {authMode === 'login' && (
+              <p className="text-[11px] text-slate-500 text-center">
+                Unified login for student study profiles and staff administrative consoles.
+              </p>
+            )}
+
             <form onSubmit={handleUserAuthSubmit} className="space-y-3 text-xs sm:text-sm">
               {authMode === 'register' && (
                 <div>
@@ -851,13 +871,13 @@ export default function App() {
               )}
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Username</label>
+                <label className="block font-semibold text-slate-700 mb-1">Username or Account ID</label>
                 <input
                   type="text"
                   required
                   value={authUsername}
                   onChange={(e) => setAuthUsername(e.target.value)}
-                  placeholder="Enter student username..."
+                  placeholder={authMode === 'login' ? 'Enter username or administrator ID...' : 'Choose a unique username...'}
                   className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                 />
               </div>
@@ -880,26 +900,24 @@ export default function App() {
                 type="submit"
                 className="w-full py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 text-white font-medium rounded-lg transition-all cursor-pointer text-xs sm:text-sm shadow-xs"
               >
-                {authMode === 'login' ? 'Sign In & Sync Progress' : 'Create Account'}
+                {authMode === 'login' ? 'Sign In & Continue' : 'Create Student Account'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Academic Footer */}
+      {/* Footer */}
       <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-            <span className="font-semibold text-slate-900">MedLab QBank Diagnostic Platform</span>
+            <span className="font-semibold text-slate-900">MedLab QBank</span>
             <span aria-hidden="true">·</span>
-            <span>Laboratory Medicine & Pathology Licensing Repository</span>
+            <span>Laboratory Medicine Question Bank</span>
           </div>
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-4 text-slate-500 text-center sm:text-right">
-            <span>CLSI & ISO 15189 Standards</span>
-            <span aria-hidden="true">·</span>
-            <span>ASCP / NHPC / PSC / DHA / AIMS Syllabi</span>
+            <span>ASCP · NHPC · PSC · DHA · AIMS</span>
           </div>
         </div>
       </footer>

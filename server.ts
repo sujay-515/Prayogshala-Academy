@@ -280,6 +280,32 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/auth/me', (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Unauthenticated or session expired.' });
+  }
+
+  const userRow = db.prepare('SELECT stats_json FROM users WHERE id = ?').get(session.userId) as any;
+  let stats = null;
+  if (userRow?.stats_json) {
+    try {
+      stats = JSON.parse(userRow.stats_json);
+    } catch {}
+  }
+
+  return res.json({
+    success: true,
+    user: {
+      id: session.userId,
+      username: session.username,
+      role: session.role,
+      displayName: session.displayName,
+    },
+    stats,
+  });
+});
+
 // ==================== QUESTIONS & CATEGORIES APIs ====================
 app.get('/api/questions', (req, res) => {
   const session = getSessionUser(req);

@@ -159,10 +159,6 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     return (
       <div className="max-w-3xl mx-auto py-6 space-y-6">
         <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
-          <div className="glass-pill inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold text-cyan-800 uppercase tracking-wider">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-            Interactive Learning
-          </div>
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
             Configure practice session
           </h1>

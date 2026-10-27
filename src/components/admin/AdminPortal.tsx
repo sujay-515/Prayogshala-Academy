@@ -213,9 +213,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 SQLite Connected
               </span>
             </div>
-            <span className="text-xs text-slate-400 hidden sm:block">
-              Pathology Content Ingestion, Category Architecture & Quality Control
-            </span>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">

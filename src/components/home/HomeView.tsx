@@ -43,11 +43,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
           <div className="lg:col-span-8 space-y-4">
-            <div className="glass-pill inline-flex items-center gap-2 px-3 py-1 rounded-full text-cyan-800 text-xs font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-              Clinical Pathology & Laboratory Medicine
-            </div>
-
             <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight leading-snug">
               Structured question bank for licensing and laboratory certification
             </h1>
@@ -75,7 +70,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               <button
                 onClick={onOpenDailyQuestion}
-                className="glass-pill hover:bg-white text-slate-800 px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all text-center cursor-pointer hover:-translate-y-0.5"
+                className="glass-card hover:bg-white text-slate-800 px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all text-center cursor-pointer hover:-translate-y-0.5"
               >
                 Question of the Day
               </button>
