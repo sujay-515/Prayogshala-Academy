@@ -181,6 +181,7 @@ export function syncUpdateReportStatus(id: string, status: string): void {
 export function syncUpsertUser(user: {
   id: string;
   username: string;
+  email?: string;
   password_hash: string;
   role: string;
   display_name: string;
@@ -200,12 +201,22 @@ export function syncUpsertUser(user: {
     body: {
       id: user.id,
       username: user.username,
+      email: user.email || null,
       password_hash: user.password_hash,
       role: user.role,
       display_name: user.display_name,
       stats_json: parsedStats,
       created_at: user.created_at,
     },
+  });
+}
+
+export function syncUpdateUserRole(userId: string, role: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`users?id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: { role },
   });
 }
 

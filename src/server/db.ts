@@ -111,7 +111,23 @@ db.exec(`
     drafts_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
 `);
+
+// Safe migrations for email support & password resets
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN email TEXT').run();
+} catch {}
+
+try {
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL').run();
+} catch {}
 
 export function hashPassword(password: string, customSalt?: string): string {
   const salt = customSalt || crypto.randomBytes(16).toString('hex');
@@ -206,9 +222,121 @@ function seedDatabaseIfNeeded() {
       }
     }
   }
+
+  // Ensure default seeded accounts have emails and roles assigned
+  try {
+    db.prepare("UPDATE users SET email = 'admin@medlab.local', role = 'superadmin' WHERE username = 'admin' AND (email IS NULL OR role = 'admin')").run();
+    db.prepare("UPDATE users SET email = 'student@medlab.local' WHERE username = 'student' AND email IS NULL").run();
+  } catch {}
 }
 
 seedDatabaseIfNeeded();
+
+// Helper functions for Role-Based Access Control and Email Auth
+export function isSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const list = (process.env.SUPER_ADMIN_EMAILS || process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.trim().toLowerCase());
+}
+
+export function isStaffAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const list = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.trim().toLowerCase());
+}
+
+export function getUserByEmailOrUsername(identifier: string) {
+  const clean = identifier.trim().toLowerCase();
+  return db
+    .prepare('SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?')
+    .get(clean, clean) as any;
+}
+
+export function listAllUsers() {
+  const rows = db.prepare(`
+    SELECT id, username, email, role, display_name, created_at, stats_json
+    FROM users
+    ORDER BY
+      CASE role
+        WHEN 'superadmin' THEN 1
+        WHEN 'admin' THEN 2
+        ELSE 3
+      END,
+      created_at DESC
+  `).all() as any[];
+
+  return rows.map((r) => {
+    let parsedStats: any = null;
+    try {
+      parsedStats = JSON.parse(r.stats_json);
+    } catch {}
+    return {
+      id: r.id,
+      username: r.username,
+      email: r.email || null,
+      role: r.role,
+      displayName: r.display_name,
+      createdAt: r.created_at,
+      totalAnswered: parsedStats?.totalAnswered || 0,
+      totalCorrect: parsedStats?.totalCorrect || 0,
+    };
+  });
+}
+
+export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+  if (!user) return { success: false, error: 'User not found' };
+
+  // Protect superadmin from being demoted
+  if (user.role === 'superadmin' || user.username === 'admin' || isSuperAdminEmail(user.email)) {
+    return { success: false, error: 'Head Administrator role is permanent and cannot be modified.' };
+  }
+
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, userId);
+  db.prepare('UPDATE sessions SET role = ? WHERE user_id = ?').run(newRole, userId);
+
+  return { success: true };
+}
+
+export function createPasswordReset(userId: string): string {
+  db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(userId);
+  const token = crypto.randomBytes(32).toString('hex');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 1 hour TTL
+
+  db.prepare('INSERT INTO password_resets (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(
+    token,
+    userId,
+    expiresAt,
+    now.toISOString()
+  );
+
+  return token;
+}
+
+export function verifyAndConsumeResetToken(token: string, newPasswordHash: string): { success: boolean; error?: string } {
+  const row = db.prepare('SELECT * FROM password_resets WHERE token = ?').get(token) as any;
+  if (!row) {
+    return { success: false, error: 'Invalid or expired password reset link.' };
+  }
+
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    db.prepare('DELETE FROM password_resets WHERE token = ?').run(token);
+    return { success: false, error: 'Password reset link has expired. Please request a new one.' };
+  }
+
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newPasswordHash, row.user_id);
+  db.prepare('DELETE FROM password_resets WHERE token = ?').run(token);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
+
+  return { success: true };
+}
 
 // Data Access Helpers
 export function getAllQuestions(includeUnpublished = true): MCQQuestion[] {

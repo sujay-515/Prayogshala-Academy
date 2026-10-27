@@ -36,16 +36,29 @@ import {
   clearStagingDrafts,
   cleanupExpiredData,
   hydrateFromSupabase,
+  isSuperAdminEmail,
+  isStaffAdminEmail,
+  getUserByEmailOrUsername,
+  listAllUsers,
+  updateUserRole,
+  createPasswordReset,
+  verifyAndConsumeResetToken,
 } from './src/server/db';
 import {
   isSupabaseConfigured,
   pingSupabaseKeepAlive,
   syncUpsertUser,
+  syncUpdateUserRole,
   syncInsertSession,
   syncDeleteSession,
   syncInsertActiveExam,
   syncDeleteActiveExam,
 } from './src/server/supabaseSync';
+import {
+  sendWelcomeEmail,
+  sendStaffInviteEmail,
+  sendPasswordResetEmail,
+} from './src/server/emailService';
 
 dotenv.config();
 
@@ -63,13 +76,13 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const loginAttemptsByIp = new Map<string, { count: number; resetAt: number }>();
 
 // Helper to resolve session from Authorization header (with 7-day TTL expiration check)
-function getSessionUser(req: express.Request): { userId: string; role: string; username: string; displayName: string } | null {
+function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string } | null {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   const row = db
     .prepare(
-      `SELECT s.user_id, s.role, s.created_at, u.username, u.display_name
+      `SELECT s.user_id, s.role, s.created_at, u.username, u.email, u.display_name
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.token = ?`
@@ -87,6 +100,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
     userId: row.user_id,
     role: row.role,
     username: row.username,
+    email: row.email || undefined,
     displayName: row.display_name,
   };
 }
@@ -97,8 +111,20 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
   if (!session) {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
   }
-  if (session.role !== 'admin') {
+  if (session.role !== 'admin' && session.role !== 'superadmin') {
     return res.status(403).json({ success: false, error: 'Administrator privileges required.' });
+  }
+  return next();
+}
+
+// Middleware to enforce Head Administrator (Super Admin) permissions
+function requireSuperAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+  if (session.role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Head Administrator access required.' });
   }
   return next();
 }
@@ -121,7 +147,7 @@ app.get('/api/health', (req, res) => {
 // Bootstrap endpoint for initial load (scopes unpublished drafts & admin reports to admin role)
 app.get('/api/bootstrap', (req, res) => {
   const session = getSessionUser(req);
-  const isAdmin = session?.role === 'admin';
+  const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
   const userId = session ? session.userId : 'usr-guest';
   res.json({
     success: true,
@@ -134,6 +160,7 @@ app.get('/api/bootstrap', (req, res) => {
       ? {
           id: session.userId,
           username: session.username,
+          email: session.email,
           role: session.role,
           displayName: session.displayName,
         }
@@ -153,15 +180,14 @@ app.post('/api/auth/login', (req, res) => {
     });
   }
 
-  const { username = 'admin', password = '' } = req.body;
-  const userRow = db
-    .prepare('SELECT * FROM users WHERE username = ?')
-    .get(String(username).toLowerCase().trim()) as any;
+  const { identifier, username, password = '' } = req.body;
+  const loginId = String(identifier || username || 'admin').toLowerCase().trim();
+  const userRow = getUserByEmailOrUsername(loginId);
 
   if (!userRow || !verifyPassword(String(password), userRow.password_hash)) {
     const nextCount = attempt && nowMs < attempt.resetAt ? attempt.count + 1 : 1;
     loginAttemptsByIp.set(clientIp, { count: nextCount, resetAt: nowMs + 15 * 60 * 1000 });
-    return res.status(401).json({ success: false, error: 'Invalid username or password.' });
+    return res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
   }
 
   loginAttemptsByIp.delete(clientIp);
@@ -171,15 +197,25 @@ app.post('/api/auth/login', (req, res) => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userRow.id);
   }
 
+  // Automatic privilege elevation check based on .env whitelists
+  let activeRole = userRow.role;
+  if (isSuperAdminEmail(userRow.email) && activeRole !== 'superadmin') {
+    activeRole = 'superadmin';
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(activeRole, userRow.id);
+  } else if (isStaffAdminEmail(userRow.email) && activeRole === 'student') {
+    activeRole = 'admin';
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(activeRole, userRow.id);
+  }
+
   const token = crypto.randomBytes(24).toString('hex');
   const now = new Date().toISOString();
   db.prepare('INSERT INTO sessions (token, user_id, role, created_at) VALUES (?, ?, ?, ?)').run(
     token,
     userRow.id,
-    userRow.role,
+    activeRole,
     now
   );
-  syncInsertSession(token, userRow.id, userRow.role, now);
+  syncInsertSession(token, userRow.id, activeRole, now);
 
   return res.json({
     success: true,
@@ -187,7 +223,8 @@ app.post('/api/auth/login', (req, res) => {
     user: {
       id: userRow.id,
       username: userRow.username,
-      role: userRow.role,
+      email: userRow.email || undefined,
+      role: activeRole,
       displayName: userRow.display_name,
     },
     stats: JSON.parse(userRow.stats_json),
@@ -195,7 +232,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.post('/api/auth/register', (req, res) => {
-  const { username, password, displayName } = req.body;
+  const { username, email, password, displayName } = req.body;
   if (!username || !password || password.length < 4) {
     return res.status(400).json({
       success: false,
@@ -204,9 +241,33 @@ app.post('/api/auth/register', (req, res) => {
   }
 
   const cleanUsername = String(username).toLowerCase().trim();
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername);
-  if (existing) {
+  const cleanEmail = email ? String(email).toLowerCase().trim() : null;
+
+  if (cleanEmail && !cleanEmail.includes('@')) {
+    return res.status(400).json({ success: false, error: 'Please provide a valid email address.' });
+  }
+
+  const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername);
+  if (existingUser) {
     return res.status(409).json({ success: false, error: 'Username is already registered.' });
+  }
+
+  if (cleanEmail) {
+    const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+    if (existingEmail) {
+      return res.status(409).json({ success: false, error: 'An account with this email address already exists.' });
+    }
+  }
+
+  // Determine role based on .env whitelist:
+  // If in SUPER_ADMIN_EMAILS -> 'superadmin'
+  // Else if in ADMIN_EMAILS -> 'admin'
+  // Otherwise strictly 'student'
+  let role: 'superadmin' | 'admin' | 'student' = 'student';
+  if (isSuperAdminEmail(cleanEmail)) {
+    role = 'superadmin';
+  } else if (isStaffAdminEmail(cleanEmail)) {
+    role = 'admin';
   }
 
   const id = `usr-${Date.now()}`;
@@ -226,13 +287,14 @@ app.post('/api/auth/register', (req, res) => {
   const statsJson = JSON.stringify(initialStats);
 
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, role, display_name, stats_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     cleanUsername,
+    cleanEmail,
     passwordHash,
-    'student',
+    role,
     finalDisplayName,
     statsJson,
     now
@@ -241,8 +303,9 @@ app.post('/api/auth/register', (req, res) => {
   syncUpsertUser({
     id,
     username: cleanUsername,
+    email: cleanEmail || undefined,
     password_hash: passwordHash,
-    role: 'student',
+    role,
     display_name: finalDisplayName,
     stats_json: statsJson,
     created_at: now,
@@ -252,10 +315,17 @@ app.post('/api/auth/register', (req, res) => {
   db.prepare('INSERT INTO sessions (token, user_id, role, created_at) VALUES (?, ?, ?, ?)').run(
     token,
     id,
-    'student',
+    role,
     now
   );
-  syncInsertSession(token, id, 'student', now);
+  syncInsertSession(token, id, role, now);
+
+  // Send asynchronous welcome email via Resend if email was provided
+  if (cleanEmail) {
+    void sendWelcomeEmail(cleanEmail, finalDisplayName).catch((err) => {
+      console.warn('[Welcome Email Failed]', err);
+    });
+  }
 
   return res.json({
     success: true,
@@ -263,11 +333,53 @@ app.post('/api/auth/register', (req, res) => {
     user: {
       id,
       username: cleanUsername,
-      role: 'student',
-      displayName: displayName?.trim() || cleanUsername,
+      email: cleanEmail || undefined,
+      role,
+      displayName: finalDisplayName,
     },
     stats: initialStats,
   });
+});
+
+app.post('/api/auth/forgot-password', (req, res) => {
+  const { email } = req.body;
+  if (!email || !String(email).includes('@')) {
+    return res.status(400).json({ success: false, error: 'A valid email address is required.' });
+  }
+
+  const cleanEmail = String(email).toLowerCase().trim();
+  const user = db.prepare('SELECT id, email, display_name FROM users WHERE email = ?').get(cleanEmail) as any;
+
+  if (user) {
+    const token = createPasswordReset(user.id);
+    void sendPasswordResetEmail(user.email, token).catch((err) => {
+      console.warn('[Reset Email Failed]', err);
+    });
+  }
+
+  // Always return success to protect privacy
+  return res.json({
+    success: true,
+    message: 'If an account exists with this email address, password reset instructions have been dispatched.',
+  });
+});
+
+app.post('/api/auth/reset-password', (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword || String(newPassword).length < 4) {
+    return res.status(400).json({
+      success: false,
+      error: 'Valid reset token and a new password of at least 4 characters are required.',
+    });
+  }
+
+  const newHash = hashPassword(String(newPassword));
+  const result = verifyAndConsumeResetToken(String(token).trim(), newHash);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  return res.json({ success: true, message: 'Password has been reset successfully. You may now sign in.' });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -299,6 +411,7 @@ app.get('/api/auth/me', (req, res) => {
     user: {
       id: session.userId,
       username: session.username,
+      email: session.email,
       role: session.role,
       displayName: session.displayName,
     },
@@ -306,10 +419,102 @@ app.get('/api/auth/me', (req, res) => {
   });
 });
 
+// ==================== USER & STAFF MANAGEMENT APIs ====================
+app.get('/api/admin/users', requireAdmin, (_req, res) => {
+  const users = listAllUsers();
+  return res.json({ success: true, users });
+});
+
+app.patch('/api/admin/users/:id/role', requireSuperAdmin, (req, res) => {
+  const targetId = req.params.id;
+  const { role } = req.body;
+  if (!['admin', 'student'].includes(role)) {
+    return res.status(400).json({ success: false, error: "Role must be 'admin' or 'student'." });
+  }
+
+  const result = updateUserRole(targetId, role);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  if (isSupabaseConfigured()) {
+    syncUpdateUserRole(targetId, role);
+  }
+
+  return res.json({ success: true, role });
+});
+
+app.post('/api/admin/users', requireSuperAdmin, (req, res) => {
+  const { username, email, displayName, role = 'admin', password } = req.body;
+  if (!username || !email || !displayName) {
+    return res.status(400).json({ success: false, error: 'Username, email, and display name are required.' });
+  }
+
+  const cleanUsername = String(username).toLowerCase().trim();
+  const cleanEmail = String(email).toLowerCase().trim();
+
+  if (db.prepare('SELECT id FROM users WHERE username = ?').get(cleanUsername)) {
+    return res.status(409).json({ success: false, error: 'Username is already taken.' });
+  }
+  if (db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail)) {
+    return res.status(409).json({ success: false, error: 'Email address is already registered.' });
+  }
+
+  const tempPassword = password || crypto.randomBytes(6).toString('hex');
+  const passwordHash = hashPassword(tempPassword);
+  const id = `usr-${Date.now()}`;
+  const now = new Date().toISOString();
+  const assignedRole = role === 'superadmin' ? 'superadmin' : 'admin';
+  const statsJson = JSON.stringify(DEFAULT_USER_STATS);
+
+  db.prepare(
+    `INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    cleanUsername,
+    cleanEmail,
+    passwordHash,
+    assignedRole,
+    displayName.trim(),
+    statsJson,
+    now
+  );
+
+  syncUpsertUser({
+    id,
+    username: cleanUsername,
+    email: cleanEmail,
+    password_hash: passwordHash,
+    role: assignedRole,
+    display_name: displayName.trim(),
+    stats_json: statsJson,
+    created_at: now,
+  });
+
+  // Send invitation email with credentials via Resend
+  void sendStaffInviteEmail(cleanEmail, displayName.trim(), assignedRole as any, tempPassword).catch((err) => {
+    console.warn('[Staff Invite Email Failed]', err);
+  });
+
+  return res.json({
+    success: true,
+    user: {
+      id,
+      username: cleanUsername,
+      email: cleanEmail,
+      displayName: displayName.trim(),
+      role: assignedRole,
+      createdAt: now,
+    },
+    tempPassword,
+  });
+});
+
 // ==================== QUESTIONS & CATEGORIES APIs ====================
 app.get('/api/questions', (req, res) => {
   const session = getSessionUser(req);
-  const isAdmin = session?.role === 'admin';
+  const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
   const page = req.query.page ? parseInt(String(req.query.page), 10) : undefined;
   const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : undefined;
 
@@ -843,10 +1048,11 @@ app.post('/api/report-question', (req, res) => {
   };
   insertReport(report);
   const session = getSessionUser(req);
+  const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
   res.json({
     success: true,
     report,
-    reports: session?.role === 'admin' ? getAllReports() : undefined,
+    reports: isAdmin ? getAllReports() : undefined,
   });
 });
 

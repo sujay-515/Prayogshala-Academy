@@ -64,7 +64,7 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_USER);
       if (saved) {
         const u = JSON.parse(saved);
-        return u?.role === 'admin';
+        return u?.role === 'admin' || u?.role === 'superadmin';
       }
     } catch {}
     return false;
@@ -82,11 +82,14 @@ export default function App() {
   // Auth State
   const [authToken, setAuthToken] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY_TOKEN));
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [authUsername, setAuthUsername] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authDisplayName, setAuthDisplayName] = useState('');
+  const [authResetToken, setAuthResetToken] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authSuccessMsg, setAuthSuccessMsg] = useState('');
 
   // Primary Data Stores (hydrated from SQLite backend via /api/bootstrap with localStorage fallback)
   const [questions, setQuestions] = useState<MCQQuestion[]>(() => {
@@ -177,6 +180,17 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeTab]);
 
+  // Detect password reset token from email link on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('reset_token');
+    if (token) {
+      setAuthResetToken(token);
+      setAuthMode('reset');
+      setIsAuthModalOpen(true);
+    }
+  }, []);
+
   // Hydrate from SQLite Backend on mount
   useEffect(() => {
     const headers: Record<string, string> = {};
@@ -195,7 +209,7 @@ export default function App() {
             try {
               localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
             } catch {}
-            if (data.user.role === 'admin') setIsAdmin(true);
+            if (data.user.role === 'admin' || data.user.role === 'superadmin') setIsAdmin(true);
           } else if (authToken) {
             handleLogout();
           }
@@ -261,17 +275,62 @@ export default function App() {
     }).catch(() => {});
   };
 
-  // Handler: Student/User Login or Registration
+  // Handler: Student/User Login, Registration, Forgot Password, or Reset
   const handleUserAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
+    setAuthSuccessMsg('');
+
+    if (authMode === 'forgot') {
+      try {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: authEmail }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setAuthSuccessMsg(data.message || 'Password reset link sent to your email.');
+        } else {
+          setAuthError(data.error || 'Failed to dispatch password reset.');
+        }
+      } catch {
+        setAuthError('Unable to reach authentication server.');
+      }
+      return;
+    }
+
+    if (authMode === 'reset') {
+      try {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: authResetToken, newPassword: authPassword }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setAuthSuccessMsg('Password updated successfully! Please sign in with your new credentials.');
+          setAuthMode('login');
+          setAuthPassword('');
+          window.history.replaceState(null, '', window.location.pathname);
+        } else {
+          setAuthError(data.error || 'Password reset failed.');
+        }
+      } catch {
+        setAuthError('Unable to reach authentication server.');
+      }
+      return;
+    }
+
     const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          identifier: authUsername,
           username: authUsername,
+          email: authEmail || undefined,
           password: authPassword,
           displayName: authDisplayName,
         }),
@@ -285,7 +344,7 @@ export default function App() {
         setAuthToken(data.token);
         setCurrentUser(data.user);
         if (data.stats) setStats(data.stats);
-        if (data.user.role === 'admin') {
+        if (data.user.role === 'admin' || data.user.role === 'superadmin') {
           setIsAdmin(true);
           setIsViewingAsStudent(false);
           setActiveTab('admin');
@@ -637,8 +696,9 @@ export default function App() {
         onUpdateCategories={handleUpdateCategories}
         onImportBulkQuestions={handleImportBulkQuestions}
         onResolveReport={handleResolveReport}
-        isAdminAuthenticated={isAdmin || currentUser?.role === 'admin'}
+        isAdminAuthenticated={isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'}
         authToken={authToken}
+        currentUser={currentUser}
         onAdminAuthChange={(authenticated, token, user) => {
           setIsAdmin(authenticated);
           if (token) {
@@ -685,7 +745,7 @@ export default function App() {
         setSearchQuery={setSearchQuery}
         totalQuestionCount={questions.length}
         currentUser={currentUser}
-        isAdmin={isAdmin || currentUser?.role === 'admin'}
+        isAdmin={isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'}
         onReturnToAdmin={() => {
           setIsViewingAsStudent(false);
           setActiveTab('admin');
@@ -811,43 +871,57 @@ export default function App() {
                   <UserCheck className="w-4 h-4 text-cyan-700" />
                 </div>
                 <h3 className="font-semibold text-slate-900 text-sm">
-                  {authMode === 'login' ? 'Sign in to MedLab QBank' : 'Create student account'}
+                  {authMode === 'login'
+                    ? 'Sign In to MedLab QBank'
+                    : authMode === 'register'
+                    ? 'Create Candidate Account'
+                    : authMode === 'forgot'
+                    ? 'Recover Account Password'
+                    : 'Set New Password'}
                 </h3>
               </div>
               <button
-                onClick={() => setIsAuthModalOpen(false)}
+                onClick={() => {
+                  setIsAuthModalOpen(false);
+                  setAuthError('');
+                  setAuthSuccessMsg('');
+                }}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl text-xs border border-slate-200/60">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('login');
-                  setAuthError('');
-                }}
-                className={`flex-1 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
-                  authMode === 'login' ? 'bg-white text-cyan-950 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('register');
-                  setAuthError('');
-                }}
-                className={`flex-1 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
-                  authMode === 'register' ? 'bg-white text-cyan-950 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Register Account
-              </button>
-            </div>
+            {(authMode === 'login' || authMode === 'register') && (
+              <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl text-xs border border-slate-200/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('login');
+                    setAuthError('');
+                    setAuthSuccessMsg('');
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
+                    authMode === 'login' ? 'bg-white text-cyan-950 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode('register');
+                    setAuthError('');
+                    setAuthSuccessMsg('');
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
+                    authMode === 'register' ? 'bg-white text-cyan-950 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Register Account
+                </button>
+              </div>
+            )}
 
             {authMode === 'login' && (
               <p className="text-[11px] text-slate-500 text-center">
@@ -855,44 +929,110 @@ export default function App() {
               </p>
             )}
 
+            {authMode === 'forgot' && (
+              <p className="text-[11px] text-slate-600 leading-relaxed text-center">
+                Enter your registered email address and we'll dispatch a secure password reset link via Resend.
+              </p>
+            )}
+
+            {authSuccessMsg && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-medium">
+                {authSuccessMsg}
+              </div>
+            )}
+
             <form onSubmit={handleUserAuthSubmit} className="space-y-3 text-xs sm:text-sm">
               {authMode === 'register' && (
+                <>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Full Name / Display Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={authDisplayName}
+                      onChange={(e) => setAuthDisplayName(e.target.value)}
+                      placeholder="e.g. Dr. A. Sharma"
+                      className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      required
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      placeholder="e.g. candidate@university.edu"
+                      className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
+                    />
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      Used for progress synchronization, receipts, and password recovery.
+                    </span>
+                  </div>
+                </>
+              )}
+
+              {authMode === 'forgot' && (
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Full Name / Display Name</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Account Email Address</label>
                   <input
-                    type="text"
+                    type="email"
                     required
-                    value={authDisplayName}
-                    onChange={(e) => setAuthDisplayName(e.target.value)}
-                    placeholder="e.g. Dr. A. Sharma"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="Enter your registered email..."
                     className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                   />
                 </div>
               )}
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Username or Account ID</label>
-                <input
-                  type="text"
-                  required
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  placeholder={authMode === 'login' ? 'Enter username or administrator ID...' : 'Choose a unique username...'}
-                  className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
-                />
-              </div>
+              {(authMode === 'login' || authMode === 'register') && (
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    {authMode === 'login' ? 'Username or Email Address' : 'Unique Username'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={authUsername}
+                    onChange={(e) => setAuthUsername(e.target.value)}
+                    placeholder={authMode === 'login' ? 'Enter username or email address...' : 'Choose a unique username...'}
+                    className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
+                  />
+                </div>
+              )}
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  placeholder="Enter password..."
-                  className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
-                />
-              </div>
+              {(authMode === 'login' || authMode === 'register' || authMode === 'reset') && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-slate-700">
+                      {authMode === 'reset' ? 'New Password' : 'Password'}
+                    </label>
+                    {authMode === 'login' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthMode('forgot');
+                          setAuthError('');
+                          setAuthSuccessMsg('');
+                        }}
+                        className="text-[11px] text-cyan-700 hover:text-cyan-900 font-medium cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder={authMode === 'reset' ? 'Enter new password (min. 4 characters)...' : 'Enter password...'}
+                    className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
+                  />
+                </div>
+              )}
 
               {authError && <p className="text-rose-600 text-xs">{authError}</p>}
 
@@ -900,8 +1040,30 @@ export default function App() {
                 type="submit"
                 className="w-full py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 text-white font-medium rounded-lg transition-all cursor-pointer text-xs sm:text-sm shadow-xs"
               >
-                {authMode === 'login' ? 'Sign In & Continue' : 'Create Student Account'}
+                {authMode === 'login'
+                  ? 'Sign In & Continue'
+                  : authMode === 'register'
+                  ? 'Create Candidate Account'
+                  : authMode === 'forgot'
+                  ? 'Send Reset Link via Resend'
+                  : 'Save New Password & Continue'}
               </button>
+
+              {(authMode === 'forgot' || authMode === 'reset') && (
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setAuthError('');
+                      setAuthSuccessMsg('');
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-900 font-medium cursor-pointer"
+                  >
+                    ← Back to Sign In
+                  </button>
+                </div>
+              )}
             </form>
           </div>
         </div>

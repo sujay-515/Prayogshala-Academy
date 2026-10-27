@@ -77,11 +77,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5 truncate max-w-28 sm:max-w-none">
                   <User className="w-3.5 h-3.5 text-cyan-700 shrink-0" />
                   <span className="truncate">{currentUser.displayName}</span>
-                  {currentUser.role === 'admin' && (
+                  {currentUser.role === 'superadmin' ? (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-900 text-cyan-300 border border-cyan-400/30">
+                      Head Admin
+                    </span>
+                  ) : currentUser.role === 'admin' ? (
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-900 border border-cyan-200">
                       Staff
                     </span>
-                  )}
+                  ) : null}
                 </span>
                 {onLogout && (
                   <button

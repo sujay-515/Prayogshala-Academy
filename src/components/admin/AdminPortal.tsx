@@ -5,13 +5,14 @@ import {
   Eye,
   ArrowLeft,
 } from 'lucide-react';
-import { MCQQuestion, UnitCategory, QuestionStatus, QuestionReport } from '../../types';
+import { MCQQuestion, UnitCategory, QuestionStatus, QuestionReport, UserAccount } from '../../types';
 import { AdminDashboard } from './AdminDashboard';
 import { PdfImportWorkflow } from './PdfImportWorkflow';
 import { ManualQuestionManager } from './ManualQuestionManager';
 import { CategoryManager } from './CategoryManager';
 import { BulkImportExport } from './BulkImportExport';
 import { ReportsManager } from './ReportsManager';
+import { UserManager } from './UserManager';
 
 interface AdminPortalProps {
   questions: MCQQuestion[];
@@ -27,6 +28,7 @@ interface AdminPortalProps {
   onResolveReport: (reportId: string, status?: 'Pending' | 'Investigating' | 'Resolved') => void;
   isAdminAuthenticated?: boolean;
   authToken?: string | null;
+  currentUser?: UserAccount | null;
   onAdminAuthChange?: (authenticated: boolean, token?: string, user?: any) => void;
   onViewAsStudent?: () => void;
   onExitAdminLogin?: () => void;
@@ -46,6 +48,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onResolveReport,
   isAdminAuthenticated = false,
   authToken,
+  currentUser,
   onAdminAuthChange,
   onViewAsStudent,
   onExitAdminLogin,
@@ -61,18 +64,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   }, [isAdminAuthenticated]);
 
   const [activeSubtab, setActiveSubtab] = useState<
-    'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports'
+    'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports' | 'users'
   >(() => {
     try {
       const saved = localStorage.getItem('medlab_admin_subtab');
-      if (saved && ['dashboard', 'pdf', 'manual', 'categories', 'bulk', 'reports'].includes(saved)) {
+      if (saved && ['dashboard', 'pdf', 'manual', 'categories', 'bulk', 'reports', 'users'].includes(saved)) {
         return saved as any;
       }
     } catch {}
     return 'dashboard';
   });
 
-  const handleSubtabChange = (subtab: 'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports') => {
+  const handleSubtabChange = (subtab: 'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports' | 'users') => {
     setActiveSubtab(subtab);
     try {
       localStorage.setItem('medlab_admin_subtab', subtab);
@@ -105,10 +108,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username || 'admin', password }),
+        body: JSON.stringify({ identifier: username || 'admin', password }),
       });
       const data = await res.json();
-      if (res.ok && data.success && data.user?.role === 'admin') {
+      if (res.ok && data.success && (data.user?.role === 'admin' || data.user?.role === 'superadmin')) {
         setIsAuthenticated(true);
         setPasswordInput('');
         onAdminAuthChange?.(true, data.token, data.user);
@@ -150,13 +153,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
           <form onSubmit={handleLogin} className="space-y-3 pt-1">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Administrator ID</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Administrator ID or Email</label>
               <input
                 type="text"
                 required
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Username"
+                placeholder="Username or staff email..."
                 className="w-full bg-white/80 text-xs sm:text-sm text-slate-900 rounded-lg px-3 py-2 border border-slate-200/90 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs"
               />
             </div>
@@ -306,6 +309,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             >
               Student Reports {pendingReportsCount > 0 && `(${pendingReportsCount})`}
             </button>
+
+            <button
+              onClick={() => handleSubtabChange('users')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                activeSubtab === 'users'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              Staff & Users
+            </button>
           </div>
         </div>
       </header>
@@ -372,6 +386,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             setEditingQuestionFromReport(q);
             handleSubtabChange('manual');
           }}
+        />
+      )}
+
+      {activeSubtab === 'users' && (
+        <UserManager
+          currentUser={currentUser}
+          authToken={authToken}
         />
       )}
       </main>

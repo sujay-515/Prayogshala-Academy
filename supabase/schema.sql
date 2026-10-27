@@ -45,11 +45,20 @@ CREATE TABLE IF NOT EXISTS public.reports (
 CREATE TABLE IF NOT EXISTS public.users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL,
   display_name TEXT NOT NULL,
   stats_json JSONB NOT NULL,
   created_at TEXT NOT NULL
+);
+
+-- 4b. Password Reset Tokens (1-hour TTL)
+CREATE TABLE IF NOT EXISTS public.password_resets (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 5. Active Login Sessions (Auto-deleted on logout or after 7 days)

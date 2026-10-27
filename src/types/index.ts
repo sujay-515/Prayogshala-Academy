@@ -130,9 +130,11 @@ export interface UserStats {
 export interface UserAccount {
   id: string;
   username: string;
-  role: 'admin' | 'student';
+  email?: string;
+  role: 'superadmin' | 'admin' | 'student';
   displayName: string;
   token?: string;
+  createdAt?: string;
 }
 
 export interface QuestionReport {
