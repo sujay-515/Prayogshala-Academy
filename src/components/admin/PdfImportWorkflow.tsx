@@ -12,6 +12,7 @@ import {
   X,
   Plus,
   FolderOpen,
+  ChevronDown,
 } from 'lucide-react';
 import { ExtractedMCQDraft, MCQQuestion, MCQOption, UnitCategory, ExamCategory, DifficultyLevel } from '../../types';
 import {
@@ -67,7 +68,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
   const [bulkSubject, setBulkSubject] = useState<string>('');
   const [bulkTopic, setBulkTopic] = useState<string>('');
   const [bulkDifficulty, setBulkDifficulty] = useState<string>('');
-  const [bulkExam, setBulkExam] = useState<string>('');
+  const [bulkExams, setBulkExams] = useState<ExamCategory[]>([]);
+  const [isBulkExamDropdownOpen, setIsBulkExamDropdownOpen] = useState<boolean>(false);
+  const bulkExamDropdownRef = useRef<HTMLDivElement>(null);
 
   const [showFinalConfirmation, setShowFinalConfirmation] = useState<boolean>(false);
   const [showClearStagingModal, setShowClearStagingModal] = useState<boolean>(false);
@@ -121,6 +124,21 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
       // Ignore quota errors
     }
   }, [stagedQuestions]);
+
+  // Close exam categories dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bulkExamDropdownRef.current && !bulkExamDropdownRef.current.contains(event.target as Node)) {
+        setIsBulkExamDropdownOpen(false);
+      }
+    };
+    if (isBulkExamDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isBulkExamDropdownOpen]);
 
   const syncStagingToServer = (drafts: ExtractedMCQDraft[], filename = selectedFileName) => {
     if (drafts.length === 0) {
@@ -381,8 +399,10 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
         if (bulkSubject) updated.subject = bulkSubject;
         if (bulkTopic.trim()) updated.topic = bulkTopic.trim();
         if (bulkDifficulty) updated.difficulty = bulkDifficulty as DifficultyLevel;
-        if (bulkExam && !updated.examCategories.includes(bulkExam as ExamCategory)) {
-          updated.examCategories = [...updated.examCategories, bulkExam as ExamCategory];
+        if (bulkExams.length > 0) {
+          const currentExams = new Set(updated.examCategories);
+          bulkExams.forEach((ex) => currentExams.add(ex));
+          updated.examCategories = Array.from(currentExams);
         }
         updated.validationErrors = validateExtractedQuestion(updated);
         return updated;
@@ -797,23 +817,109 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                 <option value="Advanced">Advanced</option>
               </select>
 
-              <select
-                value={bulkExam}
-                onChange={(e) => setBulkExam(e.target.value)}
-                className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
-              >
-                <option value="">Add Exam Category...</option>
-                {ALL_EXAMS.map((ex) => (
-                  <option key={ex} value={ex}>
-                    {ex}
-                  </option>
-                ))}
-              </select>
+              <div className="relative" ref={bulkExamDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkExamDropdownOpen((prev) => !prev)}
+                  className={`bg-white border ${
+                    bulkExams.length > 0 ? 'border-slate-400 bg-slate-50/50' : 'border-slate-300'
+                  } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[155px]`}
+                >
+                  <span className="truncate max-w-[130px] text-left">
+                    {bulkExams.length === 0 ? (
+                      <span className="text-slate-600">Add Exam Category...</span>
+                    ) : (
+                      <span className="font-medium text-slate-900">
+                        {bulkExams.length === ALL_EXAMS.length
+                          ? 'All Exam Categories'
+                          : bulkExams.join(', ')}
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {bulkExams.length > 0 && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBulkExams([]);
+                        }}
+                        className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
+                        title="Clear selections"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-150 ${
+                        isBulkExamDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {isBulkExamDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
+                    <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
+                      <span className="font-semibold text-slate-700 text-[11px]">Select Categories</span>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setBulkExams([...ALL_EXAMS])}
+                          className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+                        >
+                          All
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setBulkExams([])}
+                          className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      {ALL_EXAMS.map((ex) => {
+                        const checked = bulkExams.includes(ex);
+                        return (
+                          <label
+                            key={ex}
+                            className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                              checked ? 'bg-slate-100 font-medium text-slate-900' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  if (checked) {
+                                    setBulkExams(bulkExams.filter((e) => e !== ex));
+                                  } else {
+                                    setBulkExams([...bulkExams, ex]);
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>{ex}</span>
+                            </div>
+                            {checked && <CheckCircle2 className="w-3.5 h-3.5 text-slate-800" />}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <button
                 disabled={
                   selectedCount === 0 ||
-                  (!bulkUnit && !bulkSubject && !bulkTopic.trim() && !bulkDifficulty && !bulkExam)
+                  (!bulkUnit && !bulkSubject && !bulkTopic.trim() && !bulkDifficulty && bulkExams.length === 0)
                 }
                 onClick={handleApplyBulkCategories}
                 className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded text-xs font-medium cursor-pointer"

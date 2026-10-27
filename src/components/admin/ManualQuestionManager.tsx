@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search,
   Plus,
@@ -10,6 +10,9 @@ import {
   CheckSquare,
   Square,
   Globe,
+  ChevronDown,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { MCQQuestion, UnitCategory, QuestionStatus, ExamCategory, DifficultyLevel } from '../../types';
 import { QuestionFormModal } from './QuestionFormModal';
@@ -26,6 +29,8 @@ interface ManualQuestionManagerProps {
   initialEditingQuestion?: MCQQuestion | null;
   onClearInitialEditingQuestion?: () => void;
 }
+
+const ALL_EXAMS: ExamCategory[] = ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'];
 
 export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   questions,
@@ -53,7 +58,9 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   const [bulkCategorySubject, setBulkCategorySubject] = useState<string>('');
   const [bulkCategoryTopic, setBulkCategoryTopic] = useState<string>('');
   const [bulkCategoryDifficulty, setBulkCategoryDifficulty] = useState<string>('');
-  const [bulkCategoryExam, setBulkCategoryExam] = useState<string>('');
+  const [bulkCategoryExams, setBulkCategoryExams] = useState<ExamCategory[]>([]);
+  const [isBulkExamDropdownOpen, setIsBulkExamDropdownOpen] = useState<boolean>(false);
+  const bulkExamDropdownRef = useRef<HTMLDivElement>(null);
 
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<MCQQuestion | null>(null);
@@ -83,6 +90,21 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       return changed ? next : prev;
     });
   }, [questions]);
+
+  // Close exam categories dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bulkExamDropdownRef.current && !bulkExamDropdownRef.current.contains(event.target as Node)) {
+        setIsBulkExamDropdownOpen(false);
+      }
+    };
+    if (isBulkExamDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isBulkExamDropdownOpen]);
 
   // Reset pagination when filters change
   useEffect(() => {
@@ -218,7 +240,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       !bulkCategorySubject &&
       !bulkCategoryTopic &&
       !bulkCategoryDifficulty &&
-      !bulkCategoryExam
+      bulkCategoryExams.length === 0
     )
       return;
 
@@ -234,8 +256,10 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
         }
 
         let nextExams = [...q.examCategories];
-        if (bulkCategoryExam && !nextExams.includes(bulkCategoryExam as ExamCategory)) {
-          nextExams.push(bulkCategoryExam as ExamCategory);
+        if (bulkCategoryExams.length > 0) {
+          const examSet = new Set(nextExams);
+          bulkCategoryExams.forEach((e) => examSet.add(e));
+          nextExams = Array.from(examSet);
         }
 
         return {
@@ -262,7 +286,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
     setBulkCategorySubject('');
     setBulkCategoryTopic('');
     setBulkCategoryDifficulty('');
-    setBulkCategoryExam('');
+    setBulkCategoryExams([]);
   };
 
   const bulkUnitObj = categories.find((c) => c.name === bulkCategoryUnit);
@@ -501,18 +525,104 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                 <option value="Advanced">Advanced</option>
               </select>
 
-              <select
-                value={bulkCategoryExam}
-                onChange={(e) => setBulkCategoryExam(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800"
-              >
-                <option value="">Tag Exam Board...</option>
-                <option value="ASCP">Tag ASCP</option>
-                <option value="NHPC">Tag NHPC</option>
-                <option value="PSC">Tag PSC</option>
-                <option value="DHA">Tag DHA</option>
-                <option value="AIMS">Tag AIMS</option>
-              </select>
+              <div className="relative" ref={bulkExamDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsBulkExamDropdownOpen((prev) => !prev)}
+                  className={`bg-slate-50 border ${
+                    bulkCategoryExams.length > 0 ? 'border-slate-400 bg-white' : 'border-slate-200'
+                  } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[140px]`}
+                >
+                  <span className="truncate max-w-[120px] text-left">
+                    {bulkCategoryExams.length === 0 ? (
+                      <span className="text-slate-600">Tag Exam Board...</span>
+                    ) : (
+                      <span className="font-medium text-slate-900">
+                        {bulkCategoryExams.length === ALL_EXAMS.length
+                          ? 'All Exam Boards'
+                          : bulkCategoryExams.join(', ')}
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {bulkCategoryExams.length > 0 && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBulkCategoryExams([]);
+                        }}
+                        className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
+                        title="Clear selections"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    )}
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-150 ${
+                        isBulkExamDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </div>
+                </button>
+
+                {isBulkExamDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
+                    <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
+                      <span className="font-semibold text-slate-700 text-[11px]">Select Exam Boards</span>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setBulkCategoryExams([...ALL_EXAMS])}
+                          className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+                        >
+                          All
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => setBulkCategoryExams([])}
+                          className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      {ALL_EXAMS.map((ex) => {
+                        const checked = bulkCategoryExams.includes(ex);
+                        return (
+                          <label
+                            key={ex}
+                            className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                              checked ? 'bg-slate-100 font-medium text-slate-900' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  if (checked) {
+                                    setBulkCategoryExams(bulkCategoryExams.filter((e) => e !== ex));
+                                  } else {
+                                    setBulkCategoryExams([...bulkCategoryExams, ex]);
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>Tag {ex}</span>
+                            </div>
+                            {checked && <CheckCircle2 className="w-3.5 h-3.5 text-slate-800" />}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <button
                 disabled={
@@ -520,7 +630,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                   !bulkCategorySubject &&
                   !bulkCategoryTopic &&
                   !bulkCategoryDifficulty &&
-                  !bulkCategoryExam
+                  bulkCategoryExams.length === 0
                 }
                 onClick={handleBulkCategorizeSelected}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded text-xs font-medium cursor-pointer"
