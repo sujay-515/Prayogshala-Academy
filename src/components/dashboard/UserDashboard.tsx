@@ -95,7 +95,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       </div>
 
       {/* Unified Metrics Bar */}
-      <div className="bg-white border border-slate-200 rounded-md divide-y sm:divide-y-0 sm:divide-x divide-slate-100 grid grid-cols-2 sm:grid-cols-4">
+      <div className="glass-panel rounded-2xl divide-y sm:divide-y-0 sm:divide-x divide-slate-200/60 grid grid-cols-2 sm:grid-cols-4 shadow-sm overflow-hidden">
         <div className="p-4 sm:p-5">
           <span className="text-xs text-slate-500 block">Total attempted</span>
           <span className="text-2xl font-bold text-slate-900 mt-1 block">{stats.totalAnswered}</span>
@@ -125,7 +125,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
       {/* Weak Areas Card */}
       {weakAreas.length > 0 && (
-        <div className="bg-amber-50/40 border border-amber-300/70 rounded-md p-5 space-y-3">
+        <div className="glass-card border border-amber-300/70 rounded-2xl p-5 space-y-3 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-900">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -142,7 +142,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               return (
                 <div
                   key={weak.subject}
-                  className="bg-white border border-amber-200 p-3 rounded flex items-center justify-between gap-3"
+                  className="bg-white/80 border border-amber-200/90 p-3 rounded-xl flex items-center justify-between gap-3 shadow-2xs"
                 >
                   <div className="space-y-0.5">
                     <span className="font-semibold text-slate-900 block">{weak.subject}</span>
@@ -156,7 +156,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                         matchingQuestions.length > 0 ? matchingQuestions : questions.filter((q) => q.status === 'Published')
                       )
                     }
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded font-medium text-xs shrink-0 cursor-pointer"
+                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium text-xs shrink-0 cursor-pointer shadow-xs"
                   >
                     Drill topic
                   </button>
@@ -170,7 +170,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       {/* Subject & Topic Performance Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Subject Performance */}
-        <div className="bg-white border border-slate-200 rounded-md p-5 space-y-4">
+        <div className="glass-panel rounded-2xl p-6 space-y-4 shadow-xs">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
             Subject-wise accuracy
           </h3>
@@ -205,7 +205,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
 
         {/* Topic Performance */}
-        <div className="bg-white border border-slate-200 rounded-md p-5 space-y-4">
+        <div className="glass-panel rounded-2xl p-6 space-y-4 shadow-xs">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
             Topic-wise accuracy
           </h3>
@@ -243,8 +243,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       {/* Revision Queue & Bookmarks */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Revision Bank */}
-        <div className="bg-white border border-slate-200 rounded-md p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100/80 pb-2.5">
             <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
               Missed question queue ({revisionQuestions.length})
             </h3>
@@ -267,7 +267,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               {revisionQuestions.map((q) => (
                 <div
                   key={q.id}
-                  className="bg-slate-50 p-2.5 rounded border border-slate-200 flex items-start justify-between gap-2"
+                  className="glass-card p-3 rounded-xl flex items-start justify-between gap-2 shadow-2xs"
                 >
                   <div>
                     <span className="font-semibold text-slate-800 block">{q.code} · {q.subject}</span>
@@ -287,8 +287,8 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </div>
 
         {/* Bookmarks */}
-        <div className="bg-white border border-slate-200 rounded-md p-5 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-3.5 shadow-xs">
+          <div className="flex items-center justify-between border-b border-slate-100/80 pb-2.5">
             <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
               Saved bookmarks ({bookmarkedQuestions.length})
             </h3>
@@ -311,7 +311,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               {bookmarkedQuestions.map((q) => (
                 <div
                   key={q.id}
-                  className="bg-slate-50 p-2.5 rounded border border-slate-200 flex items-start justify-between gap-2"
+                  className="glass-card p-3 rounded-xl flex items-start justify-between gap-2 shadow-2xs"
                 >
                   <div>
                     <span className="font-semibold text-slate-800 block">{q.code} · {q.subject}</span>
@@ -332,7 +332,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       </div>
 
       {/* Exam History Log */}
-      <div className="bg-white border border-slate-200 rounded-md p-5 space-y-3">
+      <div className="glass-panel rounded-2xl p-6 space-y-3.5 shadow-xs">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
           Examination history
         </h3>

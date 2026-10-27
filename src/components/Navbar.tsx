@@ -34,15 +34,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 w-full">
+    <header className="glass-nav sticky top-0 z-40 w-full transition-all">
+      {/* Brand accent stripe with specular refraction */}
+      <div className="h-0.5 bg-gradient-to-r from-cyan-600 via-cyan-400 to-teal-500 w-full shadow-xs" />
+
       {/* Top quiet metadata line */}
-      <div className="border-b border-slate-100 bg-slate-50/70 px-3 sm:px-4 py-1.5 text-xs text-slate-500">
+      <div className="border-b border-slate-200/50 bg-white/40 px-3 sm:px-4 py-1.5 text-xs text-slate-500 backdrop-blur-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="font-medium text-slate-700 hidden sm:inline">Clinical Laboratory Knowledge Base</span>
             <span className="font-medium text-slate-700 sm:hidden">MedLab QBank</span>
             <span className="text-slate-300">|</span>
-            <span className="text-slate-600 font-medium">
+            <span className="text-slate-600 font-medium inline-flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
               {totalQuestionCount.toLocaleString()} MCQs
             </span>
             <span className="hidden md:inline text-slate-300">|</span>
@@ -60,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-slate-800 flex items-center gap-1.5 truncate max-w-28 sm:max-w-none">
-                  <User className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                  <User className="w-3.5 h-3.5 text-cyan-700 shrink-0" />
                   <span className="truncate">{currentUser.displayName}</span>
                 </span>
                 {onLogout && (
@@ -96,14 +100,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-2.5 cursor-pointer shrink-0"
             onClick={() => setActiveTab('home')}
           >
-            <div className="w-8 h-8 rounded bg-slate-900 flex items-center justify-center text-cyan-400 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 border border-cyan-400/30 flex items-center justify-center text-cyan-400 shrink-0 shadow-xs ring-1 ring-white/20">
               <FlaskConical className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
               <span className="font-semibold text-sm sm:text-base tracking-tight text-slate-900 block leading-tight">
                 MedLab QBank
               </span>
-              <span className="text-xs text-slate-500 block">Clinical Pathology</span>
+              <span className="text-xs text-cyan-700 font-medium block">Clinical Pathology</span>
             </div>
           </div>
 
@@ -118,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 if (activeTab !== 'browse') setActiveTab('browse');
               }}
               placeholder="Search analytes, enzymes, cases..."
-              className="w-full bg-slate-50 text-xs sm:text-sm text-slate-900 placeholder-slate-400 rounded-md pl-9 pr-3 py-1.5 border border-slate-200 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 transition-colors"
+              className="w-full bg-white/60 backdrop-blur-xs text-xs sm:text-sm text-slate-900 placeholder-slate-400 rounded-lg pl-9 pr-3 py-1.5 border border-slate-200/90 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/15 shadow-2xs transition-all"
             />
           </div>
 
@@ -126,20 +130,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
-            className="md:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer shrink-0"
+            className="md:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-white/60 rounded-md transition-colors cursor-pointer shrink-0"
             aria-label="Toggle search input"
           >
             {isMobileSearchOpen ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
           </button>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-1 scrollbar-none shrink-0 max-w-[calc(100vw-120px)] sm:max-w-none">
+          <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-1 px-1 bg-slate-100/60 backdrop-blur-sm rounded-lg border border-slate-200/60 scrollbar-none shrink-0 max-w-[calc(100vw-120px)] sm:max-w-none">
             <button
               onClick={() => setActiveTab('browse')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded transition-colors cursor-pointer shrink-0 ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'browse'
-                  ? 'bg-cyan-50 text-cyan-950 font-semibold border border-cyan-200/80'
-                  : 'text-slate-600 hover:text-cyan-900 hover:bg-slate-50'
+                  ? 'bg-white/95 text-cyan-950 font-semibold border border-cyan-300/80 shadow-xs'
+                  : 'text-slate-600 hover:text-cyan-950 hover:bg-white/60'
               }`}
             >
               Browse
@@ -147,10 +151,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('practice')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded transition-colors cursor-pointer shrink-0 ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'practice'
-                  ? 'bg-cyan-50 text-cyan-950 font-semibold border border-cyan-200/80'
-                  : 'text-slate-600 hover:text-cyan-900 hover:bg-slate-50'
+                  ? 'bg-white/95 text-cyan-950 font-semibold border border-cyan-300/80 shadow-xs'
+                  : 'text-slate-600 hover:text-cyan-950 hover:bg-white/60'
               }`}
             >
               Practice
@@ -158,10 +162,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('exam')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded transition-colors cursor-pointer shrink-0 ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'exam'
-                  ? 'bg-cyan-50 text-cyan-950 font-semibold border border-cyan-200/80'
-                  : 'text-slate-600 hover:text-cyan-900 hover:bg-slate-50'
+                  ? 'bg-white/95 text-cyan-950 font-semibold border border-cyan-300/80 shadow-xs'
+                  : 'text-slate-600 hover:text-cyan-950 hover:bg-white/60'
               }`}
             >
               Mock Exam
@@ -169,10 +173,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded transition-colors cursor-pointer shrink-0 ${
+              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'dashboard'
-                  ? 'bg-cyan-50 text-cyan-950 font-semibold border border-cyan-200/80'
-                  : 'text-slate-600 hover:text-cyan-900 hover:bg-slate-50'
+                  ? 'bg-white/95 text-cyan-950 font-semibold border border-cyan-300/80 shadow-xs'
+                  : 'text-slate-600 hover:text-cyan-950 hover:bg-white/60'
               }`}
             >
               Analytics

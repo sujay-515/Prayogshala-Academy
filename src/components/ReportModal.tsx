@@ -33,16 +33,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60">
-      <div className="bg-white border border-slate-200 w-full max-w-lg rounded-md shadow-xl overflow-hidden max-h-[90dvh] flex flex-col">
-        <div className="bg-white px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md">
+      <div className="glass-panel w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col border border-white/80 animate-in fade-in zoom-in-95 duration-200">
+        <div className="glass-nav px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-200/80 flex items-center justify-between">
           <div className="flex items-center gap-2 text-slate-800">
             <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
-            <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Report question content</h3>
+            <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Report Question Content</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -58,7 +58,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 overflow-y-auto">
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-700">
+            <div className="glass-card p-3 rounded-lg border-l-2 border-l-rose-500 text-xs text-slate-700">
               <span className="font-semibold text-slate-900 block mb-1">
                 {question.code} · {question.subject}
               </span>
@@ -72,7 +72,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <select
                 value={reason}
                 onChange={(e) => setReason(e.target.value as any)}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+                className="w-full bg-white/85 backdrop-blur-xs border border-slate-200/90 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs cursor-pointer"
               >
                 <option value="Incorrect Answer">Incorrect Answer Key</option>
                 <option value="Ambiguous Wording">Ambiguous Question Wording</option>
@@ -92,23 +92,23 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder="Explain the discrepancy and provide the textbook or guideline citation if possible..."
-                className="w-full bg-white border border-slate-300 rounded-md p-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+                className="w-full bg-white/85 backdrop-blur-xs border border-slate-200/90 rounded-lg p-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200/60">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 rounded text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100/80 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-medium transition-colors cursor-pointer"
+                className="px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white rounded-lg text-xs font-medium transition-all shadow-xs cursor-pointer"
               >
-                Submit
+                Submit Report
               </button>
             </div>
           </form>

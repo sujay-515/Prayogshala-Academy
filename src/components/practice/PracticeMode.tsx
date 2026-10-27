@@ -158,8 +158,9 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   if (!isSessionActive || !currentQ) {
     return (
       <div className="max-w-3xl mx-auto py-6 space-y-6">
-        <div className="bg-white border border-slate-200 rounded-md p-6 space-y-2">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
+          <div className="glass-pill inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold text-cyan-800 uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
             Interactive Learning
           </div>
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
@@ -171,7 +172,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         </div>
 
         {/* Configuration Form */}
-        <div className="bg-white border border-slate-200 rounded-md p-6 space-y-5">
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -183,7 +184,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                   setSelectedUnit(e.target.value);
                   setSelectedSubject('All');
                 }}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-500"
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
               >
                 {units.map((u) => (
                   <option key={u} value={u}>
@@ -200,7 +201,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-500"
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
               >
                 {subjects.map((s) => (
                   <option key={s} value={s}>
@@ -217,7 +218,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               <select
                 value={selectedExam}
                 onChange={(e) => setSelectedExam(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-500"
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
               >
                 {exams.map((e) => (
                   <option key={e} value={e}>
@@ -234,7 +235,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               <select
                 value={selectedDifficulty}
                 onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-500"
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
               >
                 {difficulties.map((d) => (
                   <option key={d} value={d}>
@@ -301,7 +302,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-5">
       {/* Session Header */}
-      <div className="bg-white border border-slate-200 rounded p-3.5 flex items-center justify-between">
+      <div className="glass-panel rounded-xl p-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <button
             onClick={handleEndSession}
@@ -347,7 +348,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       </div>
 
       {/* Main Question Paper Card */}
-      <div className="bg-white border border-slate-200 rounded-md p-6 sm:p-7 space-y-5">
+      <div className="glass-panel rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
         <div className="text-xs text-slate-400 font-medium">
           {currentQ.code} · {currentQ.subject} · {currentQ.topic}
           {currentQ.subtopic ? ` · ${currentQ.subtopic}` : ''}
@@ -355,7 +356,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 
         {/* Clinical Vignette if applicable */}
         {currentQ.clinicalCase && (
-          <div className="bg-slate-50 border border-slate-200 p-3.5 rounded text-xs sm:text-sm text-slate-800 leading-relaxed">
+          <div className="glass-card border-l-4 border-l-cyan-600 p-4 rounded-xl text-xs sm:text-sm text-slate-800 leading-relaxed shadow-xs">
             <span className="font-semibold text-slate-900 block mb-1">Clinical Presentation:</span>
             {currentQ.clinicalCase}
           </div>
@@ -411,18 +412,18 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             const isSelected = selectedAnswers[currentQ.id] === option.id;
             const isCorrectAnswer = option.id === currentQ.correctAnswer;
 
-            let cardStyles = 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300';
+            let cardStyles = 'glass-card hover:bg-white hover:border-cyan-300 text-slate-800 hover:shadow-xs';
 
             if (isRevealed) {
               if (isCorrectAnswer) {
-                cardStyles = 'bg-emerald-50 border-emerald-400 text-emerald-950 font-medium';
+                cardStyles = 'bg-emerald-50/90 border-emerald-400 text-emerald-950 font-medium shadow-xs';
               } else if (isSelected && !isCorrectAnswer) {
-                cardStyles = 'bg-rose-50 border-rose-300 text-rose-950';
+                cardStyles = 'bg-rose-50/90 border-rose-300 text-rose-950 shadow-xs';
               } else {
-                cardStyles = 'bg-slate-50/50 border-slate-200 text-slate-400';
+                cardStyles = 'bg-slate-50/40 border-slate-200/60 text-slate-400 opacity-60';
               }
             } else if (isSelected) {
-              cardStyles = 'bg-cyan-50/70 border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-2xs';
+              cardStyles = 'bg-cyan-50/80 backdrop-blur-xs border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-xs';
             }
 
             return (
@@ -430,7 +431,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                 key={option.id}
                 disabled={isRevealed}
                 onClick={() => handleSelectOption(option.id)}
-                className={`w-full text-left p-3.5 rounded border transition-all flex items-start gap-3 cursor-pointer ${cardStyles}`}
+                className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${cardStyles}`}
               >
                 <span
                   className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 ${
@@ -499,7 +500,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       </div>
 
       {/* Navigation Footer */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="glass-panel rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap shadow-xs">
         <button
           disabled={currentIndex === 0}
           onClick={handlePrev}

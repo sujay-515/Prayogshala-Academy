@@ -67,9 +67,9 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60">
-      <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-md shadow-xl overflow-hidden flex flex-col max-h-[90dvh]">
-        <div className="bg-white px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
+      <div className="glass-panel w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-white/80">
+        <div className="glass-nav px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200/70 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Question of the day</h3>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 flex-wrap">
@@ -82,7 +82,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -92,16 +92,16 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
         {/* Content */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-5">
           {question.clinicalCase && (
-            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg text-xs text-slate-700 leading-relaxed">
+            <div className="glass-card p-3.5 rounded-lg text-xs text-slate-700 leading-relaxed border-l-2 border-l-cyan-600">
               <span className="font-semibold text-slate-900 block mb-1">Clinical Vignette</span>
               {question.clinicalCase}
             </div>
           )}
 
           {question.tableData && (
-            <div className="overflow-x-auto rounded border border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-                <thead className="bg-slate-50 text-slate-700">
+            <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-white/70 backdrop-blur-xs shadow-2xs">
+              <table className="min-w-full divide-y divide-slate-200/80 text-left text-xs">
+                <thead className="bg-slate-50/80 text-slate-700">
                   <tr>
                     {question.tableData.headers.map((h, idx) => (
                       <th key={idx} className="px-3.5 py-2 font-semibold">
@@ -110,7 +110,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 bg-white text-slate-800">
+                <tbody className="divide-y divide-slate-100 bg-white/60 text-slate-800">
                   {question.tableData.rows.map((row, rIdx) => (
                     <tr key={rIdx}>
                       {row.map((cell, cIdx) => (
@@ -126,11 +126,11 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
           )}
 
           {question.imageUrl && (
-            <div className="bg-slate-50 p-3 rounded border border-slate-200">
+            <div className="glass-card p-3 rounded-lg">
               <img
                 src={question.imageUrl}
                 alt={question.code ? `Specimen image or clinical chart for question ${question.code}` : "Clinical laboratory diagnostic specimen or chart"}
-                className="max-h-56 rounded object-contain mx-auto"
+                className="max-h-56 rounded object-contain mx-auto shadow-2xs"
               />
             </div>
           )}
@@ -145,17 +145,17 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
               const isSelected = selectedOption === opt.id;
               const isTheCorrectOne = opt.id === question.correctAnswer;
 
-              let btnStyles = 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300';
+              let btnStyles = 'bg-white/80 border-slate-200/90 text-slate-800 hover:bg-white hover:border-cyan-300 shadow-2xs';
               if (hasSubmitted) {
                 if (isTheCorrectOne) {
-                  btnStyles = 'bg-emerald-50 border-emerald-500 text-emerald-950 font-medium';
+                  btnStyles = 'bg-emerald-50/90 border-emerald-500 text-emerald-950 font-medium shadow-2xs';
                 } else if (isSelected && !isTheCorrectOne) {
-                  btnStyles = 'bg-rose-50 border-rose-300 text-rose-950';
+                  btnStyles = 'bg-rose-50/90 border-rose-300 text-rose-950 shadow-2xs';
                 } else {
-                  btnStyles = 'bg-slate-50 border-slate-200 text-slate-400 opacity-60';
+                  btnStyles = 'bg-slate-50/50 border-slate-200/50 text-slate-400 opacity-60';
                 }
               } else if (isSelected) {
-                btnStyles = 'bg-cyan-50/70 border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-2xs';
+                btnStyles = 'bg-cyan-50/90 border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-2xs';
               }
 
               return (
@@ -163,11 +163,11 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
                   key={opt.id}
                   disabled={hasSubmitted}
                   onClick={() => setSelectedOption(opt.id)}
-                  className={`w-full text-left p-3 rounded-lg border transition-all flex items-start gap-3 cursor-pointer ${btnStyles}`}
+                  className={`w-full text-left p-3 rounded-lg border backdrop-blur-xs transition-all flex items-start gap-3 cursor-pointer ${btnStyles}`}
                 >
                   <span
-                    className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 ${
-                      isSelected ? 'bg-cyan-700 text-white' : 'bg-slate-100 text-slate-700'
+                    className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 transition-colors ${
+                      isSelected ? 'bg-cyan-700 text-white shadow-xs' : 'bg-slate-100/80 text-slate-700'
                     }`}
                   >
                     {opt.id}
@@ -180,7 +180,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
 
           {/* Feedback & Explanation */}
           {hasSubmitted && (
-            <div className={`p-4 rounded-lg border text-sm ${isCorrect ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
+            <div className={`p-4 rounded-lg border backdrop-blur-xs text-sm ${isCorrect ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900 shadow-2xs' : 'bg-rose-50/90 border-rose-200 text-rose-900 shadow-2xs'}`}>
               <div className="flex items-center gap-2 font-semibold mb-2">
                 {isCorrect ? (
                   <>
@@ -200,7 +200,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
                   {question.explanation}
                 </div>
                 {question.reference && (
-                  <div className="text-xs text-slate-500 pt-2 border-t border-slate-200">
+                  <div className="text-xs text-slate-500 pt-2 border-t border-slate-200/80">
                     <span className="font-semibold text-slate-600">Reference: </span>
                     {question.reference}
                   </div>
@@ -211,7 +211,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50 px-4 sm:px-6 py-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="bg-slate-50/80 backdrop-blur-md px-4 sm:px-6 py-3 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 sm:gap-4">
             <button
               onClick={() => onBookmark(question.id)}
@@ -235,14 +235,14 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
               <button
                 disabled={!selectedOption}
                 onClick={handleSubmit}
-                className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-medium rounded transition-colors cursor-pointer"
+                className="px-4 py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-medium rounded-lg transition-all shadow-xs cursor-pointer"
               >
                 Submit
               </button>
             ) : (
               <button
                 onClick={handleReset}
-                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-medium rounded transition-colors cursor-pointer"
+                className="px-4 py-2 bg-white/90 border border-slate-200/90 hover:bg-white text-slate-700 text-xs sm:text-sm font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
               >
                 Try Again
               </button>

@@ -660,7 +660,14 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-cyan-100 selection:text-cyan-950">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-cyan-100 selection:text-cyan-950 relative overflow-x-hidden">
+      {/* Liquid glass ambient background meshes */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+        <div className="absolute -top-32 left-1/4 w-[550px] h-[550px] rounded-full bg-gradient-to-tr from-cyan-200/20 via-teal-100/15 to-transparent blur-3xl opacity-70" />
+        <div className="absolute top-1/3 -right-32 w-[600px] h-[600px] rounded-full bg-gradient-to-bl from-cyan-100/20 via-sky-100/15 to-transparent blur-3xl opacity-60" />
+        <div className="absolute -bottom-32 left-1/3 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-slate-200/30 via-cyan-100/20 to-transparent blur-3xl opacity-50" />
+      </div>
+
       {/* Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -675,7 +682,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10">
         {activeTab === 'home' && (
           <HomeView
             categories={categories}
@@ -782,32 +789,34 @@ export default function App() {
 
       {/* Student / User Account Sign In & Registration Modal */}
       {isAuthModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-sm rounded-md p-5 sm:p-6 shadow-xl space-y-4 max-h-[90dvh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md">
+          <div className="glass-panel w-full max-w-sm rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto border border-white/80 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
               <div className="flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-cyan-700" />
+                <div className="w-7 h-7 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
+                  <UserCheck className="w-4 h-4 text-cyan-700" />
+                </div>
                 <h3 className="font-semibold text-slate-900 text-sm">
                   {authMode === 'login' ? 'Sign in to MedLab QBank' : 'Create student account'}
                 </h3>
               </div>
               <button
                 onClick={() => setIsAuthModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded text-xs">
+            <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl text-xs border border-slate-200/60">
               <button
                 type="button"
                 onClick={() => {
                   setAuthMode('login');
                   setAuthError('');
                 }}
-                className={`flex-1 py-1.5 rounded font-medium cursor-pointer ${
-                  authMode === 'login' ? 'bg-white text-cyan-950 font-semibold shadow-xs' : 'text-slate-600'
+                className={`flex-1 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
+                  authMode === 'login' ? 'bg-white text-cyan-950 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Sign In
@@ -818,8 +827,8 @@ export default function App() {
                   setAuthMode('register');
                   setAuthError('');
                 }}
-                className={`flex-1 py-1.5 rounded font-medium cursor-pointer ${
-                  authMode === 'register' ? 'bg-white text-cyan-950 font-semibold shadow-xs' : 'text-slate-600'
+                className={`flex-1 py-1.5 rounded-lg font-medium cursor-pointer transition-all ${
+                  authMode === 'register' ? 'bg-white text-cyan-950 font-semibold shadow-2xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Register Account
@@ -836,7 +845,7 @@ export default function App() {
                     value={authDisplayName}
                     onChange={(e) => setAuthDisplayName(e.target.value)}
                     placeholder="e.g. Dr. A. Sharma"
-                    className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm"
+                    className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                   />
                 </div>
               )}
@@ -849,7 +858,7 @@ export default function App() {
                   value={authUsername}
                   onChange={(e) => setAuthUsername(e.target.value)}
                   placeholder="Enter student username..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm"
+                  className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                 />
               </div>
 
@@ -861,7 +870,7 @@ export default function App() {
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
                   placeholder="Enter password..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-md px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm"
+                  className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                 />
               </div>
 
@@ -869,7 +878,7 @@ export default function App() {
 
               <button
                 type="submit"
-                className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-md transition-colors cursor-pointer text-xs sm:text-sm shadow-xs"
+                className="w-full py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 text-white font-medium rounded-lg transition-all cursor-pointer text-xs sm:text-sm shadow-xs"
               >
                 {authMode === 'login' ? 'Sign In & Sync Progress' : 'Create Account'}
               </button>
@@ -879,7 +888,7 @@ export default function App() {
       )}
 
       {/* Academic Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-xs text-slate-500 mt-auto">
+      <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
             <span className="font-semibold text-slate-900">MedLab QBank Diagnostic Platform</span>

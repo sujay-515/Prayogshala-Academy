@@ -179,7 +179,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
       </div>
 
       {/* Filter Controls (Keywords, Unit, Subject, Topic, Exam, Difficulty) */}
-      <div className="bg-white border border-slate-200 rounded-md p-4 space-y-3">
+      <div className="glass-panel rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 text-xs">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">Keywords</label>
@@ -190,7 +190,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search stem, disease..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-md pl-8 pr-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20"
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md pl-8 pr-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs transition-all"
               />
             </div>
           </div>
@@ -204,7 +204,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 setSelectedSubject('All');
                 setSelectedTopic('All');
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-white/70 border border-slate-200/90 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
             >
               {unitsList.map((u) => (
                 <option key={u} value={u}>
@@ -222,7 +222,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 setSelectedSubject(e.target.value);
                 setSelectedTopic('All');
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-white/70 border border-slate-200/90 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
             >
               {subjectsList.map((s) => (
                 <option key={s} value={s}>
@@ -240,7 +240,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 setSelectedTopic(e.target.value);
                 setSelectedSubtopic('All');
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-white/70 border border-slate-200/90 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
             >
               {topicsList.map((t) => (
                 <option key={t} value={t}>
@@ -256,7 +256,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
               <select
                 value={selectedSubtopic}
                 onChange={(e) => setSelectedSubtopic(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500"
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
               >
                 {subtopicsList.map((st) => (
                   <option key={st} value={st}>
@@ -272,7 +272,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
             <select
               value={selectedExam}
               onChange={(e) => setSelectedExam(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-white/70 border border-slate-200/90 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
             >
               {examsList.map((e) => (
                 <option key={e} value={e}>
@@ -287,7 +287,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
             <select
               value={selectedDifficulty}
               onChange={(e) => setSelectedDifficulty(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500"
+              className="w-full bg-white/70 border border-slate-200/90 rounded-md px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
             >
               <option value="All">All Difficulties</option>
               <option value="Memory-based">Memory-based</option>
@@ -343,7 +343,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
             return (
               <div
                 key={q.id}
-                className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs hover:border-cyan-300/80 transition-all space-y-3"
+                className="glass-panel glass-panel-hover rounded-2xl p-5 sm:p-6 space-y-3.5"
               >
                 {/* Unboxed Metadata Line */}
                 <div className="flex items-center justify-between text-xs text-slate-500">
@@ -489,7 +489,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
 
       {/* Pagination Controls */}
       {filteredQuestions.length > pageSize && (
-        <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="glass-panel rounded-xl p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 text-slate-600">
             <span>
               Showing{' '}

@@ -134,10 +134,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm p-6 sm:p-7 bg-white border border-slate-200 rounded-md shadow-xl space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-            <Lock className="w-4 h-4 text-slate-700" />
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="w-full max-w-sm p-6 sm:p-7 glass-panel rounded-2xl shadow-2xl space-y-4 relative z-10 border border-white/80">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-200/80">
+            <div className="w-7 h-7 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
+              <Lock className="w-4 h-4 text-cyan-700" />
+            </div>
             <h2 className="text-sm font-semibold text-slate-900">Staff administration console</h2>
           </div>
 
@@ -154,7 +157,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
                 placeholder="Username"
-                className="w-full bg-slate-50 text-xs sm:text-sm text-slate-900 rounded px-3 py-2 border border-slate-300 focus:bg-white focus:outline-none focus:border-slate-800"
+                className="w-full bg-white/80 text-xs sm:text-sm text-slate-900 rounded-lg px-3 py-2 border border-slate-200/90 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs"
               />
             </div>
             <div>
@@ -165,7 +168,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="Enter administrator password..."
-                className="w-full bg-slate-50 text-xs sm:text-sm text-slate-900 rounded px-3 py-2 border border-slate-300 focus:bg-white focus:outline-none focus:border-slate-800"
+                className="w-full bg-white/80 text-xs sm:text-sm text-slate-900 rounded-lg px-3 py-2 border border-slate-200/90 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs"
               />
             </div>
             {authError && <p className="text-xs text-rose-600 text-center">{authError}</p>}
@@ -173,14 +176,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-medium text-xs sm:text-sm rounded transition-colors cursor-pointer"
+              className="w-full py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 disabled:opacity-50 text-white font-medium text-xs sm:text-sm rounded-lg transition-all cursor-pointer shadow-xs"
             >
               {isLoggingIn ? 'Authenticating...' : 'Sign in to admin console'}
             </button>
           </form>
 
           {onExitAdminLogin && (
-            <div className="pt-3 border-t border-slate-100 text-center">
+            <div className="pt-3 border-t border-slate-200/60 text-center">
               <button
                 onClick={onExitAdminLogin}
                 className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 cursor-pointer"
@@ -198,7 +201,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* Dedicated Standalone Admin Top Navbar */}
-      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 w-full">
+      <header className="bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800/80 sticky top-0 z-40 w-full">
 
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-14 py-2 sm:py-0 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -239,14 +242,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
 
         {/* Admin Sub-Navigation Bar */}
-        <div className="bg-slate-800/80 border-t border-slate-800 px-3 sm:px-6 lg:px-8">
+        <div className="bg-slate-950/60 backdrop-blur-md border-t border-slate-800/80 px-3 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto py-2 scrollbar-none">
             <button
               onClick={() => handleSubtabChange('dashboard')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'dashboard'
-                  ? 'bg-cyan-700 text-white font-semibold shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               Overview Dashboard
@@ -254,10 +257,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               onClick={() => handleSubtabChange('pdf')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'pdf'
-                  ? 'bg-cyan-700 text-white font-semibold shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               PDF Ingestion Pipeline
@@ -265,10 +268,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               onClick={() => handleSubtabChange('manual')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'manual'
-                  ? 'bg-cyan-700 text-white font-semibold shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               Question Bank ({questions.length})
@@ -276,10 +279,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               onClick={() => handleSubtabChange('categories')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'categories'
-                  ? 'bg-cyan-700 text-white font-semibold shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               Category Hierarchy
@@ -287,10 +290,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               onClick={() => handleSubtabChange('bulk')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'bulk'
-                  ? 'bg-cyan-700 text-white font-semibold shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               Bulk CSV/JSON & Backup
@@ -298,10 +301,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               onClick={() => handleSubtabChange('reports')}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'reports'
-                  ? 'bg-cyan-700 text-white font-semibold shadow-xs'
-                  : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
               Student Reports {pendingReportsCount > 0 && `(${pendingReportsCount})`}

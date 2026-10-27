@@ -37,10 +37,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <div className="space-y-12 pb-20">
       {/* Editorial Overview Section */}
-      <section className="bg-white border border-slate-200/90 rounded-md p-6 sm:p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <section className="glass-panel rounded-2xl p-6 sm:p-8 relative overflow-hidden">
+        {/* Soft liquid glass internal specular highlight */}
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-cyan-100/40 via-teal-50/20 to-transparent rounded-full -mr-16 -mt-16 pointer-events-none blur-2xl" />
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
           <div className="lg:col-span-8 space-y-4">
-            <div className="text-xs uppercase tracking-wider font-semibold text-slate-500">
+            <div className="glass-pill inline-flex items-center gap-2 px-3 py-1 rounded-full text-cyan-800 text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
               Clinical Pathology & Laboratory Medicine
             </div>
 
@@ -55,7 +59,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 pt-3">
               <button
                 onClick={() => onNavigateTab('practice')}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium rounded transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs hover:shadow-cyan-900/10 hover:-translate-y-0.5"
               >
                 <BookOpen className="w-4 h-4 text-cyan-400" />
                 <span>Begin Practice</span>
@@ -63,7 +67,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               <button
                 onClick={() => onNavigateTab('exam')}
-                className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs sm:text-sm font-medium rounded transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                className="glass-card hover:bg-white text-slate-800 px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer hover:-translate-y-0.5"
               >
                 <Timer className="w-4 h-4 text-slate-500" />
                 <span>Timed Examination</span>
@@ -71,14 +75,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               <button
                 onClick={onOpenDailyQuestion}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200/70 text-slate-800 border border-slate-200 text-xs sm:text-sm font-medium rounded transition-colors text-center cursor-pointer"
+                className="glass-pill hover:bg-white text-slate-800 px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all text-center cursor-pointer hover:-translate-y-0.5"
               >
                 Question of the Day
               </button>
             </div>
           </div>
 
-          <div className="lg:col-span-4 bg-slate-50 border border-slate-200/80 rounded p-4 text-xs space-y-3">
+          <div className="lg:col-span-4 glass-card rounded-xl p-4 text-xs space-y-3">
             <div className="font-semibold text-slate-900 text-xs uppercase tracking-wide border-b border-slate-200/80 pb-2">
               Repository Status
             </div>
@@ -118,7 +122,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <span className="text-xs text-slate-400">Select a syllabus to begin filtered practice</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {exams.map((exam) => {
             const count = questions.filter(
               (q) => q.status === 'Published' && q.examCategories.includes(exam.code)
@@ -128,7 +132,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div
                 key={exam.code}
                 onClick={() => onSelectExam(exam.code)}
-                className="bg-white border border-slate-200 rounded p-4 hover:border-slate-400 hover:bg-slate-50/50 transition-colors cursor-pointer flex flex-col justify-between space-y-3 group"
+                className="glass-panel glass-panel-hover rounded-xl p-4 cursor-pointer flex flex-col justify-between space-y-3 group"
               >
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
@@ -145,7 +149,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-slate-900 font-medium">
+                <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-xs text-slate-500 group-hover:text-slate-900 font-medium">
                   <span>Open syllabus</span>
                   <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                 </div>
@@ -163,7 +167,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </h2>
           <button
             onClick={() => onNavigateTab('browse')}
-            className="text-xs text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+            className="text-xs text-slate-600 hover:text-cyan-900 font-medium cursor-pointer"
           >
             View all questions →
           </button>
@@ -179,7 +183,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <div
                 key={cat.id}
                 onClick={() => onSelectUnit(cat.name)}
-                className="bg-white border border-slate-200 rounded p-4.5 hover:border-slate-400 transition-colors cursor-pointer flex flex-col justify-between group space-y-3"
+                className="glass-panel glass-panel-hover rounded-xl p-5 cursor-pointer flex flex-col justify-between group space-y-3"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-slate-400">
