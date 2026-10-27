@@ -225,8 +225,46 @@ function seedDatabaseIfNeeded() {
 
   // Ensure default seeded accounts have emails and roles assigned
   try {
-    db.prepare("UPDATE users SET email = 'admin@medlab.local', role = 'superadmin' WHERE username = 'admin' AND (email IS NULL OR role = 'admin')").run();
+    db.prepare("UPDATE users SET email = 'sodefo8714@playfine.com', role = 'superadmin' WHERE username = 'admin'").run();
     db.prepare("UPDATE users SET email = 'student@medlab.local' WHERE username = 'student' AND email IS NULL").run();
+
+    // Seed dedicated staff test account if not exists
+    const existingStaff = db.prepare("SELECT id FROM users WHERE username = 'staff' OR email = 'staff@medlab.test'").get();
+    if (!existingStaff) {
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'usr-staff',
+        'staff',
+        'staff@medlab.test',
+        hashPassword('staff123'),
+        'admin',
+        'Staff Pathologist',
+        JSON.stringify(DEFAULT_USER_STATS),
+        now
+      );
+    }
+
+    // Seed dedicated superadmin test account if not exists
+    const existingSuper = db.prepare("SELECT id FROM users WHERE username = 'superadmin' OR email = 'superadmin@medlab.test'").get();
+    if (!existingSuper) {
+      const now = new Date().toISOString();
+      db.prepare(`
+        INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'usr-superadmin',
+        'superadmin',
+        'superadmin@medlab.test',
+        hashPassword('admin123'),
+        'superadmin',
+        'Lead Administrator',
+        JSON.stringify(DEFAULT_USER_STATS),
+        now
+      );
+    }
   } catch {}
 }
 
