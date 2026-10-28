@@ -9,6 +9,10 @@ import { UserDashboard } from './components/dashboard/UserDashboard';
 import { AdminPortal } from './components/admin/AdminPortal';
 import { DailyQuestionModal } from './components/DailyQuestionModal';
 import { ReportModal } from './components/ReportModal';
+import { PrivacyPage } from './pages/PrivacyPage';
+import { TermsPage } from './pages/TermsPage';
+import { DisclaimerPage } from './pages/DisclaimerPage';
+import { ContactPage } from './pages/ContactPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import {
@@ -943,6 +947,10 @@ export default function App() {
               />
             }
           />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/disclaimer" element={<DisclaimerPage />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </ErrorBoundary>
@@ -1141,6 +1149,27 @@ export default function App() {
 
               {authError && <p className="text-rose-600 text-xs">{authError}</p>}
 
+              {authMode === 'register' && (
+                <p className="text-[11px] text-slate-500 text-center leading-normal">
+                  By creating an account you agree to the{' '}
+                  <Link
+                    to="/terms"
+                    className="text-cyan-700 hover:text-cyan-900 underline font-medium"
+                    onClick={() => setIsAuthModalOpen(false)}
+                  >
+                    Terms
+                  </Link>{' '}
+                  and{' '}
+                  <Link
+                    to="/privacy"
+                    className="text-cyan-700 hover:text-cyan-900 underline font-medium"
+                    onClick={() => setIsAuthModalOpen(false)}
+                  >
+                    Privacy Policy
+                  </Link>.
+                </p>
+              )}
+
               <button
                 type="submit"
                 className="w-full py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 text-white font-medium rounded-lg transition-all cursor-pointer text-xs sm:text-sm shadow-xs"
@@ -1175,16 +1204,19 @@ export default function App() {
       )}
 
       {/* Footer */}
-      <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10">
+      <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-            <span className="font-semibold text-slate-900">MedLab QBank</span>
+            <span className="font-semibold text-slate-900 dark:text-white">MedLab QBank</span>
             <span aria-hidden="true">·</span>
-            <span>Laboratory Medicine Question Bank</span>
+            <span>Laboratory Medicine Examination Platform</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-4 text-slate-500 text-center sm:text-right">
-            <span>ASCP · NHPC · PSC · DHA · AIMS</span>
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-slate-500 dark:text-slate-400">
+            <Link to="/privacy" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Terms of Service</Link>
+            <Link to="/disclaimer" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Disclaimer</Link>
+            <Link to="/contact" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Contact</Link>
           </div>
         </div>
       </footer>

@@ -1326,6 +1326,10 @@ export const KNOWN_CLIENT_ROUTES = [
   '/practice',
   '/exam',
   '/dashboard',
+  '/privacy',
+  '/terms',
+  '/disclaimer',
+  '/contact',
   '/admin', // includes /admin and anything under it (/admin/*)
 ];
 
