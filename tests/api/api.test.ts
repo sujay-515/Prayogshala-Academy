@@ -1,0 +1,366 @@
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn, ChildProcess } from 'node:child_process';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+
+let serverProcess: ChildProcess;
+let tempDir: string;
+const PORT = 4300 + Math.floor(Math.random() * 500);
+
+function request(
+  method: string,
+  reqPath: string,
+  options: {
+    headers?: Record<string, string>;
+    body?: any;
+    token?: string;
+  } = {}
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: any; rawBody: string }> {
+  return new Promise((resolve, reject) => {
+    let payload = '';
+    const headers: Record<string, string> = { ...(options.headers || {}) };
+
+    if (options.token) {
+      headers['Authorization'] = `Bearer ${options.token}`;
+    }
+
+    if (options.body !== undefined) {
+      if (typeof options.body === 'string') {
+        payload = options.body;
+      } else {
+        payload = JSON.stringify(options.body);
+        if (!headers['Content-Type']) {
+          headers['Content-Type'] = 'application/json';
+        }
+      }
+      headers['Content-Length'] = String(Buffer.byteLength(payload));
+    }
+
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: PORT,
+        path: reqPath,
+        method,
+        headers,
+      },
+      (res) => {
+        let rawBody = '';
+        res.on('data', (chunk) => {
+          rawBody += chunk;
+        });
+        res.on('end', () => {
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(rawBody);
+          } catch {
+            parsed = rawBody;
+          }
+          resolve({
+            status: res.statusCode || 0,
+            headers: res.headers,
+            body: parsed,
+            rawBody,
+          });
+        });
+      }
+    );
+
+    req.on('error', reject);
+    if (payload) {
+      req.write(payload);
+    }
+    req.end();
+  });
+}
+
+describe('MedLab QBank API Hardening Test Suite', () => {
+  before(async () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-api-test-'));
+
+    serverProcess = spawn('npx', ['tsx', 'server.ts'], {
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(PORT),
+        DATA_DIR: tempDir,
+        SUPABASE_URL: '',
+        SUPABASE_SERVICE_ROLE_KEY: '',
+        SUPABASE_ANON_KEY: '',
+        INITIAL_ADMIN_EMAIL: 'bootstrap_superadmin@example.com',
+        INITIAL_ADMIN_PASSWORD: 'BootstrapPassword123!',
+        RATE_LIMIT_REGISTER_MAX: '50',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    // Wait for server ready
+    let ready = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      try {
+        const res = await request('GET', '/api/health');
+        if (res.status === 200) {
+          ready = true;
+          break;
+        }
+      } catch {
+        // waiting
+      }
+    }
+    if (!ready) {
+      throw new Error(`Server failed to boot on port ${PORT}`);
+    }
+  });
+
+  after(async () => {
+    if (serverProcess) {
+      const exitPromise = new Promise((resolve) => {
+        serverProcess.on('exit', resolve);
+      });
+      serverProcess.kill('SIGTERM');
+      await exitPromise;
+    }
+    if (tempDir && fs.existsSync(tempDir)) {
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      } catch {
+        // cleanup ignore
+      }
+    }
+  });
+
+  it('GET /api/health returns 200 and database status', async () => {
+    const res = await request('GET', '/api/health');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.status, 'ok');
+    assert.equal(res.body.database, 'sqlite');
+  });
+
+  it('Rejects 2MB body to /api/auth/login with 413 Payload Too Large', async () => {
+    const largePayload = JSON.stringify({
+      identifier: 'test@example.com',
+      junk: 'X'.repeat(2 * 1024 * 1024),
+    });
+    const res = await request('POST', '/api/auth/login', {
+      body: largePayload,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    assert.equal(res.status, 413);
+    assert.equal(res.body.success, false);
+    assert.equal(res.body.error, 'Payload too large');
+  });
+
+  it('Rejects unauthenticated 5MB body to /api/extract-pdf with 401 without buffering large body', async () => {
+    const largePayload = JSON.stringify({
+      pdfBase64: 'Y'.repeat(5 * 1024 * 1024),
+    });
+    const res = await request('POST', '/api/extract-pdf', {
+      body: largePayload,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    assert.equal(res.status, 401);
+    assert.equal(res.body.success, false);
+    assert.equal(res.body.error, 'Authentication required.');
+  });
+
+  it('Returns JSON 404 for unknown /api/* routes', async () => {
+    const res = await request('GET', '/api/some/unknown/route');
+    assert.equal(res.status, 404);
+    assert.equal(res.body.success, false);
+    assert.match(res.body.error, /not found/i);
+  });
+
+  it('Returns JSON 400 for malformed JSON payload', async () => {
+    const badJson = '{"key": "incomplete", ';
+    const res = await request('POST', '/api/auth/login', {
+      body: badJson,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    assert.equal(res.status, 400);
+    assert.equal(res.body.success, false);
+    assert.equal(res.body.error, 'Malformed JSON payload');
+  });
+
+  it('Forced 500 error returns JSON { success: false, error: "Internal server error" } with no stack or file path leaks', async () => {
+    const res = await request('GET', '/api/__test__/force-error');
+    assert.equal(res.status, 500);
+    assert.equal(res.body.success, false);
+    assert.equal(res.body.error, 'Internal server error');
+    assert.equal(res.body.stack, undefined);
+    assert.ok(!res.rawBody.includes('Error: Test forced'));
+    assert.ok(!res.rawBody.includes('/server.ts'));
+  });
+
+  it('Registration always creates role: student and enforces password policy (8-128 chars)', async () => {
+    // Too short password (<8)
+    const shortRes = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'shortpassuser',
+        email: 'shortpass@example.com',
+        password: 'short',
+      },
+    });
+    assert.equal(shortRes.status, 400);
+
+    // Valid student registration
+    const regRes = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'teststudent1',
+        email: 'student1@example.com',
+        password: 'ValidPassword123!',
+        displayName: 'Test Student',
+      },
+    });
+    assert.equal(regRes.status, 200);
+    assert.equal(regRes.body.user.role, 'student');
+    assert.equal(regRes.body.user.username, 'teststudent1');
+  });
+
+  it('Admin routes return 401 for anonymous and 403 for student', async () => {
+    // 1. Anonymous request to /api/backup/export
+    const anonRes = await request('GET', '/api/backup/export');
+    assert.equal(anonRes.status, 401);
+
+    // 2. Student login to obtain student token
+    const studentLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'ValidPassword123!',
+      },
+    });
+    assert.equal(studentLogin.status, 200);
+    const studentToken = studentLogin.body.token;
+    assert.ok(studentToken);
+
+    // 3. Student request to /api/backup/export
+    const studentExportRes = await request('GET', '/api/backup/export', {
+      token: studentToken,
+    });
+    assert.equal(studentExportRes.status, 403);
+    assert.equal(studentExportRes.body.error, 'Administrator privileges required.');
+
+    // 4. Student request to POST /api/extract-pdf
+    const studentExtractRes = await request('POST', '/api/extract-pdf', {
+      token: studentToken,
+      body: { pdfBase64: 'test' },
+    });
+    assert.equal(studentExtractRes.status, 403);
+  });
+
+  it('Superadmin login, question creation and GET /api/questions/:id access control for unpublished questions', async () => {
+    // Login as bootstrapped superadmin
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    assert.equal(adminLogin.status, 200);
+    const superAdminToken = adminLogin.body.token;
+    assert.equal(adminLogin.body.user.role, 'superadmin');
+
+    // Create an unpublished Draft question
+    const createRes = await request('POST', '/api/questions', {
+      token: superAdminToken,
+      body: {
+        id: 'q-test-draft-1',
+        code: 'LAB-TEST-DRAFT',
+        unit: 'Hematology',
+        subject: 'General Hematology',
+        topic: 'Red Cells',
+        difficulty: 'Medium',
+        status: 'Draft',
+        questionText: 'Test draft question text?',
+        options: ['A', 'B', 'C', 'D'],
+        correctAnswer: 'A',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    assert.equal(createRes.status, 200);
+    const questionId = createRes.body.question.id;
+    assert.ok(questionId);
+
+    // Student login
+    const studentLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'ValidPassword123!',
+      },
+    });
+    const studentToken = studentLogin.body.token;
+
+    // Student should NOT be allowed to view Draft question (403 Forbidden)
+    const studentViewRes = await request('GET', `/api/questions/${questionId}`, {
+      token: studentToken,
+    });
+    assert.equal(studentViewRes.status, 403);
+
+    // Superadmin CAN view Draft question (200 OK)
+    const superAdminViewRes = await request('GET', `/api/questions/${questionId}`, {
+      token: superAdminToken,
+    });
+    assert.equal(superAdminViewRes.status, 200);
+    assert.equal(superAdminViewRes.body.question.id, questionId);
+  });
+
+  it('Change password verifies current password, updates hash, and invalidates other sessions', async () => {
+    // Login 1
+    const l1 = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'ValidPassword123!',
+      },
+    });
+    const token1 = l1.body.token;
+
+    // Login 2
+    const l2 = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'ValidPassword123!',
+      },
+    });
+    const token2 = l2.body.token;
+
+    // Change password using token 2
+    const changeRes = await request('POST', '/api/auth/change-password', {
+      token: token2,
+      body: {
+        currentPassword: 'ValidPassword123!',
+        newPassword: 'BrandNewPassword456!',
+      },
+    });
+    assert.equal(changeRes.status, 200);
+
+    // token 1 must now be invalidated (401)
+    const t1Check = await request('GET', '/api/auth/me', { token: token1 });
+    assert.equal(t1Check.status, 401);
+
+    // token 2 must still be active (200)
+    const t2Check = await request('GET', '/api/auth/me', { token: token2 });
+    assert.equal(t2Check.status, 200);
+
+    // Old password fails (401)
+    const oldLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'ValidPassword123!',
+      },
+    });
+    assert.equal(oldLogin.status, 401);
+
+    // New password succeeds (200)
+    const newLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'BrandNewPassword456!',
+      },
+    });
+    assert.equal(newLogin.status, 200);
+  });
+});

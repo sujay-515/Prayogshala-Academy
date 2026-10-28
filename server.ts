@@ -240,6 +240,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Test-only hook for verifying masked error responses without leaking internals (active only when NODE_ENV === 'test')
+if (process.env.NODE_ENV === 'test') {
+  app.get('/api/__test__/force-error', (_req, _res) => {
+    throw new Error('Test forced internal server error');
+  });
+}
+
 // Bootstrap endpoint for initial load (scopes unpublished drafts & admin reports to admin role)
 app.get('/api/bootstrap', (req, res) => {
   const session = getSessionUser(req);
