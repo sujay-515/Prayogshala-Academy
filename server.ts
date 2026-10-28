@@ -97,19 +97,7 @@ if (process.env.NODE_ENV !== 'development') {
   );
 }
 
-// 2. Route-specific body parsers (ORDER MATTERS: registered BEFORE the global 100kb parser)
-app.post('/api/extract-pdf', express.json({ limit: '50mb' }));
-app.post('/api/backup/restore', express.json({ limit: '25mb' }));
-app.post('/api/staging', express.json({ limit: '25mb' }));
-app.post('/api/questions/bulk-import', express.json({ limit: '10mb' }));
-app.post('/api/questions/bulk-upsert', express.json({ limit: '10mb' }));
-app.post('/api/questions', express.json({ limit: '5mb' }));
-
-// 3. Global body parsers for all standard endpoints (strictly capped at 100kb)
-app.use(express.json({ limit: '100kb' }));
-app.use(express.urlencoded({ extended: true, limit: '100kb' }));
-
-// 4. Rate Limiting Middleware (using express-rate-limit)
+// 2. Rate Limiting Middleware (using express-rate-limit)
 const createLimiter = (windowMs: number, max: number, message: string, skipSuccessful = false) =>
   rateLimit({
     windowMs,
@@ -130,9 +118,11 @@ const loginLimiter = createLimiter(
   true
 );
 
+const rawRegisterMax = process.env.RATE_LIMIT_REGISTER_MAX;
+const registerMax = rawRegisterMax ? parseInt(rawRegisterMax, 10) : 20;
 const registerLimiter = createLimiter(
   60 * 60 * 1000,
-  5,
+  isNaN(registerMax) ? 20 : registerMax,
   'Too many accounts created from this IP. Please try again later.'
 );
 
@@ -219,6 +209,21 @@ function requireSuperAdmin(req: express.Request, res: express.Response, next: ex
   }
   return next();
 }
+
+// 3. Route-specific body parsers with early auth/role checks (ORDER MATTERS: registered BEFORE the global 100kb parser)
+// Unauthenticated or unauthorized callers are rejected immediately before large bodies can be buffered.
+app.post('/api/extract-pdf', requireAdmin, express.json({ limit: '50mb' }));
+app.post('/api/backup/restore', requireAdmin, express.json({ limit: '25mb' }));
+app.post('/api/staging', requireAdmin, express.json({ limit: '25mb' }));
+app.post('/api/questions/bulk-import', requireAdmin, express.json({ limit: '10mb' }));
+app.post('/api/questions/bulk-upsert', requireAdmin, express.json({ limit: '10mb' }));
+app.post('/api/questions', requireAdmin, express.json({ limit: '5mb' }));
+app.put('/api/questions', requireAdmin, express.json({ limit: '5mb' }));
+
+// 4. Global body parsers for all standard endpoints (strictly capped at 100kb)
+// Unauthenticated callers and standard routes retain the 100kb global limit.
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Health check (also triggers a background Supabase keep-alive ping to prevent 7-day free-tier pause)
 app.get('/api/health', (req, res) => {
