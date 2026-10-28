@@ -15,6 +15,9 @@ export default defineConfig(() => {
       allowedHosts: true as const,
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      fs: {
+        deny: ['**/data/**', '**/*.sqlite*', '**/test_mcqs/**', '**/.env*'],
+      },
     },
   };
 });

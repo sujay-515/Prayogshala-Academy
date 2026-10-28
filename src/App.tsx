@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/home/HomeView';
 import { BrowseQuestionBank } from './components/browse/BrowseQuestionBank';
@@ -40,16 +41,31 @@ try {
 }
 
 export default function App() {
-  // Navigation & Role - Admin mode is isolated to direct URL path (/admin)
-  const [activeTab, setActiveTab] = useState<'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin'>(() => {
-    const path = window.location.pathname.toLowerCase();
-    const hash = window.location.hash.toLowerCase();
-    const search = window.location.search.toLowerCase();
-    if (path.startsWith('/admin') || hash === '#admin' || search.includes('admin=1')) {
-      return 'admin';
-    }
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Navigation & Role - Derived from URL route
+  const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin' => {
+    const path = location.pathname.toLowerCase();
+    if (path.startsWith('/admin')) return 'admin';
+    if (path.startsWith('/browse')) return 'browse';
+    if (path.startsWith('/practice')) return 'practice';
+    if (path.startsWith('/exam')) return 'exam';
+    if (path.startsWith('/dashboard')) return 'dashboard';
     return 'home';
-  });
+  };
+  const activeTab = getActiveTab();
+
+  const setActiveTab = (tab: 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin') => {
+    if (tab === 'home') navigate('/');
+    else if (tab === 'admin') {
+      setIsViewingAsStudent(false);
+      navigate('/admin');
+    } else {
+      navigate(`/${tab}`);
+    }
+  };
 
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     try {
@@ -151,45 +167,26 @@ export default function App() {
   const [isDailyQuestionOpen, setIsDailyQuestionOpen] = useState(false);
   const [reportingQuestion, setReportingQuestion] = useState<MCQQuestion | null>(null);
 
-  // Synchronize browser URL address bar with activeTab state (/admin for admin portal, / for students)
-  useEffect(() => {
-    if (activeTab === 'admin' && !isViewingAsStudent) {
-      if (window.location.pathname !== '/admin') {
-        window.history.pushState(null, '', '/admin' + (window.location.hash || ''));
-      }
-    } else {
-      if (window.location.pathname === '/admin') {
-        window.history.pushState(null, '', '/');
-      }
-    }
-  }, [activeTab, isViewingAsStudent]);
+  // URL query parameters synchronization (e.g. ?unit=Hematology&exam=ASCP&q=anemia)
+  const queryUnit = searchParams.get('unit') || undefined;
+  const queryExam = (searchParams.get('exam') as ExamCategory) || undefined;
+  const querySearch = searchParams.get('q');
 
-  // Support direct URL address bar navigation and browser back/forward buttons
   useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      if (path.startsWith('/admin') || hash === '#admin') {
-        setIsViewingAsStudent(false);
-        setActiveTab('admin');
-      } else if (activeTab === 'admin') {
-        setActiveTab('home');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [activeTab]);
+    if (querySearch !== null && querySearch !== searchQuery) {
+      setSearchQuery(querySearch);
+    }
+  }, [querySearch]);
 
   // Detect password reset token from email link on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('reset_token');
+    const token = searchParams.get('reset_token');
     if (token) {
       setAuthResetToken(token);
       setAuthMode('reset');
       setIsAuthModalOpen(true);
     }
-  }, []);
+  }, [searchParams]);
 
   // Hydrate from SQLite Backend on mount
   useEffect(() => {
@@ -312,7 +309,7 @@ export default function App() {
           setAuthSuccessMsg('Password updated successfully! Please sign in with your new credentials.');
           setAuthMode('login');
           setAuthPassword('');
-          window.history.replaceState(null, '', window.location.pathname);
+          navigate(location.pathname, { replace: true });
         } else {
           setAuthError(data.error || 'Password reset failed.');
         }
@@ -716,12 +713,10 @@ export default function App() {
         }}
         onViewAsStudent={() => {
           setIsViewingAsStudent(true);
-          window.history.replaceState(null, '', '/');
-          setActiveTab('home');
+          navigate('/');
         }}
         onExitAdminLogin={() => {
-          window.history.replaceState(null, '', '/');
-          setActiveTab('home');
+          navigate('/');
         }}
       />
     );
@@ -748,99 +743,117 @@ export default function App() {
         isAdmin={isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'}
         onReturnToAdmin={() => {
           setIsViewingAsStudent(false);
-          setActiveTab('admin');
-          window.history.pushState(null, '', '/admin');
+          navigate('/admin');
         }}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content Area with React Router */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10">
-        {activeTab === 'home' && (
-          <HomeView
-            categories={categories}
-            questions={questions}
-            onNavigateTab={setActiveTab}
-            onOpenDailyQuestion={() => setIsDailyQuestionOpen(true)}
-            onSelectUnit={(unitName) => {
-              setSelectedBrowseUnit(unitName);
-              setActiveTab('browse');
-            }}
-            onSelectExam={(exam) => {
-              setSelectedExamCategory(exam);
-              setActiveTab('exam');
-            }}
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <HomeView
+                categories={categories}
+                questions={questions}
+                onNavigateTab={setActiveTab}
+                onOpenDailyQuestion={() => setIsDailyQuestionOpen(true)}
+                onSelectUnit={(unitName) => {
+                  setSelectedBrowseUnit(unitName);
+                  navigate(`/browse?unit=${encodeURIComponent(unitName)}`);
+                }}
+                onSelectExam={(exam) => {
+                  setSelectedExamCategory(exam);
+                  navigate(`/exam?exam=${encodeURIComponent(exam)}`);
+                }}
+              />
+            }
           />
-        )}
-
-        {activeTab === 'browse' && (
-          <BrowseQuestionBank
-            questions={questions}
-            bookmarkedIds={stats.bookmarkedIds}
-            onToggleBookmark={handleToggleBookmark}
-            onReportQuestion={(q) => setReportingQuestion(q)}
-            onStartPracticeWithFilter={(unit, exam, customQuestions) => {
-              setSelectedPracticeUnit(unit);
-              setSelectedPracticeExam(exam);
-              if (customQuestions && customQuestions.length > 0) {
-                setCustomPracticeSubset(customQuestions);
-              }
-              setActiveTab('practice');
-            }}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            initialUnit={selectedBrowseUnit}
+          <Route path="/home" element={<Navigate to="/" replace />} />
+          <Route
+            path="/browse"
+            element={
+              <BrowseQuestionBank
+                questions={questions}
+                bookmarkedIds={stats.bookmarkedIds}
+                onToggleBookmark={handleToggleBookmark}
+                onReportQuestion={(q) => setReportingQuestion(q)}
+                onStartPracticeWithFilter={(unit, exam, customQuestions) => {
+                  setSelectedPracticeUnit(unit);
+                  setSelectedPracticeExam(exam);
+                  if (customQuestions && customQuestions.length > 0) {
+                    setCustomPracticeSubset(customQuestions);
+                  }
+                  const params = new URLSearchParams();
+                  if (unit && unit !== 'All') params.set('unit', unit);
+                  if (exam) params.set('exam', exam);
+                  const qs = params.toString();
+                  navigate(qs ? `/practice?${qs}` : '/practice');
+                }}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                initialUnit={queryUnit || selectedBrowseUnit}
+              />
+            }
           />
-        )}
-
-        {activeTab === 'practice' && (
-          <PracticeMode
-            questions={questions}
-            bookmarkedIds={stats.bookmarkedIds}
-            onToggleBookmark={handleToggleBookmark}
-            onReportQuestion={(q) => setReportingQuestion(q)}
-            onRecordAnswer={handleRecordAnswer}
-            customSubset={customPracticeSubset}
-            onClearCustomSubset={() => setCustomPracticeSubset(null)}
-            initialUnit={selectedPracticeUnit}
-            initialExam={selectedPracticeExam}
+          <Route
+            path="/practice"
+            element={
+              <PracticeMode
+                questions={questions}
+                bookmarkedIds={stats.bookmarkedIds}
+                onToggleBookmark={handleToggleBookmark}
+                onReportQuestion={(q) => setReportingQuestion(q)}
+                onRecordAnswer={handleRecordAnswer}
+                customSubset={customPracticeSubset}
+                onClearCustomSubset={() => setCustomPracticeSubset(null)}
+                initialUnit={queryUnit || selectedPracticeUnit}
+                initialExam={queryExam || selectedPracticeExam}
+              />
+            }
           />
-        )}
-
-        {activeTab === 'exam' && (
-          <ExamMode
-            questions={questions}
-            onCompleteExam={handleCompleteExam}
-            onBookmarkQuestion={handleToggleBookmark}
-            bookmarkedIds={stats.bookmarkedIds}
-            initialExamCategory={selectedExamCategory}
+          <Route
+            path="/exam"
+            element={
+              <ExamMode
+                questions={questions}
+                onCompleteExam={handleCompleteExam}
+                onBookmarkQuestion={handleToggleBookmark}
+                bookmarkedIds={stats.bookmarkedIds}
+                initialExamCategory={queryExam || selectedExamCategory}
+              />
+            }
           />
-        )}
-
-        {activeTab === 'dashboard' && (
-          <UserDashboard
-            stats={stats}
-            questions={questions}
-            onStartPracticeWithQuestions={(customSubset) => {
-              setCustomPracticeSubset(customSubset);
-              setActiveTab('practice');
-            }}
-            onRemoveBookmark={handleToggleBookmark}
-            onClearRevisionItem={(id) => {
-              setStats((prev) => {
-                const next = {
-                  ...prev,
-                  revisionQueueIds: prev.revisionQueueIds.filter((rId) => rId !== id),
-                };
-                persistStatsToServer(next);
-                return next;
-              });
-            }}
-            currentUser={currentUser}
-            onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          <Route
+            path="/dashboard"
+            element={
+              <UserDashboard
+                stats={stats}
+                questions={questions}
+                onStartPracticeWithQuestions={(customSubset) => {
+                  setCustomPracticeSubset(customSubset);
+                  navigate('/practice');
+                }}
+                onRemoveBookmark={handleToggleBookmark}
+                onClearRevisionItem={(id) => {
+                  setStats((prev) => {
+                    const next = {
+                      ...prev,
+                      revisionQueueIds: prev.revisionQueueIds.filter((rId) => rId !== id),
+                    };
+                    persistStatsToServer(next);
+                    return next;
+                  });
+                }}
+                currentUser={currentUser}
+                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              />
+            }
           />
-        )}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       {/* Global Modals */}

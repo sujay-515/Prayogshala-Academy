@@ -40,9 +40,18 @@ Open `http://localhost:3000` in your browser.
   - `active_exams`: Server-side state for in-progress timed exams.
   - `reports`: Content discrepancy submissions.
 
-### Default Accounts
-- **Administrator**: `admin` / `admin123`
-- **Student**: `student` / `student123`
+### Initial Administrator Setup
+On a fresh installation, specify initial superadmin credentials in `.env`:
+```env
+INITIAL_ADMIN_EMAIL="admin@yourinstitution.org"
+INITIAL_ADMIN_PASSWORD="YourStrongPasswordAtLeast12Chars!"
+```
+Upon startup, the server automatically bootstraps the superadmin account with scrypt hashing. Once bootstrapped, remove these environment variables.
+
+To inspect legacy seeded accounts in an existing database:
+```bash
+npm run list-legacy-accounts
+```
 
 ## Backups
 

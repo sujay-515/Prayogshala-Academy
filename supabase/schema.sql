@@ -159,6 +159,7 @@ ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_exams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pdf_staging_drafts ENABLE ROW LEVEL SECURITY;
@@ -175,6 +176,9 @@ CREATE POLICY "Backend full access reports" ON public.reports FOR ALL TO service
 
 DROP POLICY IF EXISTS "Backend full access users" ON public.users;
 CREATE POLICY "Backend full access users" ON public.users FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Backend full access password_resets" ON public.password_resets;
+CREATE POLICY "Backend full access password_resets" ON public.password_resets FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Backend full access sessions" ON public.sessions;
 CREATE POLICY "Backend full access sessions" ON public.sessions FOR ALL TO service_role USING (true) WITH CHECK (true);

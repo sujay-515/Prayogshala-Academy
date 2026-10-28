@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Search,
   FlaskConical,
@@ -117,7 +118,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 gap-2 sm:gap-4">
           {/* Brand */}
-          <div
+          <Link
+            to="/"
             className="flex items-center gap-2.5 cursor-pointer shrink-0"
             onClick={() => setActiveTab('home')}
           >
@@ -129,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 MedLab QBank
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Search Input (Desktop) */}
           <div className="hidden md:flex flex-1 max-w-xs relative">
@@ -158,7 +160,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Navigation Links */}
           <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto py-1 px-1 bg-slate-100/60 backdrop-blur-sm rounded-lg border border-slate-200/60 scrollbar-none shrink-0 max-w-[calc(100vw-120px)] sm:max-w-none">
-            <button
+            <Link
+              to="/browse"
               onClick={() => setActiveTab('browse')}
               className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'browse'
@@ -167,9 +170,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Browse
-            </button>
+            </Link>
 
-            <button
+            <Link
+              to="/practice"
               onClick={() => setActiveTab('practice')}
               className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'practice'
@@ -178,9 +182,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Practice
-            </button>
+            </Link>
 
-            <button
+            <Link
+              to="/exam"
               onClick={() => setActiveTab('exam')}
               className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'exam'
@@ -189,9 +194,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Mock Exam
-            </button>
+            </Link>
 
-            <button
+            <Link
+              to="/dashboard"
               onClick={() => setActiveTab('dashboard')}
               className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 ${
                 activeTab === 'dashboard'
@@ -200,7 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Analytics
-            </button>
+            </Link>
           </nav>
         </div>
 

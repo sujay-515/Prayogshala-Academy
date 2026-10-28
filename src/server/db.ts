@@ -22,7 +22,7 @@ import {
   syncCleanupExpiredRecords,
 } from './supabaseSync';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const DATA_DIR = path.resolve(process.cwd(), process.env.DATA_DIR || 'data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -163,7 +163,27 @@ export const DEFAULT_USER_STATS: UserStats = {
   examRecords: [],
 };
 
-// Seed initial taxonomy categories and default user accounts if needed (no dummy questions or reports)
+function seedDemoData() {
+  const existingDemo = db.prepare("SELECT id FROM users WHERE username = 'demo_student'").get();
+  if (!existingDemo) {
+    const now = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'usr-demo-student',
+      'demo_student',
+      'demo.student@medlab.test',
+      hashPassword('StudentDemo123!'),
+      'student',
+      'Demo Medical Student',
+      JSON.stringify(DEFAULT_USER_STATS),
+      now
+    );
+  }
+}
+
+// Seed initial taxonomy categories if needed (no default user accounts seeded)
 function seedDatabaseIfNeeded() {
   const cCountRow = db.prepare('SELECT COUNT(*) as cnt FROM categories').get() as { cnt: number };
   if (cCountRow.cnt === 0) {
@@ -173,121 +193,13 @@ function seedDatabaseIfNeeded() {
     });
   }
 
-  const uCountRow = db.prepare('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number };
-  if (uCountRow.cnt === 0) {
-    const now = new Date().toISOString();
-    const insertU = db.prepare(`
-      INSERT INTO users (id, username, password_hash, role, display_name, stats_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    insertU.run(
-      'usr-admin',
-      'admin',
-      hashPassword('admin123'),
-      'admin',
-      'Chief Pathology Administrator',
-      JSON.stringify(DEFAULT_USER_STATS),
-      now
-    );
-    insertU.run(
-      'usr-guest',
-      'guest',
-      hashPassword('guest'),
-      'student',
-      'Guest Candidate',
-      JSON.stringify(DEFAULT_USER_STATS),
-      now
-    );
-    insertU.run(
-      'usr-student',
-      'student',
-      hashPassword('student123'),
-      'student',
-      'MLS Board Candidate',
-      JSON.stringify(DEFAULT_USER_STATS),
-      now
-    );
-  } else {
-    // Migrate legacy static-salted hashes to per-user random salts
-    const legacyUsers = db
-      .prepare(`SELECT id, password_hash FROM users WHERE password_hash NOT LIKE '%:%'`)
-      .all() as { id: string; password_hash: string }[];
-    const updateHash = db.prepare(`UPDATE users SET password_hash = ? WHERE id = ?`);
-    for (const u of legacyUsers) {
-      for (const candidate of ['admin123', 'student123', 'guest']) {
-        if (verifyPassword(candidate, u.password_hash)) {
-          updateHash.run(hashPassword(candidate), u.id);
-          break;
-        }
-      }
-    }
+  // Optional demo data seeding strictly in development mode when explicitly requested
+  if (process.env.SEED_DEMO_DATA === 'true' && process.env.NODE_ENV === 'development') {
+    seedDemoData();
   }
-
-  // Ensure default seeded accounts have emails and roles assigned
-  try {
-    db.prepare("UPDATE users SET email = 'sodefo8714@playfine.com', role = 'superadmin' WHERE username = 'admin'").run();
-    db.prepare("UPDATE users SET email = 'student@medlab.local' WHERE username = 'student' AND email IS NULL").run();
-
-    // Seed dedicated staff test account if not exists
-    const existingStaff = db.prepare("SELECT id FROM users WHERE username = 'staff' OR email = 'staff@medlab.test'").get();
-    if (!existingStaff) {
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        'usr-staff',
-        'staff',
-        'staff@medlab.test',
-        hashPassword('staff123'),
-        'admin',
-        'Staff Pathologist',
-        JSON.stringify(DEFAULT_USER_STATS),
-        now
-      );
-    }
-
-    // Seed dedicated superadmin test account if not exists
-    const existingSuper = db.prepare("SELECT id FROM users WHERE username = 'superadmin' OR email = 'superadmin@medlab.test'").get();
-    if (!existingSuper) {
-      const now = new Date().toISOString();
-      db.prepare(`
-        INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        'usr-superadmin',
-        'superadmin',
-        'superadmin@medlab.test',
-        hashPassword('admin123'),
-        'superadmin',
-        'Lead Administrator',
-        JSON.stringify(DEFAULT_USER_STATS),
-        now
-      );
-    }
-  } catch {}
 }
 
 seedDatabaseIfNeeded();
-
-// Helper functions for Role-Based Access Control and Email Auth
-export function isSuperAdminEmail(email?: string | null): boolean {
-  if (!email) return false;
-  const list = (process.env.SUPER_ADMIN_EMAILS || process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes(email.trim().toLowerCase());
-}
-
-export function isStaffAdminEmail(email?: string | null): boolean {
-  if (!email) return false;
-  const list = (process.env.ADMIN_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return list.includes(email.trim().toLowerCase());
-}
 
 export function getUserByEmailOrUsername(identifier: string) {
   const clean = identifier.trim().toLowerCase();
@@ -332,7 +244,7 @@ export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
   if (!user) return { success: false, error: 'User not found' };
 
   // Protect superadmin from being demoted
-  if (user.role === 'superadmin' || user.username === 'admin' || isSuperAdminEmail(user.email)) {
+  if (user.role === 'superadmin') {
     return { success: false, error: 'Head Administrator role is permanent and cannot be modified.' };
   }
 

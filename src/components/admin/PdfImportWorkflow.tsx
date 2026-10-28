@@ -13,6 +13,16 @@ import {
   Plus,
   FolderOpen,
   ChevronDown,
+  Maximize2,
+  Minimize2,
+  ExternalLink,
+  Columns2,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
+  ChevronUp,
+  Upload,
 } from 'lucide-react';
 import { ExtractedMCQDraft, MCQQuestion, MCQOption, UnitCategory, ExamCategory, DifficultyLevel } from '../../types';
 import {
@@ -28,6 +38,7 @@ interface PdfImportWorkflowProps {
   categories: UnitCategory[];
   onImportApprovedQuestions: (questionsToImport: MCQQuestion[]) => void;
   authToken?: string | null;
+  onCompareModeChange?: (isCompareMode: boolean) => void;
 }
 
 const STAGED_STORAGE_KEY = 'medlab_qbank_staged_drafts_v1';
@@ -38,11 +49,26 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
   categories,
   onImportApprovedQuestions,
   authToken,
+  onCompareModeChange,
 }) => {
   const [selectedFileName, setSelectedFileName] = useState<string>('Clinical_Pathology_Board_Review_2026.pdf');
   const [sourcePreviewText, setSourcePreviewText] = useState<string>(SAMPLE_MEDICINE_PDF_TEXT);
   const [sourcePdfDataUri, setSourcePdfDataUri] = useState<string | null>(null);
   const [showSourceViewer, setShowSourceViewer] = useState<boolean>(false);
+  const [isPdfFullscreen, setIsPdfFullscreen] = useState<boolean>(false);
+  const [splitRatio, setSplitRatio] = useState<'50-50' | '60-40' | '70-30'>('60-40');
+  const [highlightedDraftId, setHighlightedDraftId] = useState<string | null>(null);
+  const [textFilterQuery, setTextFilterQuery] = useState<string>('');
+  const [showPdfInEditModal, setShowPdfInEditModal] = useState<boolean>(true);
+  const [isUploadSectionOpen, setIsUploadSectionOpen] = useState<boolean>(false);
+  const [showBulkTools, setShowBulkTools] = useState<boolean>(false);
+
+  useEffect(() => {
+    onCompareModeChange?.(showSourceViewer);
+    return () => {
+      onCompareModeChange?.(false);
+    };
+  }, [showSourceViewer, onCompareModeChange]);
 
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
@@ -187,6 +213,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
       const data = await res.json();
       if (data.success && Array.isArray(data.drafts)) {
         setStagedQuestions(data.drafts);
+        if (data.drafts.length > 0) {
+          setIsUploadSectionOpen(false);
+        }
         if (data.drafts.length === 0) {
           setExtractionWarning(
             `No structured MCQs were detected in "${docName}". Verify that the document contains numbered questions or A–D answer options.`
@@ -195,6 +224,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
       } else {
         const clientParsed = parseRawMCQText(rawContent, docName, existingQuestions);
         setStagedQuestions(clientParsed);
+        if (clientParsed.length > 0) {
+          setIsUploadSectionOpen(false);
+        }
         if (clientParsed.length === 0) {
           setExtractionWarning(
             `No structured MCQs were detected in "${docName}". Verify that the document contains numbered questions or A–D answer options.`
@@ -204,6 +236,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
     } catch {
       const clientParsed = parseRawMCQText(rawContent, docName, existingQuestions);
       setStagedQuestions(clientParsed);
+      if (clientParsed.length > 0) {
+        setIsUploadSectionOpen(false);
+      }
       if (clientParsed.length === 0) {
         setExtractionWarning(`No structured MCQs were detected in "${docName}".`);
       }
@@ -429,6 +464,62 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
   const bulkUnitObj = categories.find((c) => c.name === bulkUnit);
   const bulkSubjectsList = bulkUnitObj?.subjects || [];
 
+  const openDocumentInNewTab = () => {
+    if (sourcePdfDataUri) {
+      try {
+        if (sourcePdfDataUri.startsWith('data:')) {
+          const parts = sourcePdfDataUri.split(',');
+          const mime = parts[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+          const binaryStr = atob(parts[1]);
+          const len = binaryStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: mime });
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, '_blank');
+          return;
+        }
+        window.open(sourcePdfDataUri, '_blank');
+      } catch {
+        window.open(sourcePdfDataUri, '_blank');
+      }
+    } else if (sourcePreviewText) {
+      const blob = new Blob([sourcePreviewText], { type: 'text/plain;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    }
+  };
+
+  const scrollToQuestion = (draftId: string) => {
+    const el = document.getElementById(`staged-card-${draftId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedDraftId(draftId);
+      setTimeout(() => {
+        setHighlightedDraftId((current) => (current === draftId ? null : current));
+      }, 2500);
+    }
+  };
+
+  const jumpToRelativeQuestion = (direction: 'prev' | 'next') => {
+    if (displayedDrafts.length === 0) return;
+    const currentIdx = highlightedDraftId
+      ? displayedDrafts.findIndex((d) => d.id === highlightedDraftId)
+      : -1;
+    let nextIdx = 0;
+    if (direction === 'prev') {
+      nextIdx = currentIdx > 0 ? currentIdx - 1 : displayedDrafts.length - 1;
+    } else {
+      nextIdx = currentIdx >= 0 && currentIdx < displayedDrafts.length - 1 ? currentIdx + 1 : 0;
+    }
+    const targetDraft = displayedDrafts[nextIdx];
+    if (targetDraft) {
+      scrollToQuestion(targetDraft.id);
+    }
+  };
+
   const handleDeselectIncomplete = () => {
     setStagedQuestions((prev) => {
       const next = prev.map((q) => {
@@ -531,115 +622,788 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
     setEditingDraft({ ...editingDraft, options: nextOptions, correctAnswer: nextCorrect });
   };
 
-  return (
-    <div className="space-y-6">
-      {/* 10-Stage Pipeline Overview */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2">
-        <div className="flex items-center justify-between text-xs text-slate-500">
-          <span className="font-semibold text-slate-800">PDF Ingestion Pipeline</span>
-          <span>10-Stage Audited Workflow</span>
+  const renderSourceViewerPanel = () => (
+    <div
+      className={`h-full min-h-0 flex flex-col bg-white border border-slate-300 rounded-xl shadow-xs overflow-hidden ${
+        splitRatio === '70-30'
+          ? 'lg:col-span-8'
+          : splitRatio === '60-40'
+          ? 'lg:col-span-7'
+          : 'lg:col-span-6'
+      }`}
+    >
+      {/* Panel Header */}
+      <div className="bg-slate-900 text-white px-3 py-2 sm:py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText className="w-4 h-4 text-cyan-400 shrink-0" />
+          <span className="font-semibold text-white truncate max-w-[170px] sm:max-w-xs" title={selectedFileName}>
+            {selectedFileName}
+          </span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-cyan-300 border border-slate-700 shrink-0 font-medium">
+            {sourcePdfDataUri ? 'Original PDF' : 'Extracted Text'}
+          </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs text-slate-600">
-          <div className="p-2 rounded bg-slate-50 border border-slate-200">
-            <span className="font-bold block text-slate-800">1–2</span> Upload & OCR
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Split Ratio Selector on desktop */}
+          <div className="hidden sm:flex items-center bg-slate-800 rounded p-0.5 border border-slate-700 text-[10px]">
+            <button
+              type="button"
+              onClick={() => setSplitRatio('50-50')}
+              className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                splitRatio === '50-50' ? 'bg-cyan-700 text-white font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Split 50% PDF / 50% Questions"
+            >
+              50:50
+            </button>
+            <button
+              type="button"
+              onClick={() => setSplitRatio('60-40')}
+              className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                splitRatio === '60-40' ? 'bg-cyan-700 text-white font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Wider PDF (60% PDF / 40% Questions)"
+            >
+              60:40
+            </button>
+            <button
+              type="button"
+              onClick={() => setSplitRatio('70-30')}
+              className={`px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                splitRatio === '70-30' ? 'bg-cyan-700 text-white font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Large PDF (70% PDF / 30% Questions)"
+            >
+              70:30 (Large)
+            </button>
           </div>
-          <div className="p-2 rounded bg-slate-50 border border-slate-200">
-            <span className="font-bold block text-slate-800">3–4</span> Structure & Category
-          </div>
-          <div className="p-2 rounded bg-slate-50 border border-slate-200">
-            <span className="font-bold block text-slate-800">5–6</span> Review & Edit
-          </div>
-          <div className="p-2 rounded bg-slate-50 border border-slate-200">
-            <span className="font-bold block text-slate-800">7–8</span> Validate & Select
-          </div>
-          <div className="p-2 rounded bg-slate-50 border border-slate-200">
-            <span className="font-bold block text-slate-800">9–10</span> Import & Verify
-          </div>
+
+          {/* Open in New Window/Tab */}
+          <button
+            type="button"
+            onClick={openDocumentInNewTab}
+            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
+            title="Open original document in a new browser tab for dual monitors or browser zoom/search"
+          >
+            <ExternalLink className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">New Tab</span>
+          </button>
+
+          {/* Fullscreen Modal Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsPdfFullscreen(true)}
+            className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
+            title="Maximize PDF to fullscreen overlay"
+          >
+            <Maximize2 className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">Fullscreen</span>
+          </button>
+
+          {/* Close Comparison Viewer */}
+          <button
+            type="button"
+            onClick={() => setShowSourceViewer(false)}
+            className="p-1 rounded bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-200 border border-slate-700 cursor-pointer transition-colors"
+            title="Close comparison viewer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Upload Zone */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-        <div>
-          <h3 className="text-sm font-semibold text-slate-900">Upload PDF Document</h3>
-          <p className="text-xs text-slate-500">
-            Upload selectable or scanned question papers, answer keys, and syllabus documents.
-          </p>
-        </div>
-
-        <div className="border border-dashed border-slate-300 hover:border-slate-400 rounded-xl p-6 text-center space-y-3 bg-slate-50/50 transition-colors">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".pdf,.txt,.md,.json"
-            className="hidden"
+      {/* Panel Viewer Body */}
+      <div className="flex-1 min-h-0 w-full h-full relative overflow-hidden bg-slate-100 flex flex-col">
+        {sourcePdfDataUri ? (
+          <iframe
+            src={sourcePdfDataUri}
+            title="Original PDF Reference"
+            className="w-full h-full flex-1 min-h-0 block border-0 bg-white"
+            style={{ width: '100%', height: '100%', minHeight: '100%' }}
           />
-          <FileText className="w-8 h-8 text-slate-400 mx-auto" />
-
-          <div className="text-xs text-slate-600">
-            Select a PDF from your computer, re-open a stored PDF, or test with the built-in clinical sample
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium rounded-md shadow-xs cursor-pointer"
-            >
-              Browse Local PDF File
-            </button>
-
-            <button
-              onClick={() =>
-                handleStartExtraction(
-                  SAMPLE_MEDICINE_PDF_TEXT,
-                  'Clinical_Pathology_Board_Review_2026.pdf',
-                  null
-                )
-              }
-              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-md shadow-xs cursor-pointer"
-            >
-              Load Sample Clinical Exam PDF
-            </button>
-
-            {savedPdfs.map((pdf) => (
-              <button
-                key={pdf.filename}
-                onClick={() => handleLoadStoredPdf(pdf.filename)}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md flex items-center gap-1.5 cursor-pointer"
-                title={`Uploaded ${new Date(pdf.uploadedAt).toLocaleString()}`}
-              >
-                <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
-                <span>Load {pdf.filename}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {isExtracting && (
-          <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs text-slate-600 text-center">
-            Processing document and extracting MCQ records...
+        ) : (
+          <div className="flex flex-col h-full w-full">
+            <div className="p-2 border-b border-slate-200 bg-slate-50 flex items-center gap-2 shrink-0">
+              <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                value={textFilterQuery}
+                onChange={(e) => setTextFilterQuery(e.target.value)}
+                placeholder="Find question text or key terms in extracted source..."
+                className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-800 focus:outline-none focus:border-cyan-500"
+              />
+              {textFilterQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTextFilterQuery('')}
+                  className="text-slate-400 hover:text-slate-700 text-xs font-semibold cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <pre className="w-full flex-1 min-h-0 p-3.5 overflow-y-auto text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed select-text">
+              {sourcePreviewText}
+            </pre>
           </div>
         )}
+      </div>
 
-        {extractionWarning && !isExtracting && (
-          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold block">Extraction Notice</span>
-                <span>{extractionWarning}</span>
+      {/* Panel Footer */}
+      <div className="shrink-0 p-1.5 px-3 bg-slate-100 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-600">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>PDF scroll box (scrollable independently)</span>
+        </div>
+        <button
+          type="button"
+          onClick={openDocumentInNewTab}
+          className="text-cyan-700 hover:text-cyan-900 font-medium cursor-pointer"
+        >
+          Pop out ↗
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderUnifiedControlsBar = () => (
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs pb-1 border-b border-slate-100">
+      {/* Left: Filter tabs + Bulk categorize toggle */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('all')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+            activeTabFilter === 'all'
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          All ({stagedQuestions.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('flagged')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+            activeTabFilter === 'flagged'
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Flagged ({flaggedCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('ready')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+            activeTabFilter === 'ready'
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Ready ({stagedQuestions.length - flaggedCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('selected')}
+          className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+            activeTabFilter === 'selected'
+              ? 'bg-slate-900 text-white'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          Selected ({selectedCount})
+        </button>
+
+        <span className="text-slate-200">|</span>
+
+        <button
+          type="button"
+          onClick={() => setShowBulkTools((prev) => !prev)}
+          className={`px-2 py-1 rounded text-xs font-medium border flex items-center gap-1 cursor-pointer transition-colors ${
+            showBulkTools
+              ? 'bg-slate-100 text-slate-800 border-slate-300'
+              : 'text-slate-600 hover:bg-slate-50 border-slate-200'
+          }`}
+          title="Toggle bulk unit/subject/topic categorization tool"
+        >
+          <SlidersHorizontal className="w-3 h-3 text-slate-600" />
+          <span>Bulk Categorize</span>
+          {showBulkTools ? <ChevronUp className="w-3 h-3 text-slate-500" /> : <ChevronDown className="w-3 h-3 text-slate-500" />}
+        </button>
+
+        {selectedCount > 0 && selectedCount < stagedQuestions.length && (
+          <button
+            type="button"
+            onClick={handleDiscardSelected}
+            className="text-xs text-rose-600 hover:text-rose-800 font-medium underline cursor-pointer ml-1"
+          >
+            Remove {selectedCount}
+          </button>
+        )}
+      </div>
+
+      {/* Right: Compact Fast Navigator */}
+      <div className="flex items-center gap-1.5 ml-auto">
+        <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">Jump:</span>
+        <select
+          value={highlightedDraftId || ''}
+          onChange={(e) => {
+            if (e.target.value) scrollToQuestion(e.target.value);
+          }}
+          className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs max-w-[150px] sm:max-w-[200px] truncate cursor-pointer"
+        >
+          <option value="">#{1}–#{displayedDrafts.length}...</option>
+          {displayedDrafts.map((d, i) => (
+            <option key={d.id} value={d.id}>
+              #{i + 1}: {d.questionText.slice(0, 36)}...
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          onClick={() => jumpToRelativeQuestion('prev')}
+          className="p-1 rounded bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 cursor-pointer"
+          title="Previous question"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => jumpToRelativeQuestion('next')}
+          className="p-1 rounded bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 cursor-pointer"
+          title="Next question"
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderBulkAssignRow = () => (
+    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <span className="font-semibold text-slate-700">
+        Bulk Categorize ({selectedCount} selected):
+      </span>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={bulkUnit}
+          onChange={(e) => {
+            setBulkUnit(e.target.value);
+            setBulkSubject('');
+          }}
+          className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
+        >
+          <option value="">Assign Unit...</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        {bulkSubjectsList.length > 0 && (
+          <select
+            value={bulkSubject}
+            onChange={(e) => setBulkSubject(e.target.value)}
+            className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
+          >
+            <option value="">Assign Subject...</option>
+            {bulkSubjectsList.map((s) => (
+              <option key={s.id} value={s.name}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <input
+          type="text"
+          value={bulkTopic}
+          onChange={(e) => setBulkTopic(e.target.value)}
+          placeholder="Assign Topic..."
+          className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs w-full sm:w-32"
+        />
+
+        <select
+          value={bulkDifficulty}
+          onChange={(e) => setBulkDifficulty(e.target.value)}
+          className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
+        >
+          <option value="">Difficulty...</option>
+          <option value="Memory-based">Memory-based</option>
+          <option value="Conceptual">Conceptual</option>
+          <option value="Advanced">Advanced</option>
+        </select>
+
+        <div className="relative" ref={bulkExamDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsBulkExamDropdownOpen((prev) => !prev)}
+            className={`bg-white border ${
+              bulkExams.length > 0 ? 'border-slate-400 bg-slate-50/50' : 'border-slate-300'
+            } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[155px]`}
+          >
+            <span className="truncate max-w-[130px] text-left">
+              {bulkExams.length === 0 ? (
+                <span className="text-slate-600">Add Exam Category...</span>
+              ) : (
+                <span className="font-medium text-slate-900">
+                  {bulkExams.length === ALL_EXAMS.length
+                    ? 'All Exam Categories'
+                    : bulkExams.join(', ')}
+                </span>
+              )}
+            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              {bulkExams.length > 0 && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBulkExams([]);
+                  }}
+                  className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
+                  title="Clear selections"
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-150 ${
+                  isBulkExamDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+          </button>
+
+          {isBulkExamDropdownOpen && (
+            <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
+              <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
+                <span className="font-semibold text-slate-700 text-[11px]">Select Categories</span>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setBulkExams([...ALL_EXAMS])}
+                    className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+                  >
+                    All
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setBulkExams([])}
+                    className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-0.5">
+                {ALL_EXAMS.map((ex) => {
+                  const checked = bulkExams.includes(ex);
+                  return (
+                    <label
+                      key={ex}
+                      className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
+                        checked ? 'bg-slate-100 font-medium text-slate-900' : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            if (checked) {
+                              setBulkExams(bulkExams.filter((e) => e !== ex));
+                            } else {
+                              setBulkExams([...bulkExams, ex]);
+                            }
+                          }}
+                          className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-3.5 w-3.5 cursor-pointer"
+                        />
+                        <span>{ex}</span>
+                      </div>
+                      {checked && <CheckCircle2 className="w-3.5 h-3.5 text-slate-800" />}
+                    </label>
+                  );
+                })}
               </div>
             </div>
+          )}
+        </div>
+
+        <button
+          disabled={
+            selectedCount === 0 ||
+            (!bulkUnit && !bulkSubject && !bulkTopic.trim() && !bulkDifficulty && bulkExams.length === 0)
+          }
+          onClick={handleApplyBulkCategories}
+          className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded text-xs font-medium cursor-pointer"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderQuestionCards = () => (
+    <div className="space-y-3">
+      {displayedDrafts.map((draft, idx) => {
+        const hasErrors = draft.validationErrors.length > 0;
+        const isHighlighted = highlightedDraftId === draft.id;
+
+        return (
+          <div
+            key={draft.id}
+            id={`staged-card-${draft.id}`}
+            className={`bg-white rounded-lg p-4 border text-xs space-y-2.5 transition-all ${
+              isHighlighted
+                ? 'ring-2 ring-cyan-500 bg-cyan-50/20 border-cyan-400 shadow-md'
+                : draft.selectedForImport
+                ? 'border-slate-400 shadow-xs'
+                : 'border-slate-200'
+            }`}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => toggleSelectQuestion(draft.id)}
+                  className="text-slate-700 cursor-pointer"
+                >
+                  {draft.selectedForImport ? (
+                    <CheckSquare className="w-4 h-4 text-slate-900" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-400" />
+                  )}
+                </button>
+                <span className="font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
+                  #{idx + 1}
+                </span>
+                <span className="font-semibold text-slate-900">{draft.tempCode}</span>
+                {draft.pageNumber && (
+                  <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium text-[10px]">
+                    Page {draft.pageNumber}
+                  </span>
+                )}
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-700 font-medium">{draft.unit}</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-600">{draft.subject}</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-500">{draft.topic}</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-500">{draft.difficulty}</span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!showSourceViewer) setShowSourceViewer(true);
+                    scrollToQuestion(draft.id);
+                  }}
+                  className="px-2 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Compare question against original source document"
+                >
+                  <Eye className="w-3 h-3 text-cyan-600" />
+                  <span>Compare</span>
+                </button>
+                <button
+                  onClick={() => setEditingDraft(draft)}
+                  className="px-2 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteDraft(draft.id)}
+                  className="p-1 rounded text-slate-400 hover:text-rose-600 cursor-pointer"
+                  title="Discard"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {hasErrors && (
+              <div className="p-2.5 rounded bg-amber-50 border border-amber-200 text-amber-900 space-y-0.5">
+                <div className="flex items-center gap-1 font-semibold text-amber-800">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Validation Notice:</span>
+                </div>
+                <ul className="list-disc pl-4 text-xs">
+                  {draft.validationErrors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {draft.clinicalCase && (
+              <div className="p-2.5 rounded bg-slate-50 border border-slate-200 text-slate-700 italic">
+                <span className="font-semibold not-italic text-slate-800">Clinical Case: </span>
+                {draft.clinicalCase}
+              </div>
+            )}
+
+            <p className="font-medium text-slate-900 leading-snug">{draft.questionText}</p>
+
+            {draft.imageUrl && (
+              <div className="my-2 p-2 bg-slate-50 border border-slate-200 rounded text-center">
+                <img
+                  src={draft.imageUrl}
+                  alt={`Extracted specimen image for ${draft.tempCode}`}
+                  className="max-h-60 max-w-full mx-auto object-contain rounded border border-slate-200 bg-white"
+                />
+              </div>
+            )}
+
+            {draft.tableData && draft.tableData.rows.length > 0 && (
+              <div className="overflow-x-auto border border-slate-200 rounded">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200">
+                      {draft.tableData.headers.map((h, i) => (
+                        <th key={i} className="py-1.5 px-2.5 font-semibold text-slate-700">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {draft.tableData.rows.map((row, rIdx) => (
+                      <tr key={rIdx}>
+                        {row.map((cell, cIdx) => (
+                          <td key={cIdx} className="py-1 px-2.5 text-slate-700">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {draft.options.map((opt) => {
+                const isCorrect = opt.id === draft.correctAnswer;
+                return (
+                  <div
+                    key={opt.id}
+                    className={`p-2 rounded border flex items-start gap-1.5 ${
+                      isCorrect
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-medium'
+                        : 'bg-slate-50/60 border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <span className="font-semibold">{opt.id}.</span>
+                    <span>{opt.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {draft.explanation && (
+              <div className="p-2 rounded bg-slate-50 border border-slate-100 text-xs text-slate-600">
+                <strong className="text-slate-700">Rationale: </strong>
+                {draft.explanation}
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
+              <div>
+                <strong className="text-slate-800">Answer Key: </strong>
+                {draft.correctAnswer || 'None'}
+              </div>
+              <div>Source: {draft.sourceDocument}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderFullscreenPdfModal = () => {
+    if (!isPdfFullscreen) return null;
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col w-screen h-screen overflow-hidden">
+        <div className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between text-xs shrink-0 border-b border-slate-800">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span className="font-semibold text-white truncate max-w-md">{selectedFileName}</span>
+            <span className="text-slate-400 text-xs hidden sm:inline">(Fullscreen Mode)</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setExtractionWarning(null)}
-              className="text-amber-700 hover:text-amber-950 cursor-pointer"
+              type="button"
+              onClick={openDocumentInNewTab}
+              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer text-xs transition-colors"
             >
-              <X className="w-4 h-4" />
+              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Open in Browser Tab</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPdfFullscreen(false)}
+              className="px-3 py-1 rounded bg-cyan-700 hover:bg-cyan-800 text-white font-medium flex items-center gap-1.5 cursor-pointer text-xs transition-colors shadow-xs"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span>Exit Fullscreen</span>
             </button>
           </div>
-        )}
+        </div>
+        <div className="flex-1 min-h-0 w-full h-full relative overflow-hidden bg-slate-900 flex flex-col">
+          {sourcePdfDataUri ? (
+            <iframe
+              src={sourcePdfDataUri}
+              title="Fullscreen PDF Reference"
+              className="w-full h-full flex-1 min-h-0 block border-0 bg-white"
+              style={{ width: '100%', height: '100%', minHeight: '100%' }}
+            />
+          ) : (
+            <pre className="w-full h-full flex-1 min-h-0 p-6 overflow-y-auto text-xs font-mono text-slate-100 whitespace-pre-wrap leading-relaxed">
+              {sourcePreviewText}
+            </pre>
+          )}
+        </div>
       </div>
+    );
+  };
+
+  return (
+    <div className={`space-y-3.5 transition-all ${showSourceViewer ? 'w-full' : 'max-w-5xl mx-auto'}`}>
+      {/* Upload Zone (Collapsed Summary when Questions are Staged) */}
+      {stagedQuestions.length > 0 && !isUploadSectionOpen ? (
+        <div className="bg-white border border-slate-200 rounded-lg px-3.5 py-2 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="p-1 rounded bg-slate-100 text-slate-600 shrink-0">
+              <FileText className="w-3.5 h-3.5" />
+            </span>
+            <div className="flex items-center gap-2 truncate">
+              <span className="text-slate-500 text-xs hidden sm:inline">Source Document:</span>
+              <span className="font-medium text-slate-800 truncate max-w-[200px] sm:max-w-md" title={selectedFileName}>
+                {selectedFileName || 'Source PDF Document'}
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 font-semibold text-[11px] shrink-0">
+                {stagedQuestions.length} staged
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => setIsUploadSectionOpen(true)}
+              className="px-2.5 py-1 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Expand to upload or load a different PDF"
+            >
+              <Upload className="w-3.5 h-3.5 text-slate-600" />
+              <span>Change / Upload PDF</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Upload PDF Document</h3>
+              <p className="text-xs text-slate-500">
+                Upload selectable or scanned question papers, answer keys, and syllabus documents.
+              </p>
+            </div>
+            {stagedQuestions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsUploadSectionOpen(false)}
+                className="text-xs text-slate-500 hover:text-slate-800 font-medium px-2.5 py-1 rounded hover:bg-slate-100 cursor-pointer flex items-center gap-1 transition-colors"
+              >
+                <span>Collapse</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="border border-dashed border-slate-300 hover:border-slate-400 rounded-xl p-5 text-center space-y-2.5 bg-slate-50/50 transition-colors">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".pdf,.txt,.md,.json"
+              className="hidden"
+            />
+            <FileText className="w-7 h-7 text-slate-400 mx-auto" />
+
+            <div className="text-xs text-slate-600">
+              Select a PDF from your computer, re-open a stored PDF, or test with the built-in clinical sample
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium rounded-md shadow-xs cursor-pointer"
+              >
+                Browse Local PDF File
+              </button>
+
+              <button
+                onClick={() =>
+                  handleStartExtraction(
+                    SAMPLE_MEDICINE_PDF_TEXT,
+                    'Clinical_Pathology_Board_Review_2026.pdf',
+                    null
+                  )
+                }
+                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-md shadow-xs cursor-pointer"
+              >
+                Load Sample Clinical Exam PDF
+              </button>
+
+              {savedPdfs.map((pdf) => (
+                <button
+                  key={pdf.filename}
+                  onClick={() => handleLoadStoredPdf(pdf.filename)}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md flex items-center gap-1.5 cursor-pointer"
+                  title={`Uploaded ${new Date(pdf.uploadedAt).toLocaleString()}`}
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Load {pdf.filename}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {isExtracting && (
+            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs text-slate-600 text-center">
+              Processing document and extracting MCQ records...
+            </div>
+          )}
+
+          {extractionWarning && !isExtracting && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold block">Extraction Notice</span>
+                  <span>{extractionWarning}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setExtractionWarning(null)}
+                className="text-amber-700 hover:text-amber-950 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Import Verification Report */}
       {importReport && (
@@ -667,33 +1431,42 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
 
       {/* Staging & Review Queue */}
       {stagedQuestions.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div>
+        <div
+          className={`bg-white border border-slate-200 rounded-xl shadow-xs transition-all ${
+            showSourceViewer
+              ? 'p-2.5 sm:p-3.5 h-[calc(100vh-100px)] min-h-[680px] flex flex-col overflow-hidden'
+              : 'p-3.5 sm:p-5 space-y-3'
+          }`}
+        >
+          <div className="shrink-0 flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+            <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-slate-900">
                 Staged Question Queue ({stagedQuestions.length})
               </h3>
-              <p className="text-xs text-slate-500">
-                Questions remain unpublished until approved. Review against original source, correct, or bulk-categorize.
-              </p>
+              {showSourceViewer && (
+                <span className="px-2 py-0.5 rounded text-[11px] bg-cyan-50 text-cyan-700 border border-cyan-200 font-medium">
+                  Dual-Scroll Comparison
+                </span>
+              )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => setShowSourceViewer(!showSourceViewer)}
-                className={`px-2.5 py-1 rounded text-xs font-medium border flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 py-1 rounded text-xs font-medium border flex items-center gap-1.5 cursor-pointer transition-colors ${
                   showSourceViewer
-                    ? 'bg-slate-900 text-white border-slate-900'
+                    ? 'bg-cyan-700 hover:bg-cyan-800 text-white border-cyan-700 shadow-2xs font-semibold'
                     : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
                 }`}
+                title="Toggle side-by-side comparison view with original PDF"
               >
-                <Eye className="w-3.5 h-3.5" />
-                <span>{showSourceViewer ? 'Hide Source PDF' : 'Compare with Source'}</span>
+                <Columns2 className="w-3.5 h-3.5" />
+                <span>{showSourceViewer ? 'Hide Comparison View' : 'Compare with Source PDF'}</span>
               </button>
 
               <button
                 onClick={() => selectAll(true)}
-                className="px-2.5 py-1 rounded bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 border border-slate-300 flex items-center gap-1 cursor-pointer"
                 title="Select all questions for import"
               >
                 <CheckSquare className="w-3.5 h-3.5 text-slate-700" />
@@ -702,20 +1475,20 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
 
               <button
                 onClick={() => selectAll(false)}
-                className="px-2.5 py-1 rounded bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 border border-slate-300 flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1 rounded bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 border border-slate-300 flex items-center gap-1 cursor-pointer"
                 title="Clear selection so no questions are imported"
               >
                 <Square className="w-3.5 h-3.5 text-slate-400" />
-                <span>Clear Selection</span>
+                <span>Clear</span>
               </button>
 
               <button
                 onClick={() => setShowClearStagingModal(true)}
-                className="px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 text-xs font-medium text-rose-700 border border-rose-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+                className="px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 text-xs font-medium text-rose-700 border border-rose-200 flex items-center gap-1 cursor-pointer transition-colors"
                 title="Discard all staged questions and cancel this PDF import"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Discard Staged PDF</span>
+                <span>Discard PDF</span>
               </button>
 
               <button
@@ -729,431 +1502,130 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
             </div>
           </div>
 
-          {/* Source PDF / Text Side-by-Side Traceability Viewer */}
-          {showSourceViewer && (
-            <div className="bg-slate-50 border border-slate-300 rounded p-4 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-slate-700" />
-                  <span className="font-semibold text-slate-900">
-                    Preserved Source Document: {selectedFileName}
-                  </span>
+          {showSourceViewer ? (
+            <div className="flex-1 min-h-0 pt-2.5 grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch overflow-hidden">
+              {renderSourceViewerPanel()}
+              <div
+                className={`h-full min-h-0 flex flex-col bg-slate-50/80 border border-slate-300 rounded-xl overflow-hidden shadow-xs ${
+                  splitRatio === '70-30'
+                    ? 'lg:col-span-4'
+                    : splitRatio === '60-40'
+                    ? 'lg:col-span-5'
+                    : 'lg:col-span-6'
+                }`}
+              >
+                {/* Fixed controls header inside Right Box */}
+                <div className="shrink-0 p-2 sm:p-2.5 bg-white border-b border-slate-200 space-y-2">
+                  {renderUnifiedControlsBar()}
+                  {showBulkTools && renderBulkAssignRow()}
                 </div>
-                <button
-                  onClick={() => setShowSourceViewer(false)}
-                  className="text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" /> Close Viewer
-                </button>
+
+                {/* Independent Scrollable Questions List inside Right Box */}
+                <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-3 space-y-3 bg-slate-50/70">
+                  {renderQuestionCards()}
+                </div>
               </div>
-              {sourcePdfDataUri ? (
-                <iframe
-                  src={sourcePdfDataUri}
-                  title="Original PDF Reference"
-                  className="w-full h-80 rounded border border-slate-200 bg-white"
-                />
-              ) : (
-                <pre className="w-full max-h-64 overflow-y-auto p-3 rounded border border-slate-200 bg-white text-xs font-mono text-slate-700 whitespace-pre-wrap leading-relaxed">
-                  {sourcePreviewText}
-                </pre>
-              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {renderUnifiedControlsBar()}
+              {showBulkTools && renderBulkAssignRow()}
+              {renderQuestionCards()}
             </div>
           )}
-
-          {/* Bulk Assign Row (Unit, Subject, Topic, Difficulty, Exam) */}
-          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="font-semibold text-slate-700">
-              Bulk Categorize ({selectedCount} selected):
-            </span>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={bulkUnit}
-                onChange={(e) => {
-                  setBulkUnit(e.target.value);
-                  setBulkSubject('');
-                }}
-                className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
-              >
-                <option value="">Assign Unit...</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              {bulkSubjectsList.length > 0 && (
-                <select
-                  value={bulkSubject}
-                  onChange={(e) => setBulkSubject(e.target.value)}
-                  className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
-                >
-                  <option value="">Assign Subject...</option>
-                  {bulkSubjectsList.map((s) => (
-                    <option key={s.id} value={s.name}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-
-              <input
-                type="text"
-                value={bulkTopic}
-                onChange={(e) => setBulkTopic(e.target.value)}
-                placeholder="Assign Topic..."
-                className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs w-full sm:w-32"
-              />
-
-              <select
-                value={bulkDifficulty}
-                onChange={(e) => setBulkDifficulty(e.target.value)}
-                className="bg-white border border-slate-300 rounded px-2 py-1 text-slate-800 text-xs"
-              >
-                <option value="">Difficulty...</option>
-                <option value="Memory-based">Memory-based</option>
-                <option value="Conceptual">Conceptual</option>
-                <option value="Advanced">Advanced</option>
-              </select>
-
-              <div className="relative" ref={bulkExamDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsBulkExamDropdownOpen((prev) => !prev)}
-                  className={`bg-white border ${
-                    bulkExams.length > 0 ? 'border-slate-400 bg-slate-50/50' : 'border-slate-300'
-                  } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[155px]`}
-                >
-                  <span className="truncate max-w-[130px] text-left">
-                    {bulkExams.length === 0 ? (
-                      <span className="text-slate-600">Add Exam Category...</span>
-                    ) : (
-                      <span className="font-medium text-slate-900">
-                        {bulkExams.length === ALL_EXAMS.length
-                          ? 'All Exam Categories'
-                          : bulkExams.join(', ')}
-                      </span>
-                    )}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {bulkExams.length > 0 && (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setBulkExams([]);
-                        }}
-                        className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
-                        title="Clear selections"
-                      >
-                        <X className="w-3 h-3" />
-                      </span>
-                    )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-150 ${
-                        isBulkExamDropdownOpen ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </div>
-                </button>
-
-                {isBulkExamDropdownOpen && (
-                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
-                    <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
-                      <span className="font-semibold text-slate-700 text-[11px]">Select Categories</span>
-                      <div className="flex items-center gap-2 text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => setBulkExams([...ALL_EXAMS])}
-                          className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
-                        >
-                          All
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          type="button"
-                          onClick={() => setBulkExams([])}
-                          className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      {ALL_EXAMS.map((ex) => {
-                        const checked = bulkExams.includes(ex);
-                        return (
-                          <label
-                            key={ex}
-                            className={`flex items-center justify-between px-2 py-1.5 rounded cursor-pointer transition-colors ${
-                              checked ? 'bg-slate-100 font-medium text-slate-900' : 'hover:bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  if (checked) {
-                                    setBulkExams(bulkExams.filter((e) => e !== ex));
-                                  } else {
-                                    setBulkExams([...bulkExams, ex]);
-                                  }
-                                }}
-                                className="rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-3.5 w-3.5 cursor-pointer"
-                              />
-                              <span>{ex}</span>
-                            </div>
-                            {checked && <CheckCircle2 className="w-3.5 h-3.5 text-slate-800" />}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                disabled={
-                  selectedCount === 0 ||
-                  (!bulkUnit && !bulkSubject && !bulkTopic.trim() && !bulkDifficulty && bulkExams.length === 0)
-                }
-                onClick={handleApplyBulkCategories}
-                className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded text-xs font-medium cursor-pointer"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-
-          {/* Subtabs for filter */}
-          <div className="flex items-center justify-between gap-1.5 text-xs pb-1 border-b border-slate-100 flex-wrap">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                onClick={() => setActiveTabFilter('all')}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-                  activeTabFilter === 'all'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                All ({stagedQuestions.length})
-              </button>
-              <button
-                onClick={() => setActiveTabFilter('flagged')}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-                  activeTabFilter === 'flagged'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Flagged ({flaggedCount})
-              </button>
-              <button
-                onClick={() => setActiveTabFilter('ready')}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-                  activeTabFilter === 'ready'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Ready ({stagedQuestions.length - flaggedCount})
-              </button>
-              <button
-                onClick={() => setActiveTabFilter('selected')}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-                  activeTabFilter === 'selected'
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                Selected ({selectedCount})
-              </button>
-            </div>
-
-            {selectedCount > 0 && selectedCount < stagedQuestions.length && (
-              <button
-                onClick={handleDiscardSelected}
-                className="text-xs text-rose-600 hover:text-rose-800 font-medium underline cursor-pointer"
-              >
-                Remove {selectedCount} selected from staging
-              </button>
-            )}
-          </div>
-
-          {/* Staged Question Cards */}
-          <div className="space-y-3">
-            {displayedDrafts.map((draft) => {
-              const hasErrors = draft.validationErrors.length > 0;
-
-              return (
-                <div
-                  key={draft.id}
-                  className={`bg-white rounded-lg p-4 border text-xs space-y-2.5 transition-all ${
-                    draft.selectedForImport ? 'border-slate-400 shadow-xs' : 'border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        onClick={() => toggleSelectQuestion(draft.id)}
-                        className="text-slate-700 cursor-pointer"
-                      >
-                        {draft.selectedForImport ? (
-                          <CheckSquare className="w-4 h-4 text-slate-900" />
-                        ) : (
-                          <Square className="w-4 h-4 text-slate-400" />
-                        )}
-                      </button>
-                      <span className="font-semibold text-slate-900">{draft.tempCode}</span>
-                      <span className="text-slate-400">·</span>
-                      <span className="text-slate-700 font-medium">{draft.unit}</span>
-                      <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">{draft.subject}</span>
-                      <span className="text-slate-400">·</span>
-                      <span className="text-slate-500">{draft.topic}</span>
-                      <span className="text-slate-400">·</span>
-                      <span className="text-slate-500">{draft.difficulty}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => setEditingDraft(draft)}
-                        className="px-2 py-1 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteDraft(draft.id)}
-                        className="p-1 rounded text-slate-400 hover:text-rose-600 cursor-pointer"
-                        title="Discard"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {hasErrors && (
-                    <div className="p-2.5 rounded bg-amber-50 border border-amber-200 text-amber-900 space-y-0.5">
-                      <div className="flex items-center gap-1 font-semibold text-amber-800">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        <span>Validation Notice:</span>
-                      </div>
-                      <ul className="list-disc pl-4 text-xs">
-                        {draft.validationErrors.map((err, i) => (
-                          <li key={i}>{err}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {draft.clinicalCase && (
-                    <div className="p-2.5 rounded bg-slate-50 border border-slate-200 text-slate-700 italic">
-                      <span className="font-semibold not-italic text-slate-800">Clinical Case: </span>
-                      {draft.clinicalCase}
-                    </div>
-                  )}
-
-                  <p className="font-medium text-slate-900 leading-snug">{draft.questionText}</p>
-
-                  {draft.imageUrl && (
-                    <div className="my-2 p-2 bg-slate-50 border border-slate-200 rounded text-center">
-                      <img
-                        src={draft.imageUrl}
-                        alt={`Extracted specimen image for ${draft.tempCode}`}
-                        className="max-h-60 max-w-full mx-auto object-contain rounded border border-slate-200 bg-white"
-                      />
-                    </div>
-                  )}
-
-                  {draft.tableData && draft.tableData.rows.length > 0 && (
-                    <div className="overflow-x-auto border border-slate-200 rounded">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-100 border-b border-slate-200">
-                            {draft.tableData.headers.map((h, i) => (
-                              <th key={i} className="py-1.5 px-2.5 font-semibold text-slate-700">
-                                {h}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {draft.tableData.rows.map((row, rIdx) => (
-                            <tr key={rIdx}>
-                              {row.map((cell, cIdx) => (
-                                <td key={cIdx} className="py-1 px-2.5 text-slate-700">
-                                  {cell}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {draft.options.map((opt) => {
-                      const isCorrect = opt.id === draft.correctAnswer;
-                      return (
-                        <div
-                          key={opt.id}
-                          className={`p-2 rounded border flex items-start gap-1.5 ${
-                            isCorrect
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-medium'
-                              : 'bg-slate-50/60 border-slate-200 text-slate-700'
-                          }`}
-                        >
-                          <span className="font-semibold">{opt.id}.</span>
-                          <span>{opt.text}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {draft.explanation && (
-                    <div className="p-2 rounded bg-slate-50 border border-slate-100 text-xs text-slate-600">
-                      <strong className="text-slate-700">Rationale: </strong>
-                      {draft.explanation}
-                    </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
-                    <div>
-                      <strong className="text-slate-800">Answer Key: </strong>
-                      {draft.correctAnswer || 'None'}
-                    </div>
-                    <div>Source: {draft.sourceDocument}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
+      {renderFullscreenPdfModal()}
+
       {/* Edit Staged Draft Modal */}
       {editingDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded p-4 sm:p-6 shadow-xl space-y-4 max-h-[90dvh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs">
+          <div
+            className={`bg-white border border-slate-200 w-full rounded p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto transition-all ${
+              showPdfInEditModal && (sourcePdfDataUri || sourcePreviewText)
+                ? 'max-w-6xl'
+                : 'max-w-2xl'
+            }`}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-semibold text-slate-900 text-sm">
-                Edit Extracted Question ({editingDraft.tempCode})
-              </h3>
-              <button
-                onClick={() => setEditingDraft(null)}
-                className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-slate-900 text-sm">
+                  Edit Extracted Question ({editingDraft.tempCode})
+                </h3>
+                {editingDraft.pageNumber && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                    Source Page {editingDraft.pageNumber}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {(sourcePdfDataUri || sourcePreviewText) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPdfInEditModal(!showPdfInEditModal)}
+                    className={`px-2.5 py-1 rounded text-xs font-medium border flex items-center gap-1.5 cursor-pointer transition-colors ${
+                      showPdfInEditModal
+                        ? 'bg-cyan-700 text-white border-cyan-700'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                    }`}
+                    title="Toggle source document preview side-by-side inside this editor"
+                  >
+                    <Columns2 className="w-3.5 h-3.5" />
+                    <span>{showPdfInEditModal ? 'Hide PDF' : 'Show PDF'}</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setEditingDraft(null)}
+                  className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div
+              className={`grid gap-5 ${
+                showPdfInEditModal && (sourcePdfDataUri || sourcePreviewText)
+                  ? 'grid-cols-1 lg:grid-cols-12'
+                  : 'grid-cols-1'
+              }`}
+            >
+              {showPdfInEditModal && (sourcePdfDataUri || sourcePreviewText) && (
+                <div className="lg:col-span-5 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden flex flex-col h-[450px] lg:h-[620px]">
+                  <div className="p-2 bg-slate-900 text-white text-xs font-medium flex items-center justify-between">
+                    <span className="truncate max-w-[180px]">{selectedFileName}</span>
+                    <button
+                      type="button"
+                      onClick={openDocumentInNewTab}
+                      className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 text-[11px] cursor-pointer"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      <span>Pop out</span>
+                    </button>
+                  </div>
+                  {sourcePdfDataUri ? (
+                    <iframe
+                      src={sourcePdfDataUri}
+                      title="Edit Modal PDF Preview"
+                      className="w-full flex-1 border-0"
+                    />
+                  ) : (
+                    <pre className="w-full flex-1 p-3 overflow-y-auto text-xs font-mono text-slate-700 whitespace-pre-wrap leading-relaxed">
+                      {sourcePreviewText}
+                    </pre>
+                  )}
+                </div>
+              )}
+
+              <div
+                className={`space-y-3 text-xs ${
+                  showPdfInEditModal && (sourcePdfDataUri || sourcePreviewText)
+                    ? 'lg:col-span-7 overflow-y-auto max-h-[620px] pr-1'
+                    : ''
+                }`}
+              >
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Question Stem</label>
                 <textarea
@@ -1399,6 +1871,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                   )}
                 </div>
               </div>
+            </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">

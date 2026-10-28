@@ -82,6 +82,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch {}
   };
   const [editingQuestionFromReport, setEditingQuestionFromReport] = useState<MCQQuestion | null>(null);
+  const [isPdfCompareMode, setIsPdfCompareMode] = useState<boolean>(false);
+  const isWideWorkspace = activeSubtab === 'pdf' && isPdfCompareMode;
 
   const pendingReportsCount = reports.filter((r) => r.status === 'Pending').length;
 
@@ -206,7 +208,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {/* Dedicated Standalone Admin Top Navbar */}
       <header className="bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800/80 sticky top-0 z-40 w-full">
 
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-h-14 py-2 sm:py-0 flex flex-wrap items-center justify-between gap-3">
+        <div className={`${isWideWorkspace ? 'max-w-[1920px]' : 'max-w-7xl'} mx-auto px-3 sm:px-6 lg:px-8 min-h-14 py-2 sm:py-0 flex flex-wrap items-center justify-between gap-3`}>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-xs sm:text-sm tracking-tight text-white">
@@ -243,7 +245,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
         {/* Admin Sub-Navigation Bar */}
         <div className="bg-slate-950/60 backdrop-blur-md border-t border-slate-800/80 px-3 sm:px-6 lg:px-8">
-          <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto py-2 scrollbar-none">
+          <div className={`${isWideWorkspace ? 'max-w-[1920px]' : 'max-w-7xl'} mx-auto flex items-center gap-1 overflow-x-auto py-2 scrollbar-none`}>
             <button
               onClick={() => handleSubtabChange('dashboard')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
@@ -325,7 +327,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       </header>
 
       {/* Main Admin Workspace Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <main className={`flex-1 w-full mx-auto ${isWideWorkspace ? 'max-w-[1920px] px-2 sm:px-4 lg:px-6 py-4 space-y-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8 py-6 space-y-6'}`}>
 
       {/* Subtab View */}
       {activeSubtab === 'dashboard' && (
@@ -343,6 +345,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           categories={categories}
           onImportApprovedQuestions={onImportBulkQuestions}
           authToken={authToken}
+          onCompareModeChange={setIsPdfCompareMode}
         />
       )}
 

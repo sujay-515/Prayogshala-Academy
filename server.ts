@@ -2,7 +2,10 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { parseRawMCQText, findDuplicateQuestion, validateExtractedQuestion } from './src/utils/mcqParser';
 import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
@@ -36,14 +39,13 @@ import {
   clearStagingDrafts,
   cleanupExpiredData,
   hydrateFromSupabase,
-  isSuperAdminEmail,
-  isStaffAdminEmail,
   getUserByEmailOrUsername,
   listAllUsers,
   updateUserRole,
   createPasswordReset,
   verifyAndConsumeResetToken,
 } from './src/server/db';
+import { bootstrapSuperAdmin } from './src/server/bootstrap';
 import {
   isSupabaseConfigured,
   pingSupabaseKeepAlive,
@@ -65,15 +67,104 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 1. Reverse proxy configuration & security headers
+const rawTrustProxy = process.env.TRUST_PROXY;
+let trustProxySetting: number | boolean = process.env.NODE_ENV === 'production' ? 1 : 0;
+if (rawTrustProxy !== undefined) {
+  const parsed = parseInt(rawTrustProxy, 10);
+  trustProxySetting = isNaN(parsed) ? rawTrustProxy === 'true' : parsed;
+}
+app.set('trust proxy', trustProxySetting);
+app.disable('x-powered-by');
+
+// Security headers via Helmet (Production only; skipped in development)
+if (process.env.NODE_ENV !== 'development') {
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        reportOnly: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          frameSrc: ["'self'", 'data:', 'blob:'],
+          scriptSrc: ["'self'"],
+          upgradeInsecureRequests: null,
+        },
+      },
+    })
+  );
+}
+
+// 2. Route-specific body parsers (ORDER MATTERS: registered BEFORE the global 100kb parser)
+app.post('/api/extract-pdf', express.json({ limit: '50mb' }));
+app.post('/api/backup/restore', express.json({ limit: '25mb' }));
+app.post('/api/staging', express.json({ limit: '25mb' }));
+app.post('/api/questions/bulk-import', express.json({ limit: '10mb' }));
+app.post('/api/questions/bulk-upsert', express.json({ limit: '10mb' }));
+app.post('/api/questions', express.json({ limit: '5mb' }));
+
+// 3. Global body parsers for all standard endpoints (strictly capped at 100kb)
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+
+// 4. Rate Limiting Middleware (using express-rate-limit)
+const createLimiter = (windowMs: number, max: number, message: string, skipSuccessful = false) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: skipSuccessful,
+    validate: { trustProxy: false },
+    handler: (_req, res) => {
+      res.status(429).json({ success: false, error: message });
+    },
+  });
+
+const loginLimiter = createLimiter(
+  15 * 60 * 1000,
+  10,
+  'Too many failed login attempts. Please wait a few minutes before retrying.',
+  true
+);
+
+const registerLimiter = createLimiter(
+  60 * 60 * 1000,
+  5,
+  'Too many accounts created from this IP. Please try again later.'
+);
+
+const forgotPasswordLimiter = createLimiter(
+  15 * 60 * 1000,
+  5,
+  'Too many password reset requests. Please wait a few minutes before requesting another.'
+);
+
+const resetPasswordLimiter = createLimiter(
+  15 * 60 * 1000,
+  10,
+  'Too many password reset attempts. Please wait before trying again.'
+);
+
+const changePasswordLimiter = createLimiter(
+  15 * 60 * 1000,
+  10,
+  'Too many password change attempts. Please wait before trying again.'
+);
+
+const reportQuestionLimiter = createLimiter(
+  15 * 60 * 1000,
+  15,
+  'Too many question reports submitted. Please wait a few minutes before submitting more.'
+);
 
 // Cloud vision & OCR client initialization
 const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const loginAttemptsByIp = new Map<string, { count: number; resetAt: number }>();
 
 // Helper to resolve session from Authorization header (with 7-day TTL expiration check)
 function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string } | null {
@@ -133,7 +224,7 @@ function requireSuperAdmin(req: express.Request, res: express.Response, next: ex
 app.get('/api/health', (req, res) => {
   const totalQuestions = (db.prepare('SELECT COUNT(*) as cnt FROM questions').get() as { cnt: number }).cnt;
   if (isSupabaseConfigured()) {
-    void pingSupabaseKeepAlive();
+    void pingSupabaseKeepAlive().catch((err) => console.warn('[KeepAlive Error]', err));
   }
   res.json({
     status: 'ok',
@@ -169,43 +260,22 @@ app.get('/api/bootstrap', (req, res) => {
 });
 
 // ==================== AUTHENTICATION APIs ====================
-app.post('/api/auth/login', (req, res) => {
-  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
-  const nowMs = Date.now();
-  const attempt = loginAttemptsByIp.get(clientIp);
-  if (attempt && nowMs < attempt.resetAt && attempt.count >= 10) {
-    return res.status(429).json({
-      success: false,
-      error: 'Too many failed login attempts. Please wait a few minutes before retrying.',
-    });
-  }
-
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   const { identifier, username, password = '' } = req.body;
   const loginId = String(identifier || username || 'admin').toLowerCase().trim();
   const userRow = getUserByEmailOrUsername(loginId);
 
   if (!userRow || !verifyPassword(String(password), userRow.password_hash)) {
-    const nextCount = attempt && nowMs < attempt.resetAt ? attempt.count + 1 : 1;
-    loginAttemptsByIp.set(clientIp, { count: nextCount, resetAt: nowMs + 15 * 60 * 1000 });
     return res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
   }
-
-  loginAttemptsByIp.delete(clientIp);
 
   // Upgrade legacy unsalted hash to per-user random salt if needed
   if (!userRow.password_hash.includes(':')) {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userRow.id);
   }
 
-  // Automatic privilege elevation check based on .env whitelists
-  let activeRole = userRow.role;
-  if (isSuperAdminEmail(userRow.email) && activeRole !== 'superadmin') {
-    activeRole = 'superadmin';
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(activeRole, userRow.id);
-  } else if (isStaffAdminEmail(userRow.email) && activeRole === 'student') {
-    activeRole = 'admin';
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(activeRole, userRow.id);
-  }
+  // User role is strictly what is stored in the database
+  const activeRole = userRow.role;
 
   const token = crypto.randomBytes(24).toString('hex');
   const now = new Date().toISOString();
@@ -231,12 +301,12 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', registerLimiter, (req, res) => {
   const { username, email, password, displayName } = req.body;
-  if (!username || !password || password.length < 4) {
+  if (!username || !password || typeof password !== 'string' || password.length < 8 || password.length > 128) {
     return res.status(400).json({
       success: false,
-      error: 'Username and a password of at least 4 characters are required.',
+      error: 'Username and a password between 8 and 128 characters are required.',
     });
   }
 
@@ -259,16 +329,9 @@ app.post('/api/auth/register', (req, res) => {
     }
   }
 
-  // Determine role based on .env whitelist:
-  // If in SUPER_ADMIN_EMAILS -> 'superadmin'
-  // Else if in ADMIN_EMAILS -> 'admin'
-  // Otherwise strictly 'student'
-  let role: 'superadmin' | 'admin' | 'student' = 'student';
-  if (isSuperAdminEmail(cleanEmail)) {
-    role = 'superadmin';
-  } else if (isStaffAdminEmail(cleanEmail)) {
-    role = 'admin';
-  }
+  // Public self-registration always creates 'student' role.
+  // Administrative promotions can only be granted by an existing Head Administrator.
+  const role: 'student' = 'student';
 
   const id = `usr-${Date.now()}`;
   const now = new Date().toISOString();
@@ -341,7 +404,7 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
-app.post('/api/auth/forgot-password', (req, res) => {
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, (req, res) => {
   const { email } = req.body;
   if (!email || !String(email).includes('@')) {
     return res.status(400).json({ success: false, error: 'A valid email address is required.' });
@@ -364,12 +427,12 @@ app.post('/api/auth/forgot-password', (req, res) => {
   });
 });
 
-app.post('/api/auth/reset-password', (req, res) => {
+app.post('/api/auth/reset-password', resetPasswordLimiter, (req, res) => {
   const { token, newPassword } = req.body;
-  if (!token || !newPassword || String(newPassword).length < 4) {
+  if (!token || !newPassword || typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
     return res.status(400).json({
       success: false,
-      error: 'Valid reset token and a new password of at least 4 characters are required.',
+      error: 'Valid reset token and a new password between 8 and 128 characters are required.',
     });
   }
 
@@ -380,6 +443,36 @@ app.post('/api/auth/reset-password', (req, res) => {
   }
 
   return res.json({ success: true, message: 'Password has been reset successfully. You may now sign in.' });
+});
+
+app.post('/api/auth/change-password', changePasswordLimiter, (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, error: 'Current password and new password are required.' });
+  }
+
+  if (typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
+    return res.status(400).json({ success: false, error: 'New password must be between 8 and 128 characters.' });
+  }
+
+  const userRow = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(session.userId) as any;
+  if (!userRow || !verifyPassword(String(currentPassword), userRow.password_hash)) {
+    return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
+  }
+
+  const currentToken = req.headers.authorization?.slice(7);
+  const newHash = hashPassword(String(newPassword));
+
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, session.userId);
+  // Delete all OTHER sessions for that user, keeping the current session
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(session.userId, currentToken || '');
+
+  return res.json({ success: true, message: 'Password changed successfully.' });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -543,7 +636,7 @@ app.get('/api/questions/:id', (req, res) => {
     return res.status(404).json({ success: false, error: 'Question not found' });
   }
   const session = getSessionUser(req);
-  if (q.status !== 'Published' && session?.role !== 'admin') {
+  if (q.status !== 'Published' && session?.role !== 'admin' && session?.role !== 'superadmin') {
     return res.status(403).json({ success: false, error: 'Question is not published' });
   }
   return res.json({ success: true, question: q });
@@ -1035,7 +1128,7 @@ app.delete('/api/staging-drafts', requireAdmin, (_req, res) => {
 });
 
 // ==================== QUESTION ERROR REPORTING APIs ====================
-app.post('/api/report-question', (req, res) => {
+app.post('/api/report-question', reportQuestionLimiter, (req, res) => {
   const { questionId, questionCode, reason, details } = req.body;
   const report: QuestionReport = {
     id: `rep-${Date.now()}`,
@@ -1108,18 +1201,77 @@ app.post('/api/backup/restore', requireAdmin, (req, res) => {
   });
 });
 
+// 404 handler for unmatched /api/* routes
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `API endpoint ${req.method} ${req.path} not found`,
+  });
+});
+
+// Final Express error middleware (never leaks stack traces outside development)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const status =
+    typeof err.status === 'number'
+      ? err.status
+      : typeof err.statusCode === 'number'
+        ? err.statusCode
+        : 500;
+
+  console.error(`[Server Error] ${req.method} ${req.url} - ${status}:`, err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  if (status === 413 || err.type === 'entity.too.large') {
+    return res.status(413).json({
+      success: false,
+      error: 'Payload too large',
+    });
+  }
+
+  if (err instanceof SyntaxError && status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      error: 'Malformed JSON payload',
+    });
+  }
+
+  const message =
+    process.env.NODE_ENV === 'development'
+      ? err.message || 'Internal server error'
+      : 'Internal server error';
+
+  return res.status(status).json({
+    success: false,
+    error: message,
+  });
+});
+
+// Process-level failure handling
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Process] Unhandled Promise Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Process] Uncaught Exception:', err);
+  process.exit(1);
+});
+
 async function startServer() {
   await hydrateFromSupabase();
+  bootstrapSuperAdmin();
 
   // Keep Supabase Free Tier active & automatically purge expired temporary rows every 6 hours
   setInterval(() => {
     cleanupExpiredData();
     if (isSupabaseConfigured()) {
-      void pingSupabaseKeepAlive();
+      void pingSupabaseKeepAlive().catch((err) => console.warn('[KeepAlive Error]', err));
     }
   }, 6 * 60 * 60 * 1000);
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV === 'development') {
     const vite = await createViteServer({
       server: { middlewareMode: true, allowedHosts: true },
       appType: 'spa',
@@ -1131,15 +1283,57 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(process.cwd(), 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.resolve(process.cwd(), 'dist', 'index.html'));
+    const distPath = path.resolve(process.cwd(), 'dist');
+    const indexPath = path.resolve(distPath, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      console.error(`[Fatal Error] Production bundle not found at: ${distPath}`);
+      console.error('Please run "npm run build" before starting the server in production mode.');
+      process.exit(1);
+    }
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(indexPath);
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`MedLab QBank server running on http://0.0.0.0:${PORT}`);
   });
+
+  let isShuttingDown = false;
+  const gracefulShutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`\n[Process] Received ${signal}. Initiating graceful shutdown...`);
+
+    const forceTimer = setTimeout(() => {
+      console.error('[Process] Forceful shutdown timeout exceeded (10s). Terminating.');
+      process.exit(1);
+    }, 10000);
+    forceTimer.unref();
+
+    server.close((err) => {
+      if (err) {
+        console.error('[Process] Error closing HTTP server:', err);
+      } else {
+        console.log('[Process] HTTP server closed to new connections.');
+      }
+
+      try {
+        db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+        db.close();
+        console.log('[Process] SQLite database checkpointed and closed cleanly.');
+      } catch (dbErr) {
+        console.error('[Process] Error closing SQLite database:', dbErr);
+      }
+
+      clearTimeout(forceTimer);
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 startServer();

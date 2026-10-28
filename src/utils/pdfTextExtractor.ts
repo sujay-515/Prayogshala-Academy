@@ -1,5 +1,7 @@
 import zlib from 'node:zlib';
 
+const MAX_DECOMPRESS_BYTES = 20 * 1024 * 1024; // 20MB maximum decompressed output per stream to prevent zip bombs
+
 /**
  * Windows-1252 (WinAnsiEncoding) mapping for bytes 0x80 - 0x9F
  */
@@ -417,9 +419,9 @@ function extractPdfImageObjects(rawLatin1: string): Map<number, string> {
             try {
               let decompressed: Buffer;
               try {
-                decompressed = zlib.inflateSync(streamBuf);
+                decompressed = zlib.inflateSync(streamBuf, { maxOutputLength: MAX_DECOMPRESS_BYTES });
               } catch {
-                decompressed = zlib.inflateRawSync(streamBuf);
+                decompressed = zlib.inflateRawSync(streamBuf, { maxOutputLength: MAX_DECOMPRESS_BYTES });
               }
 
               if (decompressed.length >= 3 && decompressed[0] === 0xff && decompressed[1] === 0xd8 && decompressed[2] === 0xff) {
@@ -577,11 +579,12 @@ function decompressStream(streamBodyLatin1: string, dictText: string): string {
   }
 
   try {
-    return zlib.inflateSync(streamBuf).toString('latin1');
+    return zlib.inflateSync(streamBuf, { maxOutputLength: MAX_DECOMPRESS_BYTES }).toString('latin1');
   } catch {
     try {
-      return zlib.inflateRawSync(streamBuf).toString('latin1');
-    } catch {
+      return zlib.inflateRawSync(streamBuf, { maxOutputLength: MAX_DECOMPRESS_BYTES }).toString('latin1');
+    } catch (err) {
+      console.warn('[PDF Stream Decompress Warning] Stream decompress skipped or exceeded 20MB limit:', (err as any)?.message || err);
       return streamBodyLatin1;
     }
   }
