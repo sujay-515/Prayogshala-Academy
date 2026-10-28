@@ -12,3 +12,6 @@ coverage/
 test_mcqs/
 local-only/
 *.pdf
+*.sqlite*
+*.sqlite-wal
+*.sqlite-shm

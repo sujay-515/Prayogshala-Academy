@@ -18,7 +18,6 @@ const LEGACY_IDENTIFIERS = [
   'student',
   'staff',
   'superadmin',
-  'sodefo8714@playfine.com',
   'student@medlab.local',
   'staff@medlab.test',
   'superadmin@medlab.test',
