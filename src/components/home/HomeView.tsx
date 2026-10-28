@@ -35,6 +35,35 @@ export const HomeView: React.FC<HomeViewProps> = ({
     { code: 'AIMS', title: 'AIMS Professional', subtitle: 'Australian Institute of Medical Scientists' },
   ];
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': `${SITE_CONFIG.SITE_URL}/#website`,
+        url: SITE_CONFIG.SITE_URL,
+        name: SITE_CONFIG.SITE_NAME,
+        description:
+          'Medical laboratory examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Blood Banking, and Immunology.',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: {
+            '@type': 'EntryPoint',
+            urlTemplate: `${SITE_CONFIG.SITE_URL}/browse?q={search_term_string}`,
+          },
+          'query-input': 'required name=search_term_string',
+        },
+      },
+      {
+        '@type': 'Organization',
+        '@id': `${SITE_CONFIG.SITE_URL}/#organization`,
+        name: SITE_CONFIG.SITE_NAME,
+        url: SITE_CONFIG.SITE_URL,
+        logo: `${SITE_CONFIG.SITE_URL}/favicon.svg`,
+      },
+    ],
+  };
+
   return (
     <div className="space-y-12 pb-20">
       <title>MedLab QBank · Clinical Laboratory Medicine Question Bank</title>
@@ -49,6 +78,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
         content="Medical laboratory examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Blood Banking, and Immunology."
       />
       <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/`} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       {/* Editorial Overview Section */}
       <section className="glass-panel rounded-2xl p-6 sm:p-8 relative overflow-hidden">
