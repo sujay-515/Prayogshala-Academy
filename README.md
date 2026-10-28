@@ -60,6 +60,11 @@ During `npm run build`, an automated `prebuild` hook (`scripts/check-placeholder
 - In local development, the hook emits a descriptive console warning with missing keys.
 - In strict CI/CD production pipelines, set `STRICT_PLACEHOLDERS=true` in the environment to fail the build if any placeholder remains unconfigured.
 
+### Content Security Policy (CSP)
+In production environments, Helmet configures HTTP security headers. The CSP mode is controlled via the `CSP_MODE` environment variable:
+- `CSP_MODE=report-only` (default when unset): Emits the `Content-Security-Policy-Report-Only` header. This allows operators to audit policy compliance in their production environment without blocking styles, fonts, or images.
+- `CSP_MODE=enforce`: Emits the strict `Content-Security-Policy` header using the same directive set, actively enforcing resource isolation and blocking unauthorized external origins.
+
 ## Backups
 
 ### Automated and CLI Database Snapshots (`VACUUM INTO`)

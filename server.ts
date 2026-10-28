@@ -83,10 +83,11 @@ app.disable('x-powered-by');
 
 // Security headers via Helmet (Production only; skipped in development)
 if (process.env.NODE_ENV !== 'development') {
+  const isEnforceCsp = process.env.CSP_MODE?.trim().toLowerCase() === 'enforce';
   app.use(
     helmet({
       contentSecurityPolicy: {
-        reportOnly: true,
+        reportOnly: !isEnforceCsp,
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
