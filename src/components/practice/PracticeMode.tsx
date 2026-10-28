@@ -426,12 +426,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         )}
 
         {/* Question Stem */}
-        <div className="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
+        <div id="practice-question-stem" className="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
           {currentQ.questionText}
         </div>
 
         {/* Option Choices */}
-        <div className="space-y-2.5">
+        <div role="radiogroup" aria-labelledby="practice-question-stem" className="space-y-2.5">
           {currentQ.options.map((option) => {
             const isSelected = selectedAnswers[currentQ.id] === option.id;
             const isCorrectAnswer = option.id === currentQ.correctAnswer;
@@ -450,14 +450,29 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               cardStyles = 'bg-cyan-50/80 backdrop-blur-xs border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-xs';
             }
 
+            const stateText = isRevealed
+              ? isCorrectAnswer
+                ? ' (Correct Answer)'
+                : isSelected
+                ? ' (Incorrect Selection)'
+                : ''
+              : isSelected
+              ? ' (Selected)'
+              : '';
+
             return (
               <button
                 key={option.id}
+                type="button"
+                role="radio"
                 disabled={isRevealed}
+                aria-checked={isSelected}
+                aria-label={`Option ${option.id}: ${option.text}${stateText}`}
                 onClick={() => handleSelectOption(option.id)}
-                className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${cardStyles}`}
+                className={`w-full text-left p-3.5 min-h-[48px] rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${cardStyles}`}
               >
                 <span
+                  aria-hidden="true"
                   className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 ${
                     isRevealed && isCorrectAnswer
                       ? 'bg-emerald-700 text-white'
@@ -470,7 +485,8 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                 >
                   {option.id}
                 </span>
-                <span className="text-xs sm:text-sm leading-relaxed">{option.text}</span>
+                <span className="text-xs sm:text-sm leading-relaxed flex-1">{option.text}</span>
+                {stateText && <span className="sr-only">{stateText}</span>}
               </button>
             );
           })}
@@ -482,7 +498,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             <button
               disabled={!selectedAnswers[currentQ.id]}
               onClick={handleCheckAnswer}
-              className="px-5 py-2 bg-cyan-700 hover:bg-cyan-800 disabled:opacity-40 text-white font-medium text-xs rounded transition-colors cursor-pointer"
+              className="px-5 py-2.5 min-h-[44px] bg-cyan-700 hover:bg-cyan-800 disabled:opacity-40 text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
             >
               Check Answer
             </button>
@@ -528,7 +544,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         <button
           disabled={currentIndex === 0}
           onClick={handlePrev}
-          className="px-3.5 py-2 rounded border border-slate-300 hover:bg-slate-100 disabled:opacity-30 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+          className="px-4 py-2.5 min-h-[44px] rounded border border-slate-300 hover:bg-slate-100 disabled:opacity-30 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Previous</span>
@@ -558,7 +574,15 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               <button
                 key={q.id}
                 onClick={() => setCurrentIndex(idx)}
-                className={`w-8 h-8 rounded border text-xs transition-all cursor-pointer flex items-center justify-center ${dotStyles}`}
+                aria-label={`Question ${idx + 1}, ${
+                  !isAnsweredQ
+                    ? 'unanswered'
+                    : isCorrectQ
+                    ? 'answered correctly'
+                    : 'answered incorrectly'
+                }${isCurr ? ', current' : ''}`}
+                aria-current={isCurr ? 'step' : undefined}
+                className={`w-9 h-9 min-w-[36px] min-h-[36px] rounded border text-xs transition-all cursor-pointer flex items-center justify-center ${dotStyles}`}
               >
                 {idx + 1}
               </button>
@@ -569,7 +593,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         {currentIndex < sessionQuestions.length - 1 ? (
           <button
             onClick={handleNext}
-            className="px-4 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2.5 min-h-[44px] rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <span>Next</span>
             <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
@@ -577,7 +601,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         ) : (
           <button
             onClick={handleEndSession}
-            className="px-4 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2.5 min-h-[44px] rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <span>Complete session</span>
             <CheckCircle2 className="w-3.5 h-3.5" />

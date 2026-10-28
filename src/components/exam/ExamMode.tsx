@@ -55,10 +55,27 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
   const [secondsRemaining, setSecondsRemaining] = useState<number>(0);
+  const [timeAnnouncement, setTimeAnnouncement] = useState<string>('');
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-
   const [examResult, setExamResult] = useState<ExamScoreResult | null>(null);
+
+  useEffect(() => {
+    if (!isExamRunning || examResult) return;
+    if (secondsRemaining === 30 * 60) {
+      setTimeAnnouncement('30 minutes remaining in examination.');
+    } else if (secondsRemaining === 15 * 60) {
+      setTimeAnnouncement('15 minutes remaining in examination.');
+    } else if (secondsRemaining === 10 * 60) {
+      setTimeAnnouncement('10 minutes remaining in examination.');
+    } else if (secondsRemaining === 5 * 60) {
+      setTimeAnnouncement('5 minutes remaining in examination.');
+    } else if (secondsRemaining === 60) {
+      setTimeAnnouncement('1 minute remaining in examination.');
+    } else if (secondsRemaining === 30) {
+      setTimeAnnouncement('30 seconds remaining in examination.');
+    }
+  }, [secondsRemaining, isExamRunning, examResult]);
 
   useEffect(() => {
     if (initialExamCategory) {
@@ -621,9 +638,17 @@ export const ExamMode: React.FC<ExamModeProps> = ({
       {/* Top Banner with Clock */}
       <div className="glass-panel rounded-xl p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200/80 font-mono text-xs sm:text-sm font-semibold text-slate-800">
-            <Clock className="w-3.5 h-3.5 text-cyan-600" />
+          <div
+            role="timer"
+            aria-label={`Time remaining: ${formatTime(secondsRemaining)}`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 min-h-[44px] rounded-lg bg-slate-100 border border-slate-200/80 font-mono text-xs sm:text-sm font-semibold text-slate-800"
+          >
+            <Clock className="w-4 h-4 text-cyan-600" aria-hidden="true" />
             <span>{formatTime(secondsRemaining)}</span>
+          </div>
+          {/* Visually hidden aria-live region announcing time thresholds only (30, 15, 10, 5, 1 min, 30s) */}
+          <div aria-live="polite" aria-atomic="true" className="sr-only">
+            {timeAnnouncement}
           </div>
           <span className="text-xs text-slate-500 hidden sm:inline">
             {examCategory === 'All' ? 'Comprehensive' : examCategory} Exam
@@ -641,13 +666,13 @@ export const ExamMode: React.FC<ExamModeProps> = ({
           </span>
           <button
             onClick={() => setIsReviewScreenOpen(!isReviewScreenOpen)}
-            className="px-2.5 py-1.5 rounded-lg border border-slate-300/80 hover:bg-white text-xs text-slate-700 font-medium cursor-pointer transition-colors shadow-2xs"
+            className="px-3 py-2 min-h-[44px] rounded-lg border border-slate-300/80 hover:bg-white text-xs text-slate-700 font-medium cursor-pointer transition-colors shadow-2xs"
           >
             {isReviewScreenOpen ? 'Question' : 'Review Grid'}
           </button>
           <button
             onClick={() => setShowConfirmModal(true)}
-            className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium cursor-pointer transition-colors shadow-xs"
+            className="px-4 py-2 min-h-[44px] rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium cursor-pointer transition-colors shadow-xs"
           >
             Submit
           </button>
@@ -702,9 +727,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
                     setCurrentIndex(idx);
                     setIsReviewScreenOpen(false);
                   }}
-                  className={`p-2 rounded-lg border text-xs flex flex-col items-center justify-center transition-all cursor-pointer ${badge}`}
+                  aria-label={`Question ${idx + 1}, ${isAnswered ? 'answered' : 'unanswered'}${isFlag ? ', flagged' : ''}`}
+                  aria-pressed={currentIndex === idx}
+                  className={`p-2 min-h-[44px] min-w-[44px] rounded-lg border text-xs flex flex-col items-center justify-center transition-all cursor-pointer ${badge}`}
                 >
                   <span>Q{idx + 1}</span>
+                  {isFlag && <span className="sr-only">(Flagged)</span>}
                 </button>
               );
             })}
@@ -813,31 +841,37 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </div>
           )}
 
-          <div className="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
+          <div id="exam-question-stem" className="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
             {currQ.questionText}
           </div>
 
-          <div className="space-y-2.5">
+          <div role="radiogroup" aria-labelledby="exam-question-stem" className="space-y-2.5">
             {currQ.options.map((opt) => {
               const isSelected = userAnswers[currQ.id] === opt.id;
               return (
                 <button
                   key={opt.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={`Option ${opt.id}: ${opt.text}${isSelected ? ' (Selected)' : ''}`}
                   onClick={() => handleSelectAnswer(opt.id)}
-                  className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${
+                  className={`w-full text-left p-3.5 min-h-[48px] rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${
                     isSelected
                       ? 'bg-cyan-50/80 backdrop-blur-xs border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-xs'
                       : 'glass-card text-slate-800 hover:bg-white hover:border-cyan-300 hover:shadow-xs'
                   }`}
                 >
                   <span
+                    aria-hidden="true"
                     className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 ${
                       isSelected ? 'bg-cyan-700 text-white' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {opt.id}
                   </span>
-                  <span className="text-xs sm:text-sm leading-relaxed">{opt.text}</span>
+                  <span className="text-xs sm:text-sm leading-relaxed flex-1">{opt.text}</span>
+                  {isSelected && <span className="sr-only">(Selected)</span>}
                 </button>
               );
             })}
@@ -847,7 +881,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             <button
               disabled={currentIndex === 0}
               onClick={() => setCurrentIndex((prev) => prev - 1)}
-              className="px-3.5 py-2 rounded border border-slate-300 hover:bg-slate-50 disabled:opacity-30 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2.5 min-h-[44px] rounded border border-slate-300 hover:bg-slate-50 disabled:opacity-30 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Previous</span>
@@ -861,7 +895,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             {currentIndex < examQuestions.length - 1 ? (
               <button
                 onClick={() => setCurrentIndex((prev) => prev + 1)}
-                className="px-4 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                className="px-4 py-2.5 min-h-[44px] rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <span>Next</span>
                 <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
@@ -869,7 +903,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             ) : (
               <button
                 onClick={() => setShowConfirmModal(true)}
-                className="px-4 py-2 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 min-h-[44px] rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <span>Review & Submit</span>
                 <CheckCircle2 className="w-3.5 h-3.5" />
