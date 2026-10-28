@@ -258,10 +258,14 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
           <h4 className="font-semibold text-slate-900">Add New Specialty Unit</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-700 mb-1">Unit Title</label>
+              <label htmlFor="cat-new-unit-name" className="block text-slate-700 mb-1">
+                Unit Title
+              </label>
               <input
+                id="cat-new-unit-name"
                 type="text"
                 required
+                aria-required="true"
                 value={newUnitName}
                 onChange={(e) => setNewUnitName(e.target.value)}
                 placeholder="e.g. Molecular Pathology"
@@ -269,8 +273,11 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
               />
             </div>
             <div>
-              <label className="block text-slate-700 mb-1">Description</label>
+              <label htmlFor="cat-new-unit-desc" className="block text-slate-700 mb-1">
+                Description
+              </label>
               <input
+                id="cat-new-unit-desc"
                 type="text"
                 value={newUnitDesc}
                 onChange={(e) => setNewUnitDesc(e.target.value)}
@@ -340,18 +347,25 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Unit Name</label>
+                    <label htmlFor="cat-edit-unit-name" className="block font-semibold text-slate-700 mb-1">
+                      Unit Name
+                    </label>
                     <input
+                      id="cat-edit-unit-name"
                       type="text"
                       required
+                      aria-required="true"
                       value={editUnitName}
                       onChange={(e) => setEditUnitName(e.target.value)}
                       className="w-full bg-white border border-slate-300 rounded p-1.5 text-slate-900"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Description</label>
+                    <label htmlFor="cat-edit-unit-desc" className="block font-semibold text-slate-700 mb-1">
+                      Description
+                    </label>
                     <input
+                      id="cat-edit-unit-desc"
                       type="text"
                       value={editUnitDesc}
                       onChange={(e) => setEditUnitDesc(e.target.value)}
@@ -419,6 +433,8 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                 <input
                   type="text"
                   required
+                  aria-required="true"
+                  aria-label="New Subject Title"
                   placeholder="New Subject Title..."
                   value={newSubjectName}
                   onChange={(e) => setNewSubjectName(e.target.value)}

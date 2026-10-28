@@ -1078,10 +1078,16 @@ export default function App() {
               {authMode === 'register' && (
                 <>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Full Name / Display Name</label>
+                    <label htmlFor="auth-register-displayname" className="block font-semibold text-slate-700 mb-1">
+                      Full Name / Display Name
+                    </label>
                     <input
+                      id="auth-register-displayname"
                       type="text"
                       required
+                      aria-required="true"
+                      aria-invalid={authError ? 'true' : undefined}
+                      aria-describedby={authError ? 'auth-error-msg' : undefined}
                       value={authDisplayName}
                       onChange={(e) => setAuthDisplayName(e.target.value)}
                       placeholder="e.g. Dr. A. Sharma"
@@ -1090,16 +1096,22 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Email Address</label>
+                    <label htmlFor="auth-register-email" className="block font-semibold text-slate-700 mb-1">
+                      Email Address
+                    </label>
                     <input
+                      id="auth-register-email"
                       type="email"
                       required
+                      aria-required="true"
+                      aria-invalid={authError ? 'true' : undefined}
+                      aria-describedby={authError ? 'auth-error-msg auth-email-hint' : 'auth-email-hint'}
                       value={authEmail}
                       onChange={(e) => setAuthEmail(e.target.value)}
                       placeholder="e.g. candidate@university.edu"
                       className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                     />
-                    <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    <span id="auth-email-hint" className="text-[10px] text-slate-400 mt-0.5 block">
                       Used for progress synchronization, receipts, and password recovery.
                     </span>
                   </div>
@@ -1108,10 +1120,16 @@ export default function App() {
 
               {authMode === 'forgot' && (
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Account Email Address</label>
+                  <label htmlFor="auth-forgot-email" className="block font-semibold text-slate-700 mb-1">
+                    Account Email Address
+                  </label>
                   <input
+                    id="auth-forgot-email"
                     type="email"
                     required
+                    aria-required="true"
+                    aria-invalid={authError ? 'true' : undefined}
+                    aria-describedby={authError ? 'auth-error-msg' : undefined}
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     placeholder="Enter your registered email..."
@@ -1122,12 +1140,16 @@ export default function App() {
 
               {(authMode === 'login' || authMode === 'register') && (
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="auth-username" className="block font-semibold text-slate-700 mb-1">
                     {authMode === 'login' ? 'Username or Email Address' : 'Unique Username'}
                   </label>
                   <input
+                    id="auth-username"
                     type="text"
                     required
+                    aria-required="true"
+                    aria-invalid={authError ? 'true' : undefined}
+                    aria-describedby={authError ? 'auth-error-msg' : undefined}
                     value={authUsername}
                     onChange={(e) => setAuthUsername(e.target.value)}
                     placeholder={authMode === 'login' ? 'Enter username or email address...' : 'Choose a unique username...'}
@@ -1139,7 +1161,7 @@ export default function App() {
               {(authMode === 'login' || authMode === 'register' || authMode === 'reset') && (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="font-semibold text-slate-700">
+                    <label htmlFor="auth-password" className="font-semibold text-slate-700">
                       {authMode === 'reset' ? 'New Password' : 'Password'}
                     </label>
                     {authMode === 'login' && (
@@ -1157,8 +1179,12 @@ export default function App() {
                     )}
                   </div>
                   <input
+                    id="auth-password"
                     type="password"
                     required
+                    aria-required="true"
+                    aria-invalid={authError ? 'true' : undefined}
+                    aria-describedby={authError ? 'auth-error-msg' : undefined}
                     value={authPassword}
                     onChange={(e) => setAuthPassword(e.target.value)}
                     placeholder={authMode === 'reset' ? 'Enter new password (min. 4 characters)...' : 'Enter password...'}
@@ -1167,7 +1193,11 @@ export default function App() {
                 </div>
               )}
 
-              {authError && <p className="text-rose-600 text-xs">{authError}</p>}
+              {authError && (
+                <p id="auth-error-msg" role="alert" aria-live="polite" className="text-rose-600 text-xs font-medium">
+                  {authError}
+                </p>
+              )}
 
               {authMode === 'register' && (
                 <p className="text-[11px] text-slate-500 text-center leading-normal">

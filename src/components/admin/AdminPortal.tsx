@@ -157,10 +157,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
           <form onSubmit={handleLogin} className="space-y-3 pt-1">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Administrator ID or Email</label>
+              <label htmlFor="admin-login-username" className="block text-xs font-semibold text-slate-700 mb-1">
+                Administrator ID or Email
+              </label>
               <input
+                id="admin-login-username"
                 type="text"
                 required
+                aria-required="true"
+                aria-invalid={authError ? 'true' : undefined}
+                aria-describedby={authError ? 'admin-auth-error' : undefined}
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
                 placeholder="Username or staff email..."
@@ -168,17 +174,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Passkey</label>
+              <label htmlFor="admin-login-password" className="block text-xs font-semibold text-slate-700 mb-1">
+                Passkey
+              </label>
               <input
+                id="admin-login-password"
                 type="password"
                 required
+                aria-required="true"
+                aria-invalid={authError ? 'true' : undefined}
+                aria-describedby={authError ? 'admin-auth-error' : undefined}
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder="Enter administrator password..."
                 className="w-full bg-white/80 text-xs sm:text-sm text-slate-900 rounded-lg px-3 py-2 border border-slate-200/90 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs"
               />
             </div>
-            {authError && <p className="text-xs text-rose-600 text-center">{authError}</p>}
+            {authError && (
+              <p id="admin-auth-error" role="alert" aria-live="polite" className="text-xs text-rose-600 text-center font-medium">
+                {authError}
+              </p>
+            )}
 
             <button
               type="submit"

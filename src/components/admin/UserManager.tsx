@@ -472,10 +472,14 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
 
             <form onSubmit={handleInviteSubmit} className="space-y-3 text-xs sm:text-sm">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Full Name & Title</label>
+                <label htmlFor="invite-display-name" className="block font-semibold text-slate-700 mb-1">
+                  Full Name & Title
+                </label>
                 <input
+                  id="invite-display-name"
                   type="text"
                   required
+                  aria-required="true"
                   value={inviteDisplayName}
                   onChange={(e) => setInviteDisplayName(e.target.value)}
                   placeholder="e.g. Dr. Priya Sharma, MD (Pathology)"
@@ -484,10 +488,14 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Email Address</label>
+                <label htmlFor="invite-email" className="block font-semibold text-slate-700 mb-1">
+                  Email Address
+                </label>
                 <input
+                  id="invite-email"
                   type="email"
                   required
+                  aria-required="true"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="e.g. priya.sharma@hospital.org"
@@ -499,10 +507,14 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Staff Username</label>
+                <label htmlFor="invite-username" className="block font-semibold text-slate-700 mb-1">
+                  Staff Username
+                </label>
                 <input
+                  id="invite-username"
                   type="text"
                   required
+                  aria-required="true"
                   value={inviteUsername}
                   onChange={(e) => setInviteUsername(e.target.value)}
                   placeholder="e.g. dr_sharma"
@@ -511,8 +523,11 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Assigned Role</label>
+                <label htmlFor="invite-role" className="block font-semibold text-slate-700 mb-1">
+                  Assigned Role
+                </label>
                 <select
+                  id="invite-role"
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 cursor-pointer"
@@ -523,10 +538,11 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label htmlFor="invite-password" className="block font-semibold text-slate-700 mb-1">
                   Custom Password <span className="font-normal text-slate-400">(Optional — auto-generated if empty)</span>
                 </label>
                 <input
+                  id="invite-password"
                   type="text"
                   value={invitePassword}
                   onChange={(e) => setInvitePassword(e.target.value)}

@@ -75,10 +75,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="report-issue-reason" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Issue Category
               </label>
               <select
+                id="report-issue-reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value as any)}
                 className="w-full bg-white/85 backdrop-blur-xs border border-slate-200/90 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 shadow-2xs cursor-pointer"
@@ -92,11 +93,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label htmlFor="report-issue-details" className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Correction Details or Comments
               </label>
               <textarea
+                id="report-issue-details"
                 required
+                aria-required="true"
                 rows={4}
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}

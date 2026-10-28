@@ -436,11 +436,13 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
             <form id="question-form" onSubmit={handleSubmit} className="space-y-5 text-xs">
               {/* Question Stem */}
               <div>
-                <label className="block text-slate-800 font-semibold mb-1.5">
+                <label htmlFor="qform-stem" className="block text-slate-800 font-semibold mb-1.5">
                   Question Stem (Mandatory)
                 </label>
                 <textarea
+                  id="qform-stem"
                   required
+                  aria-required="true"
                   rows={3}
                   value={stem}
                   onChange={(e) => setStem(e.target.value)}
@@ -451,10 +453,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
 
               {/* Clinical Case Vignette (Optional) */}
               <div>
-                <label className="block text-slate-700 font-semibold mb-1.5">
+                <label htmlFor="qform-clinical-case" className="block text-slate-700 font-semibold mb-1.5">
                   Clinical Vignette / Patient Case Information (Optional)
                 </label>
                 <textarea
+                  id="qform-clinical-case"
                   rows={2}
                   value={clinicalCase}
                   onChange={(e) => setClinicalCase(e.target.value)}
@@ -488,6 +491,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                       ref={imageInputRef}
                       onChange={handleImageFileUpload}
                       accept="image/*"
+                      aria-label="Upload diagnostic figure file"
                       className="hidden"
                     />
                     <button
@@ -506,6 +510,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
+                      aria-label="Diagnostic image URL or data URI"
                       value={imageUrl}
                       onChange={(e) => {
                         setImageUrl(e.target.value);
@@ -527,7 +532,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                       </button>
                     )}
                   </div>
-                  {imageError && <p className="text-xs text-rose-600">{imageError}</p>}
+                  {imageError && (
+                    <p role="alert" aria-live="polite" className="text-xs text-rose-600 font-medium">
+                      {imageError}
+                    </p>
+                  )}
                 </div>
 
                 {/* Interactive Table Builder */}
@@ -617,8 +626,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
               {/* Categorization Dropdowns (Unit -> Subject -> Topic -> Subtopic) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Unit</label>
+                  <label htmlFor="qform-unit" className="block text-slate-700 font-semibold mb-1">
+                    Unit
+                  </label>
                   <select
+                    id="qform-unit"
                     value={unit}
                     onChange={(e) => {
                       setUnit(e.target.value);
@@ -644,8 +656,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Subject</label>
+                  <label htmlFor="qform-subject" className="block text-slate-700 font-semibold mb-1">
+                    Subject
+                  </label>
                   <select
+                    id="qform-subject"
                     value={subject}
                     onChange={(e) => {
                       setSubject(e.target.value);
@@ -666,10 +681,14 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Topic</label>
+                  <label htmlFor="qform-topic" className="block text-slate-700 font-semibold mb-1">
+                    Topic
+                  </label>
                   <input
+                    id="qform-topic"
                     type="text"
                     required
+                    aria-required="true"
                     list="available-topics-list"
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
@@ -683,8 +702,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Subtopic (Optional)</label>
+                  <label htmlFor="qform-subtopic" className="block text-slate-700 font-semibold mb-1">
+                    Subtopic (Optional)
+                  </label>
                   <input
+                    id="qform-subtopic"
                     type="text"
                     value={subtopic}
                     onChange={(e) => setSubtopic(e.target.value)}
@@ -697,8 +719,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
               {/* Difficulty & Status */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Difficulty</label>
+                  <label htmlFor="qform-difficulty" className="block text-slate-700 font-semibold mb-1">
+                    Difficulty
+                  </label>
                   <select
+                    id="qform-difficulty"
                     value={difficulty}
                     onChange={(e) => setDifficulty(e.target.value as DifficultyLevel)}
                     className="w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
@@ -710,8 +735,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Publication Status</label>
+                  <label htmlFor="qform-status" className="block text-slate-700 font-semibold mb-1">
+                    Publication Status
+                  </label>
                   <select
+                    id="qform-status"
                     value={status}
                     onChange={(e) => setStatus(e.target.value as QuestionStatus)}
                     className="w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
@@ -767,50 +795,67 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                   )}
                 </div>
 
-                {options.map((opt, idx) => (
-                  <div key={opt.id} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="correct-answer"
-                      checked={correctAnswer === opt.id}
-                      onChange={() => setCorrectAnswer(opt.id)}
-                      className="text-slate-900 focus:ring-slate-900 cursor-pointer"
-                    />
-                    <span className="font-semibold text-slate-600 w-4 text-center">{opt.id}</span>
-                    <input
-                      type="text"
-                      required
-                      value={opt.text}
-                      onChange={(e) => {
-                        const newOpts = [...options];
-                        newOpts[idx] = { ...opt, text: e.target.value };
-                        setOptions(newOpts);
-                      }}
-                      placeholder={`Option ${opt.id} text...`}
-                      className="flex-1 bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
-                    />
-                    {options.length > 2 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveOption(opt.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer"
-                        title={`Remove Option ${opt.id}`}
+                <div role="radiogroup" aria-labelledby="qform-options-label" className="space-y-2">
+                  <span id="qform-options-label" className="sr-only">
+                    Question Answer Choices (Select the correct key)
+                  </span>
+                  {options.map((opt, idx) => (
+                    <div key={opt.id} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id={`qform-radio-opt-${opt.id}`}
+                        name="correct-answer"
+                        aria-label={`Mark Option ${opt.id} as correct answer`}
+                        checked={correctAnswer === opt.id}
+                        onChange={() => setCorrectAnswer(opt.id)}
+                        className="text-slate-900 focus:ring-slate-900 cursor-pointer"
+                      />
+                      <label
+                        htmlFor={`qform-opt-text-${opt.id}`}
+                        className="font-semibold text-slate-600 w-4 text-center cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        {opt.id}
+                      </label>
+                      <input
+                        id={`qform-opt-text-${opt.id}`}
+                        type="text"
+                        required
+                        aria-required="true"
+                        aria-label={`Option ${opt.id} text`}
+                        value={opt.text}
+                        onChange={(e) => {
+                          const newOpts = [...options];
+                          newOpts[idx] = { ...opt, text: e.target.value };
+                          setOptions(newOpts);
+                        }}
+                        placeholder={`Option ${opt.id} text...`}
+                        className="flex-1 bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                      />
+                      {options.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveOption(opt.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer"
+                          aria-label={`Remove Option ${opt.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Clinical Explanation & Reference */}
               <div className="space-y-3 pt-3 border-t border-slate-100">
                 <div>
-                  <label className="block text-slate-800 font-semibold mb-1.5">
+                  <label htmlFor="qform-explanation" className="block text-slate-800 font-semibold mb-1.5">
                     Scientific Explanation & Clinical Rationale
                   </label>
                   <textarea
+                    id="qform-explanation"
                     required
+                    aria-required="true"
                     rows={3}
                     value={explanation}
                     onChange={(e) => setExplanation(e.target.value)}
@@ -820,12 +865,14 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1.5">
+                  <label htmlFor="qform-reference" className="block text-slate-700 font-semibold mb-1.5">
                     Authoritative Reference / Citation
                   </label>
                   <input
+                    id="qform-reference"
                     type="text"
                     required
+                    aria-required="true"
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
                     placeholder="e.g. Tietz Textbook of Clinical Chemistry, 6th Ed., Ch. 44"
@@ -836,10 +883,11 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
 
               {/* Version History Note */}
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">
+                <label htmlFor="qform-audit-note" className="block text-slate-700 font-semibold mb-1">
                   Revision / Audit Note
                 </label>
                 <input
+                  id="qform-audit-note"
                   type="text"
                   value={auditNote}
                   onChange={(e) => setAuditNote(e.target.value)}
