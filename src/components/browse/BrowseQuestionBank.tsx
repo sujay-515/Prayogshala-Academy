@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
+import { SITE_CONFIG } from '../../config/site';
 
 interface BrowseQuestionBankProps {
   questions: MCQQuestion[];
@@ -152,6 +153,19 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto py-6 space-y-6">
+      <title>Browse Question Bank | MedLab QBank</title>
+      <meta
+        name="description"
+        content="Search and filter medical laboratory science MCQs by clinical unit, subject topic, difficulty, and examination syllabus."
+      />
+      <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/browse`} />
+      <meta property="og:title" content="Browse Question Bank | MedLab QBank" />
+      <meta
+        property="og:description"
+        content="Search and filter medical laboratory science MCQs by clinical unit, subject topic, difficulty, and examination syllabus."
+      />
+      <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/browse`} />
+
       {/* Title & Practice Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
         <div>

@@ -140,13 +140,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+        <title>Admin Portal | MedLab QBank</title>
+        <meta name="robots" content="noindex,nofollow" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="w-full max-w-sm p-6 sm:p-7 glass-panel rounded-2xl shadow-2xl space-y-4 relative z-10 border border-white/80">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-200/80">
             <div className="w-7 h-7 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
               <Lock className="w-4 h-4 text-cyan-700" />
             </div>
-            <h2 className="text-sm font-semibold text-slate-900">Staff administration console</h2>
+            <h1 className="text-sm font-semibold text-slate-900">Staff administration console</h1>
           </div>
 
           <p className="text-xs text-slate-600 leading-relaxed">
@@ -205,15 +207,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+      <title>Admin Portal | MedLab QBank</title>
+      <meta name="robots" content="noindex,nofollow" />
       {/* Dedicated Standalone Admin Top Navbar */}
       <header className="bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800/80 sticky top-0 z-40 w-full">
 
         <div className={`${isWideWorkspace ? 'max-w-[1920px]' : 'max-w-7xl'} mx-auto px-3 sm:px-6 lg:px-8 min-h-14 py-2 sm:py-0 flex flex-wrap items-center justify-between gap-3`}>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-xs sm:text-sm tracking-tight text-white">
+              <h1 className="font-semibold text-xs sm:text-sm tracking-tight text-white">
                 MedLab QBank Admin Console
-              </span>
+              </h1>
               <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
                 SQLite Connected
               </span>

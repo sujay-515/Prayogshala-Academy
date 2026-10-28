@@ -5,6 +5,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { UnitCategory, ExamCategory, MCQQuestion } from '../../types';
+import { SITE_CONFIG } from '../../config/site';
 
 interface HomeViewProps {
   categories: UnitCategory[];
@@ -36,6 +37,19 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   return (
     <div className="space-y-12 pb-20">
+      <title>MedLab QBank · Clinical Laboratory Medicine Question Bank</title>
+      <meta
+        name="description"
+        content="Medical laboratory examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Blood Banking, and Immunology."
+      />
+      <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/`} />
+      <meta property="og:title" content="MedLab QBank · Clinical Laboratory Medicine Question Bank" />
+      <meta
+        property="og:description"
+        content="Medical laboratory examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Blood Banking, and Immunology."
+      />
+      <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/`} />
+
       {/* Editorial Overview Section */}
       <section className="glass-panel rounded-2xl p-6 sm:p-8 relative overflow-hidden">
         {/* Soft liquid glass internal specular highlight */}

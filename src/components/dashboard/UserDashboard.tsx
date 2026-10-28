@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
+import { SITE_CONFIG } from '../../config/site';
 
 interface UserDashboardProps {
   stats: UserStats;
@@ -58,6 +59,20 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto py-6 space-y-8">
+      <title>Candidate Dashboard | MedLab QBank</title>
+      <meta
+        name="description"
+        content="Track your medical laboratory examination preparation analytics, accuracy by subject unit, study streak, and revision queue."
+      />
+      <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/dashboard`} />
+      <meta property="og:title" content="Candidate Dashboard | MedLab QBank" />
+      <meta
+        property="og:description"
+        content="Track your medical laboratory examination preparation analytics, accuracy by subject unit, study streak, and revision queue."
+      />
+      <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/dashboard`} />
+      <meta name="robots" content="noindex,nofollow" />
+
       {/* Title & Account Banner */}
       <div className="pb-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

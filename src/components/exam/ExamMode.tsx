@@ -13,6 +13,7 @@ import {
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { calculateExamScore, ExamScoreResult } from '../../utils/scoring';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
+import { SITE_CONFIG } from '../../config/site';
 
 interface ExamModeProps {
   questions: MCQQuestion[];
@@ -453,6 +454,19 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   if (!isExamRunning) {
     return (
       <div className="max-w-3xl mx-auto py-6 space-y-6">
+        <title>Mock Examination Simulation | MedLab QBank</title>
+        <meta
+          name="description"
+          content="Timed exam simulation adhering to ASCP, NHPC, PSC, DHA, and AIMS blueprints with server-verified scoring and answer review."
+        />
+        <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/exam`} />
+        <meta property="og:title" content="Mock Examination Simulation | MedLab QBank" />
+        <meta
+          property="og:description"
+          content="Timed exam simulation adhering to ASCP, NHPC, PSC, DHA, and AIMS blueprints with server-verified scoring and answer review."
+        />
+        <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/exam`} />
+
         <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
             Laboratory Medicine Mock Examination

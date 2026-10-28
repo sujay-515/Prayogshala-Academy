@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
+import { SITE_CONFIG } from '../../config/site';
 
 interface PracticeModeProps {
   questions: MCQQuestion[];
@@ -159,6 +160,19 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   if (!isSessionActive || !currentQ) {
     return (
       <div className="max-w-3xl mx-auto py-6 space-y-6">
+        <title>Practice Mode | MedLab QBank</title>
+        <meta
+          name="description"
+          content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
+        />
+        <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/practice`} />
+        <meta property="og:title" content="Practice Mode | MedLab QBank" />
+        <meta
+          property="og:description"
+          content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
+        />
+        <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/practice`} />
+
         <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
             Configure practice session
@@ -298,6 +312,19 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   // Active Practice Question Screen
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-5">
+      <title>Practice Mode | MedLab QBank</title>
+      <meta
+        name="description"
+        content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
+      />
+      <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/practice`} />
+      <meta property="og:title" content="Practice Mode | MedLab QBank" />
+      <meta
+        property="og:description"
+        content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
+      />
+      <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/practice`} />
+
       {/* Session Header */}
       <div className="glass-panel rounded-xl p-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
