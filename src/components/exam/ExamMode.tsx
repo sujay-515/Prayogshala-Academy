@@ -63,6 +63,21 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     }
   }, [initialExamCategory]);
 
+  // SEC-05: Warn user before accidental page refresh or tab closure during an active examination
+  useEffect(() => {
+    if (!isExamRunning) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isExamRunning]);
+
   const publishedQuestions = useMemo(() => {
     return questions.filter((q) => q.status === 'Published');
   }, [questions]);

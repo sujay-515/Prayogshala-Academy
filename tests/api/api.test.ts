@@ -363,4 +363,144 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     assert.equal(newLogin.status, 200);
   });
+
+  it('SEC-03 & SEC-05: Exam ID generation, ownership verification, server-computed time, and late flags', async () => {
+    // 1. Publish a question via superadmin so an exam can be created
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    const superAdminToken = adminLogin.body.token;
+
+    await request('POST', '/api/questions', {
+      token: superAdminToken,
+      body: {
+        id: 'q-published-exam-1',
+        code: 'LAB-PUB-01',
+        unit: 'Hematology',
+        subject: 'General Hematology',
+        topic: 'Red Cells',
+        difficulty: 'Easy',
+        status: 'Published',
+        questionText: 'Published question for exam testing?',
+        options: [
+          { id: 'A', text: 'Opt A' },
+          { id: 'B', text: 'Opt B' },
+        ],
+        correctAnswer: 'A',
+        examCategories: ['Comprehensive'],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+
+    // 2. Student 1 starts an exam
+    const student1Login = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'BrandNewPassword456!',
+      },
+    });
+    const student1Token = student1Login.body.token;
+
+    const startRes = await request('POST', '/api/exams/start', {
+      token: student1Token,
+      body: {
+        examCategory: 'All',
+        questionCount: 1,
+        durationMinutes: 1,
+      },
+    });
+    assert.equal(startRes.status, 200);
+    const examId = startRes.body.examId;
+    assert.match(examId, /^exam-sess-[0-9a-f]{32}$/); // 16 bytes = 32 hex chars
+
+    // 3. Register Student 2
+    await request('POST', '/api/auth/register', {
+      body: {
+        username: 'teststudent2',
+        email: 'student2@example.com',
+        password: 'ValidPassword123!',
+        displayName: 'Test Student 2',
+      },
+    });
+    const student2Login = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent2',
+        password: 'ValidPassword123!',
+      },
+    });
+    const student2Token = student2Login.body.token;
+
+    // 4. Student 2 tries to submit Student 1's exam -> 403 Forbidden
+    const hijackRes = await request('POST', `/api/exams/${examId}/submit`, {
+      token: student2Token,
+      body: { userAnswers: { 'q-published-exam-1': 'A' } },
+    });
+    assert.equal(hijackRes.status, 403);
+    assert.equal(hijackRes.body.success, false);
+
+    // 5. Student 1 submits own exam with client timeSpentSeconds: 999999 -> server ignores it
+    const submitRes = await request('POST', `/api/exams/${examId}/submit`, {
+      token: student1Token,
+      body: {
+        userAnswers: { 'q-published-exam-1': 'A' },
+        timeSpentSeconds: 999999, // Client tampering attempt
+      },
+    });
+    assert.equal(submitRes.status, 200);
+    assert.equal(submitRes.body.success, true);
+    // Sever-computed time should be <= duration (60s) and not the spoofed 999999
+    assert.ok(submitRes.body.result.timeSpentSeconds <= 60);
+    assert.notEqual(submitRes.body.result.timeSpentSeconds, 999999);
+
+    // 6. Guest exam works anonymously with unguessable ID
+    const guestStart = await request('POST', '/api/exams/start', {
+      body: {
+        examCategory: 'All',
+        questionCount: 1,
+        durationMinutes: 1,
+      },
+    });
+    assert.equal(guestStart.status, 200);
+    const guestExamId = guestStart.body.examId;
+    assert.match(guestExamId, /^exam-sess-[0-9a-f]{32}$/);
+
+    const guestSubmit = await request('POST', `/api/exams/${guestExamId}/submit`, {
+      body: { userAnswers: { 'q-published-exam-1': 'A' } },
+    });
+    assert.equal(guestSubmit.status, 200);
+    assert.equal(guestSubmit.body.success, true);
+
+    // 7. Late submission flagged: start an exam with 0 minutes duration (or expired)
+    const lateStart = await request('POST', '/api/exams/start', {
+      body: {
+        examCategory: 'All',
+        questionCount: 1,
+        durationMinutes: 0.001, // ~0.06s
+      },
+    });
+    const lateExamId = lateStart.body.examId;
+
+    // Wait a brief moment and submit after mocking or with small duration
+    // In our implementation: isLate is triggered if serverElapsedSeconds > (durationSeconds + 120)
+    // To reliably test late submission flag without waiting 120s, start with duration 0 or wait
+    // Let's test late submission by creating a session with started_at in the past via DB or testing endpoint
+    const { DatabaseSync } = await import('node:sqlite');
+    const dbPath = path.join(tempDir, 'medlab_qbank.sqlite');
+    const localDb = new DatabaseSync(dbPath);
+    localDb.prepare('UPDATE active_exams SET started_at = ? WHERE id = ?').run(
+      new Date(Date.now() - 300 * 1000).toISOString(), // 5 minutes ago
+      lateExamId
+    );
+    localDb.close();
+
+    const lateSubmit = await request('POST', `/api/exams/${lateExamId}/submit`, {
+      body: { userAnswers: { 'q-published-exam-1': 'A' } },
+    });
+    assert.equal(lateSubmit.status, 200);
+    assert.equal(lateSubmit.body.late, true);
+  });
 });

@@ -787,7 +787,7 @@ app.post('/api/exams/start', (req, res) => {
     };
   });
 
-  const examId = `exam-sess-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
   const title = `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`;
   const startedAt = new Date().toISOString();
   const examUserId = session?.userId || 'usr-guest';
@@ -829,24 +829,49 @@ app.post('/api/exams/start', (req, res) => {
 });
 
 app.post('/api/exams/:id/submit', (req, res) => {
-  const { userAnswers = {}, timeSpentSeconds = 0 } = req.body;
+  const { userAnswers = {} } = req.body;
   const row = db.prepare('SELECT * FROM active_exams WHERE id = ?').get(req.params.id) as any;
 
   if (!row) {
     return res.status(404).json({ success: false, error: 'Exam session not found' });
   }
 
-  const fullQuestions: MCQQuestion[] = JSON.parse(row.questions_json);
-  const scoreResult = calculateExamScore(fullQuestions, userAnswers, timeSpentSeconds, 70);
+  // SEC-03: Exam session ownership enforcement
+  // Authenticated exams require session.userId matching row.user_id; guest exams use unguessable ID
+  const session = getSessionUser(req);
+  if (row.user_id && row.user_id !== 'usr-guest') {
+    if (!session || session.userId !== row.user_id) {
+      return res.status(403).json({ success: false, error: 'Unauthorized: you do not own this exam session.' });
+    }
+  }
 
-  // Clean up active session immediately after grading in both SQLite and Supabase to save space
+  // SEC-05: Server-side elapsed time computation & late submission detection
+  // Ignore client timeSpentSeconds; compute from row.started_at, capped at duration_minutes * 60
+  const startedAtMs = new Date(row.started_at).getTime();
+  const serverElapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000));
+  const durationSeconds = (row.duration_minutes || 0) * 60;
+  const cappedTimeSpentSeconds = durationSeconds > 0 ? Math.min(serverElapsedSeconds, durationSeconds) : serverElapsedSeconds;
+  const isLate = durationSeconds > 0 && serverElapsedSeconds > (durationSeconds + 120);
+
+  let fullQuestions: MCQQuestion[];
+  let scoreResult;
+  try {
+    fullQuestions = JSON.parse(row.questions_json);
+    scoreResult = calculateExamScore(fullQuestions, userAnswers, cappedTimeSpentSeconds, 70);
+  } catch (err) {
+    console.error('[Exam Scoring Error]', err);
+    return res.status(500).json({ success: false, error: 'Failed to score exam.' });
+  }
+
+  // Clean up active session only after grading succeeds
   db.prepare('DELETE FROM active_exams WHERE id = ?').run(req.params.id);
   syncDeleteActiveExam(req.params.id);
 
   return res.json({
     success: true,
     result: scoreResult,
-    gradedQuestions: fullQuestions, // Now safe to reveal correctAnswer & explanation for review
+    gradedQuestions: fullQuestions, // Safe to reveal correctAnswer & explanation for review
+    late: isLate,
   });
 });
 
