@@ -9,3 +9,6 @@ coverage/
 data/
 .aistudio/
 .antigravity/
+test_mcqs/
+local-only/
+*.pdf
