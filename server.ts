@@ -1553,10 +1553,21 @@ async function startServer() {
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`MedLab QBank server running on http://0.0.0.0:${PORT}`);
-    if (process.env.NODE_ENV === 'production' && !process.env.SITE_URL?.trim()) {
-      console.warn(
-        '[Config Warning] SITE_URL is unset in production. Robots.txt and sitemap.xml will fall back to incoming request host headers.'
-      );
+    if (process.env.NODE_ENV === 'production') {
+      if (!process.env.SITE_URL?.trim()) {
+        console.warn(
+          '[Config Warning] SITE_URL is unset in production. Robots.txt and sitemap.xml will fall back to incoming request host headers.'
+        );
+      }
+      if (!process.env.RESEND_API_KEY?.trim()) {
+        console.warn(
+          '================================================================================\n' +
+          '[Config Warning] RESEND_API_KEY is not configured in production.\n' +
+          'Password resets and staff invitation emails will run in mock mode and will not\n' +
+          'be delivered to users. Set RESEND_API_KEY to enable real transactional delivery.\n' +
+          '================================================================================'
+        );
+      }
     }
     startBackupScheduler();
   });

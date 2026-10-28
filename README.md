@@ -101,3 +101,70 @@ npm run backup
 - **API Export**: `GET /api/backup/export`.
 - **API Restore**: `POST /api/backup/restore`.
 - **Database File Copy**: Archive `data/medlab_qbank.sqlite` directly.
+
+## Deployment
+
+### Production Build & Startup
+1. Install production dependencies:
+   ```bash
+   npm ci --omit=dev
+   ```
+2. Build the client application:
+   ```bash
+   npm run build
+   ```
+3. Start the production server:
+   ```bash
+   NODE_ENV=production npm start
+   ```
+
+### Health Check Endpoint
+- Path: `GET /api/health`
+- Returns: `200 OK` with JSON `{"status":"ok","database":"sqlite",...}`. Use this URL for container readiness, Docker healthchecks, or cloud load balancer probes.
+
+### Environment Variables
+
+| Variable | Purpose | Required / Optional | Default |
+|---|---|---|---|
+| `NODE_ENV` | Application environment (`production`, `development`, `test`). In production, serves `dist/` and enables security headers. | **Required** in prod | None |
+| `PORT` | HTTP port on which Express listens. | Optional | `3001` (or `3000`) |
+| `DATA_DIR` | Absolute or relative path to persistent SQLite database storage directory. | Optional | `data` |
+| `TRUST_PROXY` | Proxy trust hop count (`1` or boolean) for Express behind reverse proxies/CDNs. | Optional | `1` in prod, `0` otherwise |
+| `SITE_URL` | Canonical server-side domain URL (used for `robots.txt` and `sitemap.xml`). | **Recommended** in prod | Request host header |
+| `VITE_SITE_URL` | Canonical client-side site URL (injected into bundle at build time). | **Required at BUILD time** | `window.location.origin` |
+| `INITIAL_ADMIN_EMAIL` | Email for initial superadmin bootstrapping on clean database install. | Required for 1st boot | None |
+| `INITIAL_ADMIN_PASSWORD` | Password (min 12 chars) for initial superadmin bootstrapping. | Required for 1st boot | None |
+| `RESEND_API_KEY` | Transactional email delivery key for password resets and staff invites. | Optional (prominent warning if missing) | Mock delivery |
+| `EMAIL_FROM` | Sender display name and email address for transactional mail. | Optional | `MedLab QBank <onboarding@resend.dev>` |
+| `APP_URL` | Base public URL used in email reset links. | Optional | `http://localhost:3000` |
+| `GEMINI_API_KEY` | Google Gemini API key for administrative OCR of question documents. | Optional | Rule-based parser |
+| `SUPABASE_URL` | Optional Supabase cloud synchronization endpoint URL. | Optional | None |
+| `SUPABASE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Optional Supabase service role key for cloud synchronization. | Optional | None |
+| `SUPABASE_ANON_KEY` | Optional Supabase client anon key. | Optional | None |
+| `CSP_MODE` | Content Security Policy mode (`report-only` or `enforce`). | Optional | `report-only` |
+| `BACKUP_DIR` | Directory where automated and manual SQLite backups are stored. | Optional | `DATA_DIR/backups` |
+| `BACKUP_KEEP` | Number of recent database backup snapshots retained during rotation. | Optional | `7` |
+| `BACKUP_INTERVAL_HOURS` | Number of hours between automated in-process backups. | Optional | Unset (disabled) |
+| `RATE_LIMIT_REGISTER_MAX` | Max registrations allowed per IP per hour. | Optional | `20` |
+| `STRICT_PLACEHOLDERS` | When set to `true`, fails `npm run build` if config placeholders remain. | Optional | `false` |
+
+> [!IMPORTANT]
+> **VITE_SITE_URL Must Exist at Build Time**:
+> Vite compiles client assets statically during `npm run build`. If you need canonical meta tags, OpenGraph URLs, and JSON-LD schema to reflect your domain, ensure `VITE_SITE_URL` is set in the build environment *before* executing `npm run build`.
+
+> [!IMPORTANT]
+> **Persistent Volume Requirement for SQLite**:
+> MedLab QBank stores relational state, sessions, accounts, and examination history in SQLite (`data/medlab_qbank.sqlite`). In containerized or serverless hosting environments, `DATA_DIR` must be mounted on a persistent disk volume. Ephemeral containers will lose all data upon restart without persistent storage.
+
+### First Administrator Onboarding
+1. On your initial deployment, supply `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` (minimum 12 characters) in your environment variables.
+2. Boot the application. The server checks if any superadmin exists; finding none, it creates the superadmin account with scrypt password hashing.
+3. Sign in to verify administrative access.
+4. Remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from your hosting environment variables to prevent accidental re-triggering.
+
+### Post-Deployment Checklist
+- [ ] **Health Probe**: Verify `GET /api/health` returns HTTP 200 with JSON status.
+- [ ] **Trust Proxy & Client IPs**: Inspect server access logs to ensure client IP addresses are recorded correctly rather than internal load balancer IPs.
+- [ ] **Robots & Sitemap**: Verify `GET /robots.txt` and `GET /sitemap.xml` resolve with HTTP 200 and display your real production domain.
+- [ ] **Security Headers**: Verify `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `X-Robots-Tag: noindex` (on protected paths), and `Content-Security-Policy-Report-Only` (or `Content-Security-Policy` if `CSP_MODE=enforce`).
+- [ ] **Placeholder Check**: Confirm `src/config/site.ts` placeholders have been replaced with real contact and operator credentials.
