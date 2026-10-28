@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { calculateExamScore, ExamScoreResult } from '../../utils/scoring';
+import { getSafeImageUrl } from '../../utils/urlSecurity';
 
 interface ExamModeProps {
   questions: MCQQuestion[];
@@ -787,10 +788,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </div>
           )}
 
-          {currQ.imageUrl && (
+          {getSafeImageUrl(currQ.imageUrl) && (
             <div className="bg-slate-50 p-3 rounded border border-slate-200">
               <img
-                src={currQ.imageUrl}
+                src={getSafeImageUrl(currQ.imageUrl)!}
                 alt={currQ.code ? `Specimen image or clinical chart for question ${currQ.code}` : "Clinical laboratory diagnostic specimen or chart"}
                 className="max-h-64 rounded object-contain mx-auto"
               />

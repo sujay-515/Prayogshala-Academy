@@ -609,4 +609,99 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.ok(unknownRes.headers['content-type']?.includes('text/html'));
     assert.ok(unknownRes.rawBody.includes('<html') || unknownRes.rawBody.includes('<!DOCTYPE html>') || unknownRes.rawBody.includes('<!doctype html>'));
   });
+
+  it('SEC-19: Server rejects unsafe question imageUrl with HTTP 400 and accepts safe HTTPS/relative/data URLs', async () => {
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    const superAdminToken = adminLogin.body.token;
+
+    // Unsafe javascript: URL rejected
+    const badJsRes = await request('POST', '/api/questions', {
+      token: superAdminToken,
+      body: {
+        id: 'q-unsafe-1',
+        code: 'LAB-UNSAFE-1',
+        unit: 'Hematology',
+        subject: 'General Hematology',
+        topic: 'Red Cells',
+        difficulty: 'Easy',
+        status: 'Draft',
+        questionText: 'Test unsafe?',
+        options: ['A', 'B'],
+        correctAnswer: 'A',
+        imageUrl: 'javascript:alert(1)',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    assert.equal(badJsRes.status, 400);
+    assert.match(badJsRes.body.error, /invalid or unsafe.*imageurl/i);
+
+    // Unsafe http: URL rejected
+    const badHttpRes = await request('POST', '/api/questions', {
+      token: superAdminToken,
+      body: {
+        id: 'q-unsafe-2',
+        code: 'LAB-UNSAFE-2',
+        unit: 'Hematology',
+        subject: 'General Hematology',
+        topic: 'Red Cells',
+        difficulty: 'Easy',
+        status: 'Draft',
+        questionText: 'Test unsafe http?',
+        options: ['A', 'B'],
+        correctAnswer: 'A',
+        imageUrl: 'http://insecure.example.com/pic.png',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    assert.equal(badHttpRes.status, 400);
+
+    // Safe HTTPS URL accepted
+    const safeHttpsRes = await request('POST', '/api/questions', {
+      token: superAdminToken,
+      body: {
+        id: 'q-safe-1',
+        code: 'LAB-SAFE-1',
+        unit: 'Hematology',
+        subject: 'General Hematology',
+        topic: 'Red Cells',
+        difficulty: 'Easy',
+        status: 'Draft',
+        questionText: 'Test safe https?',
+        options: ['A', 'B'],
+        correctAnswer: 'A',
+        imageUrl: 'https://images.unsplash.com/photo-example.jpg',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    assert.equal(safeHttpsRes.status, 200);
+
+    // Safe data:image/png URL accepted
+    const safeDataRes = await request('POST', '/api/questions', {
+      token: superAdminToken,
+      body: {
+        id: 'q-safe-2',
+        code: 'LAB-SAFE-2',
+        unit: 'Hematology',
+        subject: 'General Hematology',
+        topic: 'Red Cells',
+        difficulty: 'Easy',
+        status: 'Draft',
+        questionText: 'Test safe data url?',
+        options: ['A', 'B'],
+        correctAnswer: 'A',
+        imageUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    assert.equal(safeDataRes.status, 200);
+  });
 });

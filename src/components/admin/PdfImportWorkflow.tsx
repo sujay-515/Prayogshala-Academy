@@ -25,6 +25,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { ExtractedMCQDraft, MCQQuestion, MCQOption, UnitCategory, ExamCategory, DifficultyLevel } from '../../types';
+import { getSafeImageUrl, getSafePdfUri } from '../../utils/urlSecurity';
 import {
   parseRawMCQText,
   validateExtractedQuestion,
@@ -715,9 +716,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
 
       {/* Panel Viewer Body */}
       <div className="flex-1 min-h-0 w-full h-full relative overflow-hidden bg-slate-100 flex flex-col">
-        {sourcePdfDataUri ? (
+        {getSafePdfUri(sourcePdfDataUri) ? (
           <iframe
-            src={sourcePdfDataUri}
+            src={getSafePdfUri(sourcePdfDataUri)!}
             title="Original PDF Reference"
             className="w-full h-full flex-1 min-h-0 block border-0 bg-white"
             style={{ width: '100%', height: '100%', minHeight: '100%' }}
@@ -1154,10 +1155,10 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
 
             <p className="font-medium text-slate-900 leading-snug">{draft.questionText}</p>
 
-            {draft.imageUrl && (
+            {getSafeImageUrl(draft.imageUrl) && (
               <div className="my-2 p-2 bg-slate-50 border border-slate-200 rounded text-center">
                 <img
-                  src={draft.imageUrl}
+                  src={getSafeImageUrl(draft.imageUrl)!}
                   alt={`Extracted specimen image for ${draft.tempCode}`}
                   className="max-h-60 max-w-full mx-auto object-contain rounded border border-slate-200 bg-white"
                 />
@@ -1260,9 +1261,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
           </div>
         </div>
         <div className="flex-1 min-h-0 w-full h-full relative overflow-hidden bg-slate-900 flex flex-col">
-          {sourcePdfDataUri ? (
+          {getSafePdfUri(sourcePdfDataUri) ? (
             <iframe
-              src={sourcePdfDataUri}
+              src={getSafePdfUri(sourcePdfDataUri)!}
               title="Fullscreen PDF Reference"
               className="w-full h-full flex-1 min-h-0 block border-0 bg-white"
               style={{ width: '100%', height: '100%', minHeight: '100%' }}
@@ -1605,9 +1606,9 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                       <span>Pop out</span>
                     </button>
                   </div>
-                  {sourcePdfDataUri ? (
+                  {getSafePdfUri(sourcePdfDataUri) ? (
                     <iframe
-                      src={sourcePdfDataUri}
+                      src={getSafePdfUri(sourcePdfDataUri)!}
                       title="Edit Modal PDF Preview"
                       className="w-full flex-1 border-0"
                     />
@@ -1860,10 +1861,10 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                     placeholder="https://... or data:image/..."
                     className="w-full bg-white border border-slate-300 rounded p-1.5 text-slate-900"
                   />
-                  {editingDraft.imageUrl && (
+                  {getSafeImageUrl(editingDraft.imageUrl) && (
                     <div className="mt-2 p-1.5 border border-slate-200 rounded bg-slate-50 text-center">
                       <img
-                        src={editingDraft.imageUrl}
+                        src={getSafeImageUrl(editingDraft.imageUrl)!}
                         alt="Specimen figure preview"
                         className="max-h-36 max-w-full mx-auto object-contain rounded bg-white border border-slate-200"
                       />

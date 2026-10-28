@@ -10,6 +10,7 @@ import { GoogleGenAI } from '@google/genai';
 import { parseRawMCQText, findDuplicateQuestion, validateExtractedQuestion } from './src/utils/mcqParser';
 import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
 import { calculateExamScore } from './src/utils/scoring';
+import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport } from './src/types';
 import {
   db,
@@ -661,6 +662,9 @@ app.post('/api/questions', requireAdmin, (req, res) => {
   if (!question || !question.id) {
     return res.status(400).json({ success: false, error: 'Valid question record required' });
   }
+  if (question.imageUrl && !isSafeImageUrl(question.imageUrl)) {
+    return res.status(400).json({ success: false, error: 'Invalid or unsafe question imageUrl provided.' });
+  }
   upsertQuestion(question);
   return res.json({ success: true, question });
 });
@@ -684,6 +688,11 @@ app.post('/api/questions/bulk-upsert', requireAdmin, (req, res) => {
   if (!Array.isArray(questions) || questions.some((q) => !q || typeof q.id !== 'string')) {
     return res.status(400).json({ success: false, error: 'questions array with ids required' });
   }
+  for (const q of questions) {
+    if (q.imageUrl && !isSafeImageUrl(q.imageUrl)) {
+      return res.status(400).json({ success: false, error: `Invalid imageUrl for question ${q.code || q.id}` });
+    }
+  }
   bulkInsertQuestions(questions);
   return res.json({ success: true, count: questions.length });
 });
@@ -701,6 +710,11 @@ app.post('/api/questions/bulk-import', requireAdmin, (req, res) => {
   const { questions } = req.body;
   if (!Array.isArray(questions)) {
     return res.status(400).json({ success: false, error: 'questions array required' });
+  }
+  for (const q of questions) {
+    if (q.imageUrl && !isSafeImageUrl(q.imageUrl)) {
+      return res.status(400).json({ success: false, error: `Invalid imageUrl for question ${q.code || q.id}` });
+    }
   }
   bulkInsertQuestions(questions);
   clearStagingDrafts('default-staging');

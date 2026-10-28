@@ -9,6 +9,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
+import { getSafeImageUrl } from '../../utils/urlSecurity';
 
 interface BrowseQuestionBankProps {
   questions: MCQQuestion[];
@@ -419,10 +420,10 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                   </div>
                 )}
 
-                {q.imageUrl && (
+                {getSafeImageUrl(q.imageUrl) && (
                   <div className="bg-slate-50 p-3 rounded border border-slate-200">
                     <img
-                      src={q.imageUrl}
+                      src={getSafeImageUrl(q.imageUrl)!}
                       alt={q.code ? `Specimen image or clinical chart for question ${q.code}` : "Clinical laboratory diagnostic specimen or chart"}
                       className="max-h-64 rounded object-contain mx-auto"
                     />

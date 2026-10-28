@@ -9,6 +9,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
+import { getSafeImageUrl } from '../../utils/urlSecurity';
 
 interface PracticeModeProps {
   questions: MCQQuestion[];
@@ -387,10 +388,10 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         )}
 
         {/* Diagnostic Image if applicable */}
-        {currentQ.imageUrl && (
+        {getSafeImageUrl(currentQ.imageUrl) && (
           <div className="bg-slate-50 p-3 rounded border border-slate-200">
             <img
-              src={currentQ.imageUrl}
+              src={getSafeImageUrl(currentQ.imageUrl)!}
               alt={currentQ.code ? `Specimen image or clinical chart for question ${currentQ.code}` : "Clinical laboratory specimen or chart"}
               className="max-h-64 rounded object-contain mx-auto"
             />

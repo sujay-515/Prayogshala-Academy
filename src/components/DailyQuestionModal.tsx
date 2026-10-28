@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, AlertCircle, Bookmark } from 'lucide-react';
 import { MCQQuestion } from '../types';
+import { getSafeImageUrl } from '../utils/urlSecurity';
 
 interface DailyQuestionModalProps {
   question?: MCQQuestion | null;
@@ -125,10 +126,10 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
             </div>
           )}
 
-          {question.imageUrl && (
+          {getSafeImageUrl(question.imageUrl) && (
             <div className="glass-card p-3 rounded-lg">
               <img
-                src={question.imageUrl}
+                src={getSafeImageUrl(question.imageUrl)!}
                 alt={question.code ? `Specimen image or clinical chart for question ${question.code}` : "Clinical laboratory diagnostic specimen or chart"}
                 className="max-h-56 rounded object-contain mx-auto shadow-2xs"
               />

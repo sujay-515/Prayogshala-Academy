@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Eye, Save, Plus, Trash2, Image as ImageIcon, Table as TableIcon } from 'lucide-react';
 import { MCQQuestion, UnitCategory, ExamCategory, DifficultyLevel, QuestionStatus, TableData } from '../../types';
 import { generateNextQuestionCode } from '../../utils/mcqParser';
+import { isSafeImageUrl, getSafeImageUrl } from '../../utils/urlSecurity';
 
 interface QuestionFormModalProps {
   isOpen: boolean;
@@ -11,12 +12,6 @@ interface QuestionFormModalProps {
   editingQuestion: MCQQuestion | null;
   totalQuestionCount: number;
   existingQuestions?: MCQQuestion[];
-}
-
-function isSafeImageUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (!trimmed) return true;
-  return /^(?:https?:\/\/|\/|data:image\/[a-zA-Z0-9.+-]+;base64,)/i.test(trimmed);
 }
 
 export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
@@ -355,13 +350,13 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
               )}
 
-              {imageUrl && isSafeImageUrl(imageUrl) && (
+              {getSafeImageUrl(imageUrl) && (
                 <div className="bg-white p-3 rounded-lg border border-slate-200">
                   <span className="text-xs font-semibold text-slate-500 block mb-1.5">
                     Diagnostic Figure / Microscopy:
                   </span>
                   <img
-                    src={imageUrl}
+                    src={getSafeImageUrl(imageUrl)!}
                     alt="Clinical specimen image"
                     className="max-h-64 rounded object-contain mx-auto border border-slate-100"
                   />
