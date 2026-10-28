@@ -7,12 +7,16 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, UnitCategory, QuestionStatus, QuestionReport, UserAccount } from '../../types';
 import { AdminDashboard } from './AdminDashboard';
-import { PdfImportWorkflow } from './PdfImportWorkflow';
 import { ManualQuestionManager } from './ManualQuestionManager';
 import { CategoryManager } from './CategoryManager';
 import { BulkImportExport } from './BulkImportExport';
 import { ReportsManager } from './ReportsManager';
 import { UserManager } from './UserManager';
+
+// Heavy PDF ingestion & diff viewer lazy-loaded
+const PdfImportWorkflow = React.lazy(() =>
+  import('./PdfImportWorkflow').then((m) => ({ default: m.PdfImportWorkflow }))
+);
 
 interface AdminPortalProps {
   questions: MCQQuestion[];
@@ -360,13 +364,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       )}
 
       {activeSubtab === 'pdf' && (
-        <PdfImportWorkflow
-          existingQuestions={questions}
-          categories={categories}
-          onImportApprovedQuestions={onImportBulkQuestions}
-          authToken={authToken}
-          onCompareModeChange={setIsPdfCompareMode}
-        />
+        <React.Suspense
+          fallback={
+            <div role="status" aria-live="polite" className="p-12 text-center text-sm text-slate-600 flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-3 border-cyan-700 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+              <span>Loading PDF extraction and review studio...</span>
+            </div>
+          }
+        >
+          <PdfImportWorkflow
+            existingQuestions={questions}
+            categories={categories}
+            onImportApprovedQuestions={onImportBulkQuestions}
+            authToken={authToken}
+            onCompareModeChange={setIsPdfCompareMode}
+          />
+        </React.Suspense>
       )}
 
       {activeSubtab === 'manual' && (

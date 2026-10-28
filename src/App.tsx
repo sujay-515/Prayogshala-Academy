@@ -1,12 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/home/HomeView';
 import { BrowseQuestionBank } from './components/browse/BrowseQuestionBank';
-import { PracticeMode } from './components/practice/PracticeMode';
-import { ExamMode } from './components/exam/ExamMode';
 import { UserDashboard } from './components/dashboard/UserDashboard';
-import { AdminPortal } from './components/admin/AdminPortal';
 import { DailyQuestionModal } from './components/DailyQuestionModal';
 import { ReportModal } from './components/ReportModal';
 import { Modal } from './components/common/Modal';
@@ -27,22 +24,44 @@ import {
 } from './types';
 import { X, UserCheck } from 'lucide-react';
 
+// Route-level code-splitting for heavy feature components
+const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
+const ExamMode = lazy(() => import('./components/exam/ExamMode').then((m) => ({ default: m.ExamMode })));
+const AdminPortal = lazy(() => import('./components/admin/AdminPortal').then((m) => ({ default: m.AdminPortal })));
+
+function RouteLoadingFallback({ label = 'Loading application component...' }: { label?: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="min-h-[40vh] flex flex-col items-center justify-center p-8 space-y-3"
+    >
+      <div className="w-8 h-8 border-3 border-cyan-700 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+    </div>
+  );
+}
+
 interface ErrorBoundaryProps {
   children: React.ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  isChunkLoadError?: boolean;
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, isChunkLoadError: false };
   }
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    const isChunk =
+      error?.name === 'ChunkLoadError' ||
+      /dynamically imported module|Loading chunk|Failed to fetch dynamically/i.test(error?.message || '');
+    return { hasError: true, isChunkLoadError: isChunk };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -56,15 +75,19 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center">
-          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-2xl p-8 max-w-md w-full shadow-sm">
-            <h2 className="text-xl font-bold text-red-900 dark:text-red-200 mb-2">Something went wrong</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
-              An unexpected application error occurred. You can reload the page to continue.
+        <div role="alert" aria-live="assertive" className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center">
+          <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-2xl p-8 max-w-md w-full shadow-sm">
+            <h2 className="text-xl font-bold text-rose-900 dark:text-rose-200 mb-2">
+              {this.state.isChunkLoadError ? 'Update Available or Connection Interrupted' : 'Something went wrong'}
+            </h2>
+            <p className="text-sm text-slate-700 dark:text-slate-300 mb-6">
+              {this.state.isChunkLoadError
+                ? 'A newer version of the application or module could not be loaded. Reloading the page will fetch the latest assets.'
+                : 'An unexpected application error occurred. You can reload the page to continue.'}
             </p>
             <button
               onClick={this.handleReload}
-              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition shadow-sm cursor-pointer"
+              className="px-5 py-2.5 bg-cyan-700 hover:bg-cyan-800 text-white font-medium rounded-xl transition shadow-sm cursor-pointer"
             >
               Reload Page
             </button>
@@ -72,6 +95,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
         </div>
       );
     }
+
     return this.props.children;
   }
 }
@@ -778,44 +802,48 @@ export default function App() {
   // Standalone Admin Console Mode (no student navbar, student tabs, or student footer)
   if (activeTab === 'admin' && !isViewingAsStudent) {
     return (
-      <AdminPortal
-        questions={questions}
-        categories={categories}
-        reports={reports}
-        onSaveQuestion={handleSaveQuestion}
-        onDeleteQuestion={handleDeleteQuestion}
-        onBulkDeleteQuestions={handleBulkDeleteQuestions}
-        onBulkSaveQuestions={handleBulkSaveQuestions}
-        onBulkUpdateStatus={handleBulkUpdateStatus}
-        onUpdateCategories={handleUpdateCategories}
-        onImportBulkQuestions={handleImportBulkQuestions}
-        onResolveReport={handleResolveReport}
-        isAdminAuthenticated={isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'}
-        authToken={authToken}
-        currentUser={currentUser}
-        onAdminAuthChange={(authenticated, token, user) => {
-          setIsAdmin(authenticated);
-          if (token) {
-            localStorage.setItem(STORAGE_KEY_TOKEN, token);
-            setAuthToken(token);
-            if (user) {
-              try {
-                localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-              } catch {}
-              setCurrentUser(user);
-            }
-          } else if (!authenticated) {
-            handleLogout();
-          }
-        }}
-        onViewAsStudent={() => {
-          setIsViewingAsStudent(true);
-          navigate('/');
-        }}
-        onExitAdminLogin={() => {
-          navigate('/');
-        }}
-      />
+      <ErrorBoundary>
+        <Suspense fallback={<RouteLoadingFallback label="Loading Administrative Console..." />}>
+          <AdminPortal
+            questions={questions}
+            categories={categories}
+            reports={reports}
+            onSaveQuestion={handleSaveQuestion}
+            onDeleteQuestion={handleDeleteQuestion}
+            onBulkDeleteQuestions={handleBulkDeleteQuestions}
+            onBulkSaveQuestions={handleBulkSaveQuestions}
+            onBulkUpdateStatus={handleBulkUpdateStatus}
+            onUpdateCategories={handleUpdateCategories}
+            onImportBulkQuestions={handleImportBulkQuestions}
+            onResolveReport={handleResolveReport}
+            isAdminAuthenticated={isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'}
+            authToken={authToken}
+            currentUser={currentUser}
+            onAdminAuthChange={(authenticated, token, user) => {
+              setIsAdmin(authenticated);
+              if (token) {
+                localStorage.setItem(STORAGE_KEY_TOKEN, token);
+                setAuthToken(token);
+                if (user) {
+                  try {
+                    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+                  } catch {}
+                  setCurrentUser(user);
+                }
+              } else if (!authenticated) {
+                handleLogout();
+              }
+            }}
+            onViewAsStudent={() => {
+              setIsViewingAsStudent(true);
+              navigate('/');
+            }}
+            onExitAdminLogin={() => {
+              navigate('/');
+            }}
+          />
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
@@ -857,7 +885,8 @@ export default function App() {
       {/* Main Content Area with React Router */}
       <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 focus:outline-none">
         <ErrorBoundary>
-          <Routes>
+          <Suspense fallback={<RouteLoadingFallback label="Loading page..." />}>
+            <Routes>
             <Route
               path="/"
             element={
@@ -964,8 +993,9 @@ export default function App() {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
-      </ErrorBoundary>
-    </main>
+      </Suspense>
+    </ErrorBoundary>
+  </main>
 
       {/* Global Modals */}
       <DailyQuestionModal
