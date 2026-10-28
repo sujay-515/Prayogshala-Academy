@@ -835,7 +835,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             <div className="bg-slate-50 p-3 rounded border border-slate-200">
               <img
                 src={getSafeImageUrl(currQ.imageUrl)!}
-                alt={currQ.code ? `Specimen image or clinical chart for question ${currQ.code}` : "Clinical laboratory diagnostic specimen or chart"}
+                alt={currQ.code ? `Image for question ${currQ.code}` : 'Image for question'}
                 className="max-h-64 rounded object-contain mx-auto"
               />
             </div>

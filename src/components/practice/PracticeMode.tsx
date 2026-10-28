@@ -419,7 +419,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
           <div className="bg-slate-50 p-3 rounded border border-slate-200">
             <img
               src={getSafeImageUrl(currentQ.imageUrl)!}
-              alt={currentQ.code ? `Specimen image or clinical chart for question ${currentQ.code}` : "Clinical laboratory specimen or chart"}
+              alt={currentQ.code ? `Image for question ${currentQ.code}` : 'Image for question'}
               className="max-h-64 rounded object-contain mx-auto"
             />
           </div>

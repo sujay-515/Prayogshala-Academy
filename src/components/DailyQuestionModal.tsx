@@ -135,7 +135,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
             <div className="glass-card p-3 rounded-lg">
               <img
                 src={getSafeImageUrl(question.imageUrl)!}
-                alt={question.code ? `Specimen image or clinical chart for question ${question.code}` : "Clinical laboratory diagnostic specimen or chart"}
+                alt={question.code ? `Image for question ${question.code}` : 'Image for question'}
                 className="max-h-56 rounded object-contain mx-auto shadow-2xs"
               />
             </div>

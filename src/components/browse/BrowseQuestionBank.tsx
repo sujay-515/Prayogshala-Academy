@@ -438,7 +438,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                   <div className="bg-slate-50 p-3 rounded border border-slate-200">
                     <img
                       src={getSafeImageUrl(q.imageUrl)!}
-                      alt={q.code ? `Specimen image or clinical chart for question ${q.code}` : "Clinical laboratory diagnostic specimen or chart"}
+                      alt={q.code ? `Image for question ${q.code}` : 'Image for question'}
                       className="max-h-64 rounded object-contain mx-auto"
                     />
                   </div>
