@@ -267,6 +267,16 @@ export function syncUpdateUserStats(userId: string, stats: UserStats): void {
   });
 }
 
+export function syncDeleteUser(userId: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`users?id=eq.${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  }).catch((err) => {
+    console.error('[Supabase] Failed to sync user deletion:', err);
+  });
+}
+
 export function syncSaveSourcePdf(
   filename: string,
   mimeType: string,

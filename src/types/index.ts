@@ -145,4 +145,5 @@ export interface QuestionReport {
   details: string;
   submittedAt: string;
   status: 'Pending' | 'Investigating' | 'Resolved';
+  userId?: string | null;
 }

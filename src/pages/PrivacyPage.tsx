@@ -70,7 +70,7 @@ export const PrivacyPage: React.FC = () => {
               Your data is stored in a structured SQLite relational database running on our secured host server. If optional cloud backup is enabled, encrypted records may be synchronized to Supabase.
             </p>
             <p>
-              Session tokens and password reset tokens are stored as SHA-256 hashes at rest and expire automatically after 7 days and 1 hour respectively. Active exam records are purged upon exam submission. Personal study data is retained until you request account deletion.
+              Session tokens and password reset tokens are stored as SHA-256 hashes at rest and expire automatically after 7 days and 1 hour respectively. Active exam records are purged upon exam submission. Personal study data and credentials are retained until you delete your account. Question error reports you voluntarily submit are retained permanently in the repository; upon account deletion, user identifiers are stripped so that all retained reports are fully anonymized.
             </p>
           </section>
 
@@ -118,20 +118,31 @@ export const PrivacyPage: React.FC = () => {
 
           <section>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-3">
-              6. Your Data Rights & Deletion Requests
+              6. Your Data Rights: Self-Service Export & Deletion
             </h2>
-            <p className="mb-2">
-              You retain the right to inspect, export, or permanently delete your account and associated study records.
+            <p className="mb-3">
+              You retain full control over your personal data with automated self-service tools available directly on your Candidate Dashboard:
             </p>
-            <p>
-              To request a copy of your stored learning records or to permanently erase your account, contact our privacy team at{' '}
+            <ul className="list-disc pl-5 space-y-2 text-sm mb-4">
+              <li>
+                <strong>Data Portability & Export:</strong> You can download a complete, machine-readable JSON copy of your profile, examination history, performance metrics, and submitted feedback at any time via the "Download My Data" button in your Candidate Dashboard.
+              </li>
+              <li>
+                <strong>Immediate Account Deletion:</strong> You can permanently erase your account at any time via the "Delete Account" button in your Candidate Dashboard by confirming your current password. Deletion immediately and permanently destroys your user profile, password hash, active sessions, password reset records, performance statistics, and active exam states.
+              </li>
+              <li>
+                <strong>Question Report Anonymization:</strong> To maintain clinical question accuracy and educational reliability for the community, question error reports you previously submitted are retained in the repository with your user account reference permanently removed.
+              </li>
+            </ul>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              For any additional inquiries or data assistance, you may contact our privacy administrator at{' '}
               <a
                 href={`mailto:${SITE_CONFIG.CONTACT_EMAIL}`}
                 className="text-blue-600 dark:text-blue-400 font-medium underline underline-offset-2"
               >
                 {SITE_CONFIG.CONTACT_EMAIL}
               </a>
-              . Deletion requests are processed within 30 business days.
+              .
             </p>
           </section>
 

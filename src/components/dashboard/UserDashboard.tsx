@@ -1,13 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Trash2,
   UserCheck,
   UserPlus,
+  Download,
+  KeyRound,
+  CheckCircle2,
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
 import { SITE_CONFIG } from '../../config/site';
+import { Modal } from '../common/Modal';
 
 interface UserDashboardProps {
   stats: UserStats;
@@ -17,6 +21,8 @@ interface UserDashboardProps {
   onClearRevisionItem: (id: string) => void;
   currentUser?: UserAccount | null;
   onOpenAuthModal?: () => void;
+  authToken?: string | null;
+  onLogout?: () => void;
 }
 
 export const UserDashboard: React.FC<UserDashboardProps> = ({
@@ -27,7 +33,26 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   onClearRevisionItem,
   currentUser,
   onOpenAuthModal,
+  authToken,
+  onLogout,
 }) => {
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+  const [isSubmittingPw, setIsSubmittingPw] = useState(false);
+
+  // Data export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  // Account deletion modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const questionMap = useMemo(() => {
     const map = new Map<string, MCQQuestion>();
     for (const q of questions) {
@@ -51,6 +76,105 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const weakAreas = useMemo(() => {
     return identifyWeakAreas(stats.subjectPerformance, 70);
   }, [stats.subjectPerformance]);
+
+  const handleDownloadData = async () => {
+    setIsExporting(true);
+    setExportError('');
+    try {
+      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const res = await fetch('/api/auth/export', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to export account data.');
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `medlab-qbank-export-${currentUser?.username || 'user'}-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setExportError(err.message || 'Error downloading data.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    setPwSuccess('');
+    if (newPassword.length < 8) {
+      setPwError('New password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwError('New password and confirmation do not match.');
+      return;
+    }
+    setIsSubmittingPw(true);
+    try {
+      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update password.');
+      }
+      setPwSuccess('Password changed successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      setPwError(err.message || 'Error changing password.');
+    } finally {
+      setIsSubmittingPw(false);
+    }
+  };
+
+  const handleConfirmDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDeleteError('');
+    setIsDeleting(true);
+    try {
+      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const res = await fetch('/api/auth/account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ currentPassword: deletePassword }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete account.');
+      }
+      setIsDeleteModalOpen(false);
+      if (onLogout) {
+        onLogout();
+      } else {
+        localStorage.removeItem('medlab_qbank_auth_token_v1');
+        localStorage.removeItem('medlab_qbank_auth_user');
+        window.location.href = '/';
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error deleting account.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const overallAccuracy =
     stats.totalAnswered > 0
@@ -392,6 +516,222 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Account Settings & Privacy Controls */}
+      {currentUser ? (
+        <section aria-labelledby="account-settings-heading" className="glass-panel rounded-2xl p-6 space-y-6 shadow-xs">
+          <div className="border-b border-slate-200/80 pb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 id="account-settings-heading" className="text-sm font-semibold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-cyan-700" aria-hidden="true" />
+                <span>Account & Privacy Controls</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Signed in as <strong className="text-slate-800">{currentUser.username}</strong> ({currentUser.email || 'No email registered'}) · Role: <span className="capitalize font-medium">{currentUser.role}</span>
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleDownloadData}
+                disabled={isExporting}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5 text-cyan-700" aria-hidden="true" />
+                <span>{isExporting ? 'Exporting...' : 'Download My Data'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeletePassword('');
+                  setDeleteError('');
+                  setIsDeleteModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-700" aria-hidden="true" />
+                <span>Delete Account</span>
+              </button>
+            </div>
+          </div>
+
+          {exportError && (
+            <p role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
+              {exportError}
+            </p>
+          )}
+
+          {/* Change Password Sub-section */}
+          <div className="max-w-xl space-y-4">
+            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">
+              Change Account Password
+            </h4>
+
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <div>
+                <label htmlFor="dashboard-current-pw" className="block text-xs font-medium text-slate-700 mb-1">
+                  Current Password <span className="text-rose-600" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="dashboard-current-pw"
+                  type="password"
+                  required
+                  aria-required="true"
+                  aria-invalid={pwError ? 'true' : undefined}
+                  aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password..."
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="dashboard-new-pw" className="block text-xs font-medium text-slate-700 mb-1">
+                    New Password (min 8 chars) <span className="text-rose-600" aria-hidden="true">*</span>
+                  </label>
+                  <input
+                    id="dashboard-new-pw"
+                    type="password"
+                    required
+                    aria-required="true"
+                    aria-invalid={pwError ? 'true' : undefined}
+                    aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="New password..."
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="dashboard-confirm-pw" className="block text-xs font-medium text-slate-700 mb-1">
+                    Confirm New Password <span className="text-rose-600" aria-hidden="true">*</span>
+                  </label>
+                  <input
+                    id="dashboard-confirm-pw"
+                    type="password"
+                    required
+                    aria-required="true"
+                    aria-invalid={pwError ? 'true' : undefined}
+                    aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password..."
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
+                  />
+                </div>
+              </div>
+
+              {pwError && (
+                <p id="dashboard-pw-error" role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
+                  {pwError}
+                </p>
+              )}
+
+              {pwSuccess && (
+                <p role="status" aria-live="polite" className="text-xs text-emerald-700 font-medium">
+                  {pwSuccess}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmittingPw}
+                className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isSubmittingPw ? 'Updating Password...' : 'Update Password'}
+              </button>
+            </form>
+          </div>
+        </section>
+      ) : (
+        <section className="glass-panel rounded-2xl p-6 text-center space-y-3 shadow-xs">
+          <KeyRound className="w-8 h-8 text-cyan-700 mx-auto" aria-hidden="true" />
+          <h3 className="text-sm font-semibold text-slate-900">
+            Account & Cloud Synchronization
+          </h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            Sign in or register a candidate account to sync your study progress across devices, download your data archive, and manage account credentials.
+          </p>
+          {onOpenAuthModal && (
+            <button
+              type="button"
+              onClick={onOpenAuthModal}
+              className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            >
+              Sign In / Register
+            </button>
+          )}
+        </section>
+      )}
+
+      {/* Account Deletion Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        titleId="delete-account-title"
+        ariaLabel="Confirm Permanent Account Deletion"
+        maxWidth="max-w-md"
+      >
+        <div className="p-6 space-y-4">
+          <h3 id="delete-account-title" className="text-base font-bold text-slate-900">
+            Confirm Permanent Account Deletion
+          </h3>
+          <div className="flex items-start gap-3 text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-lg text-xs">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="space-y-1">
+              <strong className="font-semibold block">This action is permanent and cannot be undone.</strong>
+              <span>
+                Your profile, login credentials, active sessions, study records, and mock exam results will be immediately erased. Any question error reports you previously submitted will be retained in anonymized form (user reference removed).
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleConfirmDeleteAccount} className="space-y-3">
+            <div>
+              <label htmlFor="delete-account-password" className="block text-xs font-semibold text-slate-700 mb-1">
+                Enter Current Password to Confirm Deletion <span className="text-rose-600" aria-hidden="true">*</span>
+              </label>
+              <input
+                id="delete-account-password"
+                type="password"
+                required
+                aria-required="true"
+                aria-invalid={deleteError ? 'true' : undefined}
+                aria-describedby={deleteError ? 'delete-account-error' : undefined}
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Your password..."
+                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600/20 shadow-2xs"
+              />
+            </div>
+
+            {deleteError && (
+              <p id="delete-account-error" role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-3 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-medium cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isDeleting}
+                className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting Account...' : 'Permanently Delete My Account'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -53,6 +53,7 @@ import {
   pingSupabaseKeepAlive,
   syncUpsertUser,
   syncUpdateUserRole,
+  syncDeleteUser,
   syncInsertSession,
   syncDeleteSession,
   syncInsertActiveExam,
@@ -162,6 +163,18 @@ const reportQuestionLimiter = createLimiter(
   15 * 60 * 1000,
   15,
   'Too many question reports submitted. Please wait a few minutes before submitting more.'
+);
+
+const accountExportLimiter = createLimiter(
+  15 * 60 * 1000,
+  10,
+  'Too many account data export requests. Please wait before retrying.'
+);
+
+const accountDeleteLimiter = createLimiter(
+  15 * 60 * 1000,
+  5,
+  'Too many account deletion attempts. Please wait before retrying.'
 );
 
 // Cloud vision & OCR client initialization
@@ -536,6 +549,99 @@ app.get('/api/auth/me', (req, res) => {
       displayName: session.displayName,
     },
     stats,
+  });
+});
+
+app.get('/api/auth/export', accountExportLimiter, (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+
+  const userRow = db.prepare('SELECT id, username, email, role, display_name, created_at, stats_json FROM users WHERE id = ?').get(session.userId) as any;
+  if (!userRow) {
+    return res.status(404).json({ success: false, error: 'User record not found.' });
+  }
+
+  let stats = null;
+  if (userRow.stats_json) {
+    try {
+      stats = JSON.parse(userRow.stats_json);
+    } catch {}
+  }
+
+  const activeExams = db.prepare('SELECT id, title, started_at, duration_minutes FROM active_exams WHERE user_id = ?').all(session.userId) as any[];
+  const submittedReports = db.prepare('SELECT id, question_id, question_code, reason, details, submitted_at, status FROM reports WHERE user_id = ? ORDER BY submitted_at DESC').all(session.userId) as any[];
+
+  const exportPayload = {
+    exportedAt: new Date().toISOString(),
+    profile: {
+      id: userRow.id,
+      username: userRow.username,
+      email: userRow.email || null,
+      role: userRow.role,
+      displayName: userRow.display_name,
+      createdAt: userRow.created_at,
+    },
+    stats: stats || {},
+    examHistory: stats?.examRecords || [],
+    activeExams: activeExams || [],
+    submittedReports: submittedReports || [],
+  };
+
+  const filename = `medlab-qbank-export-${encodeURIComponent(userRow.username)}-${Date.now()}.json`;
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.send(JSON.stringify(exportPayload, null, 2));
+});
+
+app.delete('/api/auth/account', accountDeleteLimiter, (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+
+  const { currentPassword } = req.body || {};
+  if (!currentPassword || typeof currentPassword !== 'string') {
+    return res.status(400).json({ success: false, error: 'Current password is required to delete your account.' });
+  }
+
+  const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId) as any;
+  if (!userRow || !verifyPassword(String(currentPassword), userRow.password_hash)) {
+    return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
+  }
+
+  // Refuse if user is the last superadmin
+  if (userRow.role === 'superadmin') {
+    const superAdminCountRow = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'superadmin'").get() as any;
+    if (superAdminCountRow.count <= 1) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete the sole superadmin account. Promote another superadmin first.',
+      });
+    }
+  }
+
+  // Execute deletion across all related tables within a transaction
+  try {
+    db.exec('BEGIN');
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(session.userId);
+    db.prepare('UPDATE reports SET user_id = NULL WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(session.userId);
+    db.exec('COMMIT');
+  } catch (txErr) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw txErr;
+  }
+
+  // If Supabase sync is enabled, delete user row there too, catching errors
+  syncDeleteUser(session.userId);
+
+  return res.json({
+    success: true,
+    message: 'Your account and associated personal data have been permanently deleted.',
   });
 });
 
@@ -1195,6 +1301,7 @@ app.delete('/api/staging-drafts', requireAdmin, (_req, res) => {
 // ==================== QUESTION ERROR REPORTING APIs ====================
 app.post('/api/report-question', reportQuestionLimiter, (req, res) => {
   const { questionId, questionCode, reason, details } = req.body;
+  const session = getSessionUser(req);
   const report: QuestionReport = {
     id: `rep-${Date.now()}`,
     questionId,
@@ -1203,9 +1310,9 @@ app.post('/api/report-question', reportQuestionLimiter, (req, res) => {
     details: details || '',
     submittedAt: new Date().toISOString(),
     status: 'Pending',
+    userId: session?.userId || null,
   };
   insertReport(report);
-  const session = getSessionUser(req);
   const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
   res.json({
     success: true,

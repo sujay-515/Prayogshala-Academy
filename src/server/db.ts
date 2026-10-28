@@ -129,6 +129,10 @@ try {
   db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL').run();
 } catch {}
 
+try {
+  db.prepare('ALTER TABLE reports ADD COLUMN user_id TEXT').run();
+} catch {}
+
 export function hashPassword(password: string, customSalt?: string): string {
   const salt = customSalt || crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(password, salt, 64).toString('hex');
@@ -540,16 +544,18 @@ export function getAllReports(): QuestionReport[] {
     details: r.details,
     submittedAt: r.submitted_at,
     status: r.status,
+    userId: r.user_id || null,
   }));
 }
 
 export function insertReport(report: QuestionReport, skipCloudSync = false): void {
   db.prepare(`
-    INSERT INTO reports (id, question_id, question_code, reason, details, submitted_at, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO reports (id, question_id, question_code, reason, details, submitted_at, status, user_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       status = excluded.status,
-      details = excluded.details
+      details = excluded.details,
+      user_id = excluded.user_id
   `).run(
     report.id,
     report.questionId,
@@ -557,7 +563,8 @@ export function insertReport(report: QuestionReport, skipCloudSync = false): voi
     report.reason,
     report.details,
     report.submittedAt,
-    report.status
+    report.status,
+    report.userId || null
   );
   if (!skipCloudSync) {
     syncInsertReport(report);

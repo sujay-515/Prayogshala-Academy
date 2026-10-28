@@ -750,4 +750,117 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     const unknownRes = await request('GET', '/completely-unknown-path-for-testing');
     assert.equal(unknownRes.status, 404);
   });
+
+  it('Phase 6 Account Self-Service: data export, password deletion validation, session revocation, and superadmin guard', async () => {
+    // 1. Unauthenticated calls rejected
+    const unauthExport = await request('GET', '/api/auth/export');
+    assert.equal(unauthExport.status, 401);
+
+    const unauthDelete = await request('DELETE', '/api/auth/account', {
+      body: { currentPassword: 'SomePassword123!' },
+    });
+    assert.equal(unauthDelete.status, 401);
+
+    // 2. Register user A
+    const regUserA = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'selfservice_user_a',
+        email: 'user_a_selfservice@example.com',
+        password: 'UserAPassword123!',
+      },
+    });
+    assert.equal(regUserA.status, 200);
+    const tokenA = regUserA.body.token;
+
+    // Register user B
+    const regUserB = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'selfservice_user_b',
+        email: 'user_b_selfservice@example.com',
+        password: 'UserBPassword123!',
+      },
+    });
+    assert.equal(regUserB.status, 200);
+    const tokenB = regUserB.body.token;
+
+    // 3. User A submits a question report
+    const reportRes = await request('POST', '/api/report-question', {
+      token: tokenA,
+      body: {
+        questionId: 'LAB-0001',
+        questionCode: 'LAB-0001',
+        reason: 'Typo/Grammar',
+        details: 'Self-service data export test report',
+      },
+    });
+    assert.equal(reportRes.status, 200);
+
+    // 4. User A exports data
+    const exportResA = await request('GET', '/api/auth/export', { token: tokenA });
+    assert.equal(exportResA.status, 200);
+    assert.ok(exportResA.headers['content-disposition']?.includes('attachment; filename='));
+    assert.equal(exportResA.body.profile.username, 'selfservice_user_a');
+    assert.equal(exportResA.body.profile.email, 'user_a_selfservice@example.com');
+    assert.ok(Array.isArray(exportResA.body.submittedReports));
+    assert.equal(exportResA.body.submittedReports.length, 1);
+
+    // Verify no password hash or session tokens in export
+    const rawExport = exportResA.rawBody;
+    assert.equal(rawExport.includes('password_hash'), false);
+    assert.equal(rawExport.includes('passwordHash'), false);
+    assert.equal(rawExport.includes(tokenA), false);
+
+    // 5. User B export only exports User B profile (cross-user isolation)
+    const exportResB = await request('GET', '/api/auth/export', { token: tokenB });
+    assert.equal(exportResB.status, 200);
+    assert.equal(exportResB.body.profile.username, 'selfservice_user_b');
+    assert.notEqual(exportResB.body.profile.id, exportResA.body.profile.id);
+
+    // 6. User B cannot delete User A's account with User B's token
+    // (A request with token B will target user B, not user A; wrong password returns 400)
+    const deleteWrongPw = await request('DELETE', '/api/auth/account', {
+      token: tokenA,
+      body: { currentPassword: 'WrongPassword999!' },
+    });
+    assert.equal(deleteWrongPw.status, 400);
+    assert.ok(deleteWrongPw.body.error?.includes('incorrect'));
+
+    // 7. Last superadmin deletion refused
+    const superAdminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    assert.equal(superAdminLogin.status, 200);
+    const superAdminToken = superAdminLogin.body.token;
+
+    const deleteSuperAdmin = await request('DELETE', '/api/auth/account', {
+      token: superAdminToken,
+      body: { currentPassword: 'BootstrapPassword123!' },
+    });
+    assert.equal(deleteSuperAdmin.status, 400);
+    assert.ok(deleteSuperAdmin.body.error?.includes('sole superadmin'));
+
+    // 8. Delete user A successfully with correct password
+    const deleteSuccess = await request('DELETE', '/api/auth/account', {
+      token: tokenA,
+      body: { currentPassword: 'UserAPassword123!' },
+    });
+    assert.equal(deleteSuccess.status, 200);
+    assert.equal(deleteSuccess.body.success, true);
+
+    // 9. Deleted user's session is invalidated immediately
+    const meAfterDelete = await request('GET', '/api/auth/me', { token: tokenA });
+    assert.equal(meAfterDelete.status, 401);
+
+    // 10. Login with deleted user fails
+    const loginDeleted = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'selfservice_user_a',
+        password: 'UserAPassword123!',
+      },
+    });
+    assert.equal(loginDeleted.status, 401);
+  });
 });

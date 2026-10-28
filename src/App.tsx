@@ -984,6 +984,8 @@ export default function App() {
                 }}
                 currentUser={currentUser}
                 onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                authToken={authToken}
+                onLogout={handleLogout}
               />
             }
           />
