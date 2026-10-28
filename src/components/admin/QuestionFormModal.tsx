@@ -357,7 +357,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                   </span>
                   <img
                     src={getSafeImageUrl(imageUrl)!}
-                    alt="Clinical specimen image"
+                    alt={stem ? `Diagnostic figure preview for: ${stem.slice(0, 60)}` : 'Diagnostic figure or clinical microscopy preview'}
                     className="max-h-64 rounded object-contain mx-auto border border-slate-100"
                   />
                 </div>

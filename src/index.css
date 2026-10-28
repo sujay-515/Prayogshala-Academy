@@ -134,3 +134,33 @@ pre, code {
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(226, 232, 240, 0.8);
 }
+
+/* Global accessible keyboard focus indicator */
+:focus-visible {
+  outline: 2px solid #0891b2 !important;
+  outline-offset: 2px !important;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[role="radio"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #0891b2 !important;
+  outline-offset: 2px !important;
+}
+
+/* Respect user preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -827,6 +827,14 @@ export default function App() {
         <div className="absolute -bottom-32 left-1/3 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-slate-200/30 via-cyan-100/20 to-transparent blur-3xl opacity-50" />
       </div>
 
+      {/* Skip to Main Content Link for Keyboard and Screen Reader Accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:font-semibold focus:text-xs focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-cyan-300"
+      >
+        Skip to main content
+      </a>
+
       {/* Navigation */}
       <Navbar
         activeTab={activeTab}
@@ -846,7 +854,7 @@ export default function App() {
       />
 
       {/* Main Content Area with React Router */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 focus:outline-none">
         <ErrorBoundary>
           <Routes>
             <Route

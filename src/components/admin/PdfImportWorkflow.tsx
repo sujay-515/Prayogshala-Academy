@@ -1865,7 +1865,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                     <div className="mt-2 p-1.5 border border-slate-200 rounded bg-slate-50 text-center">
                       <img
                         src={getSafeImageUrl(editingDraft.imageUrl)!}
-                        alt="Specimen figure preview"
+                        alt={`Figure preview for draft ${editingDraft.tempCode || 'question'}`}
                         className="max-h-36 max-w-full mx-auto object-contain rounded bg-white border border-slate-200"
                       />
                     </div>
