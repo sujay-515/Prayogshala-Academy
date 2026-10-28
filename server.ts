@@ -64,6 +64,7 @@ import {
   sendStaffInviteEmail,
   sendPasswordResetEmail,
 } from './src/server/emailService';
+import { startBackupScheduler, stopBackupScheduler } from './src/server/backup';
 
 dotenv.config();
 
@@ -1556,6 +1557,7 @@ async function startServer() {
         '[Config Warning] SITE_URL is unset in production. Robots.txt and sitemap.xml will fall back to incoming request host headers.'
       );
     }
+    startBackupScheduler();
   });
 
   let isShuttingDown = false;
@@ -1563,6 +1565,8 @@ async function startServer() {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log(`\n[Process] Received ${signal}. Initiating graceful shutdown...`);
+
+    stopBackupScheduler();
 
     const forceTimer = setTimeout(() => {
       console.error('[Process] Forceful shutdown timeout exceeded (10s). Terminating.');

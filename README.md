@@ -62,6 +62,36 @@ During `npm run build`, an automated `prebuild` hook (`scripts/check-placeholder
 
 ## Backups
 
+### Automated and CLI Database Snapshots (`VACUUM INTO`)
+Create an atomic, point-in-time SQLite snapshot without stopping the server:
+```bash
+npm run backup
+```
+- **Consistent Copy**: Executes SQLite's native `VACUUM INTO` to create a clean, consistent snapshot without locking ongoing queries.
+- **Location**: Snapshots are saved to `BACKUP_DIR` (defaults to `DATA_DIR/backups/`). Backups are never written to any publicly served directory.
+- **Naming**: Files use an ISO timestamp: `medlab_qbank_backup_YYYY-MM-DDTHH-mm-ss-SSSZ.sqlite`.
+- **Rotation**: Automatically retains the newest `BACKUP_KEEP` files (default: 7) and deletes older files.
+- **In-Process Scheduler**: Set `BACKUP_INTERVAL_HOURS=24` (or any positive number of hours) in your environment to run automated backups at that interval. The scheduler shuts down cleanly on SIGTERM/SIGINT.
+
+### How to Restore from a Backup File
+1. Stop the running server process: `pkill -f "node.*server"` or stop your container/process manager.
+2. Locate the desired backup file in `data/backups/`.
+3. Overwrite the primary database file with the backup:
+   ```bash
+   cp data/backups/medlab_qbank_backup_<timestamp>.sqlite data/medlab_qbank.sqlite
+   ```
+4. If temporary SQLite WAL files exist (`data/medlab_qbank.sqlite-wal` or `data/medlab_qbank.sqlite-shm`), remove them so the restored database starts from a fresh state:
+   ```bash
+   rm -f data/medlab_qbank.sqlite-wal data/medlab_qbank.sqlite-shm
+   ```
+5. Restart the server:
+   ```bash
+   npm start
+   ```
+
+> [!WARNING]
+> Storing backups on the same volume as the primary database does not protect against physical disk failure, volume deletion, or infrastructure loss. Always copy or replicate your backup files off-host (e.g. to S3, Google Cloud Storage, or an external secure storage volume) for disaster recovery.
+
 - **UI Export**: Admin Console -> Bulk CSV/JSON -> Export Database (JSON).
 - **API Export**: `GET /api/backup/export`.
 - **API Restore**: `POST /api/backup/restore`.
