@@ -125,7 +125,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="bg-white border border-slate-200 p-3.5 rounded">
           <span className="text-xs font-medium text-slate-500 block">Total MCQs</span>
           <span className="text-xl font-bold text-slate-900 mt-0.5 block">{totalCount}</span>
-          <span className="text-xs text-slate-400">Total in repository</span>
+          <span className="text-xs text-slate-500">Total in repository</span>
         </div>
 
         <div className="bg-white border border-slate-200 p-3.5 rounded">
@@ -143,13 +143,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <div className="bg-white border border-slate-200 p-3.5 rounded">
           <span className="text-xs font-medium text-slate-500 block">Under Review</span>
           <span className="text-xl font-bold text-slate-900 mt-0.5 block">{underReviewCount}</span>
-          <span className="text-xs text-slate-400">In verification</span>
+          <span className="text-xs text-slate-500">In verification</span>
         </div>
 
         <div className="bg-white border border-slate-200 p-3.5 rounded">
           <span className="text-xs font-medium text-slate-500 block">Archived</span>
           <span className="text-xl font-bold text-slate-900 mt-0.5 block">{archivedCount}</span>
-          <span className="text-xs text-slate-400">Inactive records</span>
+          <span className="text-xs text-slate-500">Inactive records</span>
         </div>
 
         <div className="bg-white border border-slate-200 p-3.5 rounded">
@@ -353,7 +353,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 {isExpanded && (
                   <div className="p-3 bg-white divide-y divide-slate-100 space-y-2">
                     {subjectsList.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic py-2 px-2">No subjects matching filter.</p>
+                      <p className="text-xs text-slate-500 italic py-2 px-2">No subjects matching filter.</p>
                     ) : (
                       subjectsList.map(([subjName, subjData]) => (
                         <div key={subjName} className="pt-2 first:pt-0 space-y-1.5">

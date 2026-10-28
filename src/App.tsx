@@ -1111,7 +1111,7 @@ export default function App() {
                       placeholder="e.g. candidate@university.edu"
                       className="w-full bg-white/80 border border-slate-200/90 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 text-xs sm:text-sm shadow-2xs"
                     />
-                    <span id="auth-email-hint" className="text-[10px] text-slate-400 mt-0.5 block">
+                    <span id="auth-email-hint" className="text-[10px] text-slate-500 mt-0.5 block">
                       Used for progress synchronization, receipts, and password recovery.
                     </span>
                   </div>
@@ -1194,7 +1194,7 @@ export default function App() {
               )}
 
               {authError && (
-                <p id="auth-error-msg" role="alert" aria-live="polite" className="text-rose-600 text-xs font-medium">
+                <p id="auth-error-msg" role="alert" aria-live="polite" className="text-rose-700 text-xs font-medium">
                   {authError}
                 </p>
               )}

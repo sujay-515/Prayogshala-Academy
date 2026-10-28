@@ -161,7 +161,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
             Licensing Examination Syllabi
           </h2>
-          <span className="text-xs text-slate-400">Select a syllabus to begin filtered practice</span>
+          <span className="text-xs text-slate-500">Select a syllabus to begin filtered practice</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
@@ -181,7 +181,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     <span className="font-semibold text-slate-900 group-hover:text-cyan-800 transition-colors">
                       {exam.code}
                     </span>
-                    <span className="text-slate-400 text-xs">{count} questions</span>
+                    <span className="text-slate-500 text-xs">{count} questions</span>
                   </div>
                   <div className="text-xs font-medium text-slate-800">
                     {exam.title}
@@ -228,7 +228,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="glass-panel glass-panel-hover rounded-xl p-5 cursor-pointer flex flex-col justify-between group space-y-3"
               >
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
                     <span className="font-medium text-slate-700">{unitQuestions.length} MCQs</span>
                     <span>{cat.subjects.length} subjects</span>
                   </div>

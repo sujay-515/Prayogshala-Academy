@@ -222,7 +222,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
             <button
               onClick={() => onBookmark(question.id)}
               className={`text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
-                isBookmarked ? 'text-amber-600 font-medium' : 'text-slate-500 hover:text-slate-800'
+                isBookmarked ? 'text-amber-800 font-semibold' : 'text-slate-600 hover:text-slate-800'
               }`}
             >
               <Bookmark className={`w-3.5 h-3.5 ${isBookmarked ? 'fill-amber-500 text-amber-500' : ''}`} />

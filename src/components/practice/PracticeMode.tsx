@@ -354,7 +354,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             <button
               onClick={() => onToggleBookmark(currentQ.id)}
               className={`p-1.5 rounded transition-colors cursor-pointer ${
-                isBookmarked ? 'text-amber-600 bg-amber-50' : 'text-slate-400 hover:text-slate-700'
+                isBookmarked ? 'text-amber-700 bg-amber-50' : 'text-slate-500 hover:text-slate-700'
               }`}
               title={isBookmarked ? 'Bookmarked' : 'Bookmark question'}
             >
@@ -362,7 +362,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             </button>
             <button
               onClick={() => onReportQuestion(currentQ)}
-              className="p-1.5 rounded text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+              className="p-1.5 rounded text-slate-500 hover:text-rose-700 transition-colors cursor-pointer"
               title="Report issue"
             >
               <Flag className="w-4 h-4" />
@@ -373,7 +373,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 
       {/* Main Question Paper Card */}
       <div className="glass-panel rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-        <div className="text-xs text-slate-400 font-medium">
+        <div className="text-xs text-slate-500 font-medium">
           {currentQ.code} · {currentQ.subject} · {currentQ.topic}
           {currentQ.subtopic ? ` · ${currentQ.subtopic}` : ''}
         </div>

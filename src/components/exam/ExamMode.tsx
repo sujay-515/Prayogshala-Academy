@@ -404,8 +404,8 @@ export const ExamMode: React.FC<ExamModeProps> = ({
                         onClick={() => onBookmarkQuestion(q.id)}
                         className={`flex items-center gap-1 text-xs transition-colors cursor-pointer ${
                           bookmarkedIds.includes(q.id)
-                            ? 'text-amber-600 font-medium'
-                            : 'text-slate-400 hover:text-slate-700'
+                            ? 'text-amber-700 font-medium'
+                            : 'text-slate-500 hover:text-slate-700'
                         }`}
                       >
                         <Bookmark
@@ -778,7 +778,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               >
                 <Bookmark
                   className={`w-3.5 h-3.5 ${
-                    bookmarkedIds.includes(currQ.id) ? 'fill-amber-500 text-amber-600' : ''
+                    bookmarkedIds.includes(currQ.id) ? 'fill-amber-500 text-amber-700' : ''
                   }`}
                 />
                 <span>{bookmarkedIds.includes(currQ.id) ? 'Saved' : 'Save'}</span>

@@ -328,7 +328,7 @@ export const CategoryManager: React.FC<CategoryManagerProps> = ({
                   }`}
                 >
                   <span className="truncate">{unit.name}</span>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="text-xs text-slate-500 font-mono">
                     {unit.subjects.length}
                   </span>
                 </button>

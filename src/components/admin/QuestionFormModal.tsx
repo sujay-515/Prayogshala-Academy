@@ -526,14 +526,14 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                           setImageUrl('');
                           setImageError('');
                         }}
-                        className="px-2 py-1 text-rose-600 hover:underline text-xs cursor-pointer"
+                        className="px-2 py-1 text-rose-700 hover:underline text-xs cursor-pointer"
                       >
                         Clear Image
                       </button>
                     )}
                   </div>
                   {imageError && (
-                    <p role="alert" aria-live="polite" className="text-xs text-rose-600 font-medium">
+                    <p role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
                       {imageError}
                     </p>
                   )}

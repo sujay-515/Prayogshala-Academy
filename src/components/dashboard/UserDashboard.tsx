@@ -114,19 +114,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <div className="p-4 sm:p-5">
           <span className="text-xs text-slate-500 block">Total attempted</span>
           <span className="text-2xl font-bold text-slate-900 mt-1 block">{stats.totalAnswered}</span>
-          <span className="text-xs text-slate-400">{stats.totalCorrect} answered correctly</span>
+          <span className="text-xs text-slate-500">{stats.totalCorrect} answered correctly</span>
         </div>
 
         <div className="p-4 sm:p-5">
           <span className="text-xs text-slate-500 block">Cumulative accuracy</span>
           <span className="text-2xl font-bold text-slate-900 mt-1 block">{overallAccuracy}%</span>
-          <span className="text-xs text-slate-400">Target passing rate: 70%</span>
+          <span className="text-xs text-slate-500">Target passing rate: 70%</span>
         </div>
 
         <div className="p-4 sm:p-5">
           <span className="text-xs text-slate-500 block">Mock examinations</span>
           <span className="text-2xl font-bold text-slate-900 mt-1 block">{stats.examRecords.length}</span>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-500">
             {stats.examRecords.filter((e) => e.passed).length} passed benchmark
           </span>
         </div>
@@ -134,7 +134,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         <div className="p-4 sm:p-5">
           <span className="text-xs text-slate-500 block">Study streak</span>
           <span className="text-2xl font-bold text-slate-900 mt-1 block">{stats.streakDays} Days</span>
-          <span className="text-xs text-slate-400">Consecutive days active</span>
+          <span className="text-xs text-slate-500">Consecutive days active</span>
         </div>
       </div>
 
@@ -191,7 +191,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </h3>
 
           {Object.keys(stats.subjectPerformance).length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center">
+            <p className="text-xs text-slate-500 py-4 text-center">
               Complete practice sessions to populate subject metrics.
             </p>
           ) : (
@@ -226,7 +226,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </h3>
 
           {!stats.topicPerformance || Object.keys(stats.topicPerformance).length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center">
+            <p className="text-xs text-slate-500 py-4 text-center">
               Answer questions across specific diagnostic topics to view topic metrics.
             </p>
           ) : (
@@ -274,7 +274,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
 
           {revisionQuestions.length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center">
+            <p className="text-xs text-slate-500 py-4 text-center">
               No missed questions currently queued for revision.
             </p>
           ) : (
@@ -318,7 +318,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
 
           {bookmarkedQuestions.length === 0 ? (
-            <p className="text-xs text-slate-400 py-4 text-center">
+            <p className="text-xs text-slate-500 py-4 text-center">
               No bookmarked questions saved yet.
             </p>
           ) : (
@@ -353,7 +353,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         </h3>
 
         {stats.examRecords.length === 0 ? (
-          <p className="text-xs text-slate-400 py-4 text-center">
+          <p className="text-xs text-slate-500 py-4 text-center">
             No mock examination sessions completed yet.
           </p>
         ) : (

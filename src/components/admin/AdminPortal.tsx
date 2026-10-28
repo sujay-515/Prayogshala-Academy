@@ -191,7 +191,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               />
             </div>
             {authError && (
-              <p id="admin-auth-error" role="alert" aria-live="polite" className="text-xs text-rose-600 text-center font-medium">
+              <p id="admin-auth-error" role="alert" aria-live="polite" className="text-xs text-rose-700 text-center font-medium">
                 {authError}
               </p>
             )}

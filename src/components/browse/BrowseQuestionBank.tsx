@@ -377,14 +377,14 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                       </>
                     )}
                     <span aria-hidden="true">·</span>
-                    <span className="text-slate-400">{q.difficulty}</span>
+                    <span className="text-slate-500 font-medium">{q.difficulty}</span>
                   </div>
 
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => onToggleBookmark(q.id)}
                       className={`p-1 rounded transition-colors cursor-pointer ${
-                        isBookmarked ? 'text-amber-600' : 'text-slate-400 hover:text-slate-600'
+                        isBookmarked ? 'text-amber-700' : 'text-slate-500 hover:text-slate-700'
                       }`}
                       title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                     >
@@ -392,7 +392,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                     </button>
                     <button
                       onClick={() => onReportQuestion(q)}
-                      className="p-1 rounded text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                      className="p-1 rounded text-slate-500 hover:text-rose-700 transition-colors cursor-pointer"
                       title="Report issue"
                     >
                       <Flag className="w-3.5 h-3.5" />

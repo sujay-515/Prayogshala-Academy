@@ -556,7 +556,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
           {/* List of drafts */}
           <div className="space-y-2.5 max-h-[60dvh] sm:max-h-[32rem] overflow-y-auto pr-1">
             {filteredDrafts.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-400">
+              <div className="p-8 text-center text-xs text-slate-500">
                 No questions matching this filter tab.
               </div>
             ) : (
