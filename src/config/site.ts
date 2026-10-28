@@ -15,5 +15,5 @@ export const SITE_CONFIG = {
   SITE_URL:
     (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SITE_URL) ||
     (typeof window !== 'undefined' && window.location && window.location.origin) ||
-    'https://medlab-qbank.example.com',
+    '',
 };

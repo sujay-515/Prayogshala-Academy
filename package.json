@@ -10,6 +10,7 @@
     "dev": "NODE_ENV=development tsx watch --clear-screen=false --ignore 'data/**' --ignore 'test_mcqs/**' server.ts",
     "start": "tsx server.ts",
     "list-legacy-accounts": "tsx src/server/scripts/listLegacyAccounts.ts",
+    "prebuild": "node scripts/check-placeholders.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test:api": "tsx --test tests/api/**/*.test.ts",

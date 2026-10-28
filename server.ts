@@ -1444,6 +1444,11 @@ async function startServer() {
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`MedLab QBank server running on http://0.0.0.0:${PORT}`);
+    if (process.env.NODE_ENV === 'production' && !process.env.SITE_URL?.trim()) {
+      console.warn(
+        '[Config Warning] SITE_URL is unset in production. Robots.txt and sitemap.xml will fall back to incoming request host headers.'
+      );
+    }
   });
 
   let isShuttingDown = false;

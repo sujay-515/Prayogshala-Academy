@@ -53,6 +53,13 @@ To inspect legacy seeded accounts in an existing database:
 npm run list-legacy-accounts
 ```
 
+### Site Configuration & Placeholder Guard
+Public legal metadata, contact email, operator entity, and site URLs are managed centrally in `src/config/site.ts`.
+
+During `npm run build`, an automated `prebuild` hook (`scripts/check-placeholders.mjs`) verifies whether bracketed placeholders (such as `[CONTACT_EMAIL]`, `[OPERATOR_NAME]`, and `[OPERATOR_COUNTRY]`) remain unresolved:
+- In local development, the hook emits a descriptive console warning with missing keys.
+- In strict CI/CD production pipelines, set `STRICT_PLACEHOLDERS=true` in the environment to fail the build if any placeholder remains unconfigured.
+
 ## Backups
 
 - **UI Export**: Admin Console -> Bulk CSV/JSON -> Export Database (JSON).
