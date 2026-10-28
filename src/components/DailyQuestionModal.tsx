@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2, AlertCircle, Bookmark } from 'lucide-react';
 import { MCQQuestion } from '../types';
 import { getSafeImageUrl } from '../utils/urlSecurity';
+import { Modal } from './common/Modal';
 
 interface DailyQuestionModalProps {
   question?: MCQQuestion | null;
@@ -34,10 +35,12 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
 
   if (!question) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-        <div className="bg-white border border-slate-200 w-full max-w-md rounded-md shadow-xl p-6 text-center space-y-4">
+      <Modal isOpen={isOpen} onClose={onClose} titleId="no-daily-q-title" maxWidth="max-w-md">
+        <div className="bg-white border border-slate-200 w-full rounded-md shadow-xl p-6 text-center space-y-4">
           <div className="space-y-1">
-            <h3 className="font-semibold text-slate-900 text-base">No question available today</h3>
+            <h3 id="no-daily-q-title" className="font-semibold text-slate-900 text-base">
+              No question available today
+            </h3>
             <p className="text-xs text-slate-500">
               Please check back tomorrow or practice with the question bank.
             </p>
@@ -49,7 +52,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
             Close
           </button>
         </div>
-      </div>
+      </Modal>
     );
   }
 
@@ -68,11 +71,13 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-fadeIn">
-      <div className="glass-panel w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-white/80">
+    <Modal isOpen={isOpen} onClose={onClose} titleId="daily-question-title" maxWidth="max-w-2xl">
+      <div className="glass-panel w-full rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] border border-white/80">
         <div className="glass-nav px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200/70 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Question of the day</h3>
+            <h3 id="daily-question-title" className="font-semibold text-slate-900 text-sm sm:text-base">
+              Question of the day
+            </h3>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-500 flex-wrap">
               <span className="font-medium text-cyan-900">{question.unit}</span>
               <span aria-hidden="true">·</span>
@@ -83,8 +88,8 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
@@ -251,6 +256,6 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

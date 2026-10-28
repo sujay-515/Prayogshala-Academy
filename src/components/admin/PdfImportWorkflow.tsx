@@ -33,6 +33,7 @@ import {
   generateNextQuestionCode,
 } from '../../utils/mcqParser';
 import { SAMPLE_MEDICINE_PDF_TEXT } from '../../data/samplePdfs';
+import { Modal } from '../common/Modal';
 
 interface PdfImportWorkflowProps {
   existingQuestions: MCQQuestion[];
@@ -1232,49 +1233,58 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
   );
 
   const renderFullscreenPdfModal = () => {
-    if (!isPdfFullscreen) return null;
     return (
-      <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col w-screen h-screen overflow-hidden">
-        <div className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between text-xs shrink-0 border-b border-slate-800">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText className="w-4 h-4 text-cyan-400 shrink-0" />
-            <span className="font-semibold text-white truncate max-w-md">{selectedFileName}</span>
-            <span className="text-slate-400 text-xs hidden sm:inline">(Fullscreen Mode)</span>
+      <Modal
+        isOpen={isPdfFullscreen}
+        onClose={() => setIsPdfFullscreen(false)}
+        titleId="fullscreen-pdf-title"
+        maxWidth="max-w-none w-screen h-screen p-0"
+        className="h-full"
+      >
+        <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col w-screen h-screen overflow-hidden">
+          <div className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between text-xs shrink-0 border-b border-slate-800">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span id="fullscreen-pdf-title" className="font-semibold text-white truncate max-w-md">
+                {selectedFileName}
+              </span>
+              <span className="text-slate-400 text-xs hidden sm:inline">(Fullscreen Mode)</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={openDocumentInNewTab}
+                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer text-xs transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Open in Browser Tab</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsPdfFullscreen(false)}
+                className="px-3 py-1 rounded bg-cyan-700 hover:bg-cyan-800 text-white font-medium flex items-center gap-1.5 cursor-pointer text-xs transition-colors shadow-xs"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                <span>Exit Fullscreen</span>
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={openDocumentInNewTab}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center gap-1.5 cursor-pointer text-xs transition-colors"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Open in Browser Tab</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsPdfFullscreen(false)}
-              className="px-3 py-1 rounded bg-cyan-700 hover:bg-cyan-800 text-white font-medium flex items-center gap-1.5 cursor-pointer text-xs transition-colors shadow-xs"
-            >
-              <Minimize2 className="w-3.5 h-3.5" />
-              <span>Exit Fullscreen</span>
-            </button>
+          <div className="flex-1 min-h-0 w-full h-full relative overflow-hidden bg-slate-900 flex flex-col">
+            {getSafePdfUri(sourcePdfDataUri) ? (
+              <iframe
+                src={getSafePdfUri(sourcePdfDataUri)!}
+                title="Fullscreen PDF Reference"
+                className="w-full h-full flex-1 min-h-0 block border-0 bg-white"
+                style={{ width: '100%', height: '100%', minHeight: '100%' }}
+              />
+            ) : (
+              <pre className="w-full h-full flex-1 min-h-0 p-6 overflow-y-auto text-xs font-mono text-slate-100 whitespace-pre-wrap leading-relaxed">
+                {sourcePreviewText}
+              </pre>
+            )}
           </div>
         </div>
-        <div className="flex-1 min-h-0 w-full h-full relative overflow-hidden bg-slate-900 flex flex-col">
-          {getSafePdfUri(sourcePdfDataUri) ? (
-            <iframe
-              src={getSafePdfUri(sourcePdfDataUri)!}
-              title="Fullscreen PDF Reference"
-              className="w-full h-full flex-1 min-h-0 block border-0 bg-white"
-              style={{ width: '100%', height: '100%', minHeight: '100%' }}
-            />
-          ) : (
-            <pre className="w-full h-full flex-1 min-h-0 p-6 overflow-y-auto text-xs font-mono text-slate-100 whitespace-pre-wrap leading-relaxed">
-              {sourcePreviewText}
-            </pre>
-          )}
-        </div>
-      </div>
+      </Modal>
     );
   };
 
@@ -1540,18 +1550,21 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
       {renderFullscreenPdfModal()}
 
       {/* Edit Staged Draft Modal */}
-      {editingDraft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-xs">
-          <div
-            className={`bg-white border border-slate-200 w-full rounded p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto transition-all ${
-              showPdfInEditModal && (sourcePdfDataUri || sourcePreviewText)
-                ? 'max-w-6xl'
-                : 'max-w-2xl'
-            }`}
-          >
+      <Modal
+        isOpen={!!editingDraft}
+        onClose={() => setEditingDraft(null)}
+        titleId="edit-draft-modal-title"
+        maxWidth={
+          showPdfInEditModal && (sourcePdfDataUri || sourcePreviewText)
+            ? 'max-w-6xl'
+            : 'max-w-2xl'
+        }
+      >
+        {editingDraft && (
+          <div className="bg-white border border-slate-200 w-full rounded p-4 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto transition-all">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-slate-900 text-sm">
+                <h3 id="edit-draft-modal-title" className="font-semibold text-slate-900 text-sm">
                   Edit Extracted Question ({editingDraft.tempCode})
                 </h3>
                 {editingDraft.pageNumber && (
@@ -1890,95 +1903,106 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Final Submission Modal */}
-      {showFinalConfirmation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded p-6 shadow-xl space-y-4">
-            <h3 className="font-semibold text-slate-900 text-base">Confirm Import</h3>
+      <Modal
+        isOpen={showFinalConfirmation}
+        onClose={() => setShowFinalConfirmation(false)}
+        titleId="confirm-final-import-title"
+        maxWidth="max-w-md"
+      >
+        <div className="bg-white border border-slate-200 w-full rounded p-6 shadow-xl space-y-4">
+          <h3 id="confirm-final-import-title" className="font-semibold text-slate-900 text-base">
+            Confirm Import
+          </h3>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Import <strong className="text-slate-900">{selectedCount}</strong> selected questions into the SQLite database as{' '}
-              <strong>Drafts (Unpublished)</strong>.
-            </p>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Import <strong className="text-slate-900">{selectedCount}</strong> selected questions into the SQLite database as{' '}
+            <strong>Drafts (Unpublished)</strong>.
+          </p>
 
-            {incompleteSelectedDrafts.length > 0 && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold block">
-                      {incompleteSelectedDrafts.length} selected question(s) are missing an answer key or options
-                    </span>
-                    <span className="text-xs">
-                      Codes: {incompleteSelectedDrafts.map((d) => d.tempCode).join(', ')}
-                    </span>
-                  </div>
+          {incompleteSelectedDrafts.length > 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold block">
+                    {incompleteSelectedDrafts.length} selected question(s) are missing an answer key or options
+                  </span>
+                  <span className="text-xs">
+                    Codes: {incompleteSelectedDrafts.map((d) => d.tempCode).join(', ')}
+                  </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleDeselectIncomplete}
-                  className="px-2.5 py-1 rounded bg-amber-800 hover:bg-amber-900 text-white text-xs font-medium cursor-pointer"
-                >
-                  Deselect Incomplete Questions ({incompleteSelectedDrafts.length})
-                </button>
               </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
-                onClick={() => setShowFinalConfirmation(false)}
-                className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 text-xs font-medium cursor-pointer"
+                type="button"
+                onClick={handleDeselectIncomplete}
+                className="px-2.5 py-1 rounded bg-amber-800 hover:bg-amber-900 text-white text-xs font-medium cursor-pointer"
               >
-                Cancel
-              </button>
-              <button
-                disabled={selectedCount === 0}
-                onClick={handleExecuteImport}
-                className="px-4 py-1.5 rounded bg-slate-900 disabled:opacity-40 text-white text-xs font-medium cursor-pointer"
-              >
-                Import {selectedCount} questions
+                Deselect Incomplete Questions ({incompleteSelectedDrafts.length})
               </button>
             </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => setShowFinalConfirmation(false)}
+              className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 text-xs font-medium cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={selectedCount === 0}
+              onClick={handleExecuteImport}
+              className="px-4 py-1.5 rounded bg-slate-900 disabled:opacity-40 text-white text-xs font-medium cursor-pointer"
+            >
+              Import {selectedCount} questions
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {showClearStagingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded p-6 shadow-xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-600">
-              <div className="w-8 h-8 rounded bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
-                <Trash2 className="w-4 h-4 text-rose-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 text-base">Discard Staged PDF?</h3>
-                <p className="text-xs text-slate-500">Document: {selectedFileName}</p>
-              </div>
+      {/* Discard Staged PDF Confirmation Modal */}
+      <Modal
+        isOpen={showClearStagingModal}
+        onClose={() => setShowClearStagingModal(false)}
+        titleId="clear-staging-modal-title"
+        maxWidth="max-w-md"
+      >
+        <div className="bg-white border border-slate-200 w-full rounded p-6 shadow-xl space-y-4">
+          <div className="flex items-center gap-3 text-rose-600">
+            <div className="w-8 h-8 rounded bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
+              <Trash2 className="w-4 h-4 text-rose-600" />
             </div>
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Are you sure you do not want to import this PDF? This will remove all{' '}
-              <strong className="text-slate-900">{stagedQuestions.length}</strong> staged drafts from the review queue and clear the staging cache.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                onClick={() => setShowClearStagingModal(false)}
-                className="px-3 py-1.5 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleClearAllStaging}
-                className="px-4 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
-              >
-                Discard document
-              </button>
+            <div>
+              <h3 id="clear-staging-modal-title" className="font-semibold text-slate-900 text-base">
+                Discard Staged PDF?
+              </h3>
+              <p className="text-xs text-slate-500">Document: {selectedFileName}</p>
             </div>
           </div>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            Are you sure you do not want to import this PDF? This will remove all{' '}
+            <strong className="text-slate-900">{stagedQuestions.length}</strong> staged drafts from the review queue and clear the staging cache.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              onClick={() => setShowClearStagingModal(false)}
+              className="px-3 py-1.5 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleClearAllStaging}
+              className="px-4 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
+            >
+              Discard document
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

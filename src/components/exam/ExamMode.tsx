@@ -14,6 +14,7 @@ import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { calculateExamScore, ExamScoreResult } from '../../utils/scoring';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
+import { Modal } from '../common/Modal';
 
 interface ExamModeProps {
   questions: MCQQuestion[];
@@ -879,38 +880,43 @@ export const ExamMode: React.FC<ExamModeProps> = ({
       )}
 
       {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-sm rounded p-6 shadow-lg space-y-4">
-            <h3 className="font-semibold text-slate-900 text-base">Submit Examination?</h3>
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        titleId="confirm-exam-modal-title"
+        maxWidth="max-w-sm"
+      >
+        <div className="bg-white border border-slate-200 w-full rounded-xl p-6 shadow-xl space-y-4">
+          <h3 id="confirm-exam-modal-title" className="font-semibold text-slate-900 text-base">
+            Submit Examination?
+          </h3>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              You answered <strong className="text-slate-900">{answeredCount}</strong> of{' '}
-              <strong className="text-slate-900">{examQuestions.length}</strong> questions.
-              {unansweredCount > 0 && (
-                <span className="block mt-1 text-slate-500">
-                  {unansweredCount} question(s) will be marked as unanswered.
-                </span>
-              )}
-            </p>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            You answered <strong className="text-slate-900">{answeredCount}</strong> of{' '}
+            <strong className="text-slate-900">{examQuestions.length}</strong> questions.
+            {unansweredCount > 0 && (
+              <span className="block mt-1 text-slate-500">
+                {unansweredCount} question(s) will be marked as unanswered.
+              </span>
+            )}
+          </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 text-xs font-medium cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleFinalSubmit}
-                className="px-4 py-1.5 rounded bg-slate-900 text-white text-xs font-medium cursor-pointer"
-              >
-                Submit
-              </button>
-            </div>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => setShowConfirmModal(false)}
+              className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 text-xs font-medium cursor-pointer hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleFinalSubmit}
+              className="px-4 py-1.5 rounded bg-slate-900 text-white text-xs font-medium cursor-pointer hover:bg-slate-800 transition-colors"
+            >
+              Submit
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

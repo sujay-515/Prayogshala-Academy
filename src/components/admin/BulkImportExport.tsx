@@ -20,6 +20,7 @@ import {
   findDuplicateQuestion,
   generateNextQuestionCode,
 } from '../../utils/mcqParser';
+import { Modal } from '../common/Modal';
 
 interface BulkImportExportProps {
   questions: MCQQuestion[];
@@ -770,56 +771,60 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         </div>
       )}
 
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded shadow-xl p-5 space-y-4">
-            <div>
-              <h3 className="font-semibold text-slate-900 text-sm">
-                Confirm Bulk Question Import
-              </h3>
-              <p className="text-xs text-slate-500">
-                Please verify before saving records to the database.
-              </p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
-              <div className="flex justify-between text-slate-700">
-                <span>Selected Questions to Import:</span>
-                <span className="font-bold text-slate-900">{selectedCount}</span>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Skipped / Unselected Questions:</span>
-                <span className="font-bold text-slate-600">
-                  {importedDrafts.length - selectedCount}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Initial Publication Status:</span>
-                <span className="font-bold text-amber-700">Draft (Unpublished)</span>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-500 leading-relaxed">
-              Imported questions will be added to the question bank as unpublished Drafts. You can preview, edit, or publish them at any time in the Manual Question Manager.
+      {/* Confirm Bulk Question Import Modal */}
+      <Modal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        titleId="confirm-bulk-import-title"
+        maxWidth="max-w-md"
+      >
+        <div className="bg-white border border-slate-200 w-full rounded shadow-xl p-5 space-y-4">
+          <div>
+            <h3 id="confirm-bulk-import-title" className="font-semibold text-slate-900 text-sm">
+              Confirm Bulk Question Import
+            </h3>
+            <p className="text-xs text-slate-500">
+              Please verify before saving records to the database.
             </p>
+          </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="px-3.5 py-1.5 rounded text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleExecuteImport}
-                className="px-4 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
-              >
-                Import {selectedCount} questions
-              </button>
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
+            <div className="flex justify-between text-slate-700">
+              <span>Selected Questions to Import:</span>
+              <span className="font-bold text-slate-900">{selectedCount}</span>
+            </div>
+            <div className="flex justify-between text-slate-700">
+              <span>Skipped / Unselected Questions:</span>
+              <span className="font-bold text-slate-600">
+                {importedDrafts.length - selectedCount}
+              </span>
+            </div>
+            <div className="flex justify-between text-slate-700">
+              <span>Initial Publication Status:</span>
+              <span className="font-bold text-amber-700">Draft (Unpublished)</span>
             </div>
           </div>
+
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Imported questions will be added to the question bank as unpublished Drafts. You can preview, edit, or publish them at any time in the Manual Question Manager.
+          </p>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => setShowConfirmModal(false)}
+              className="px-3.5 py-1.5 rounded text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleExecuteImport}
+              className="px-4 py-1.5 rounded text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+            >
+              Import {selectedCount} questions
+            </button>
+          </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

@@ -9,6 +9,7 @@ import { UserDashboard } from './components/dashboard/UserDashboard';
 import { AdminPortal } from './components/admin/AdminPortal';
 import { DailyQuestionModal } from './components/DailyQuestionModal';
 import { ReportModal } from './components/ReportModal';
+import { Modal } from './components/common/Modal';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { DisclaimerPage } from './pages/DisclaimerPage';
@@ -985,35 +986,44 @@ export default function App() {
       />
 
       {/* Student / User Account Sign In & Registration Modal */}
-      {isAuthModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md">
-          <div className="glass-panel w-full max-w-sm rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto border border-white/80 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
-                  <UserCheck className="w-4 h-4 text-cyan-700" />
-                </div>
-                <h3 className="font-semibold text-slate-900 text-sm">
-                  {authMode === 'login'
-                    ? 'Sign In to MedLab QBank'
-                    : authMode === 'register'
-                    ? 'Create Candidate Account'
-                    : authMode === 'forgot'
-                    ? 'Recover Account Password'
-                    : 'Set New Password'}
-                </h3>
+      <Modal
+        isOpen={isAuthModalOpen}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthError('');
+          setAuthSuccessMsg('');
+        }}
+        titleId="auth-modal-title"
+        maxWidth="max-w-sm"
+      >
+        <div className="glass-panel w-full rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto border border-white/80 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-cyan-50 border border-cyan-200 flex items-center justify-center text-cyan-700">
+                <UserCheck className="w-4 h-4 text-cyan-700" />
               </div>
-              <button
-                onClick={() => {
-                  setIsAuthModalOpen(false);
-                  setAuthError('');
-                  setAuthSuccessMsg('');
-                }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <h3 id="auth-modal-title" className="font-semibold text-slate-900 text-sm">
+                {authMode === 'login'
+                  ? 'Sign In to MedLab QBank'
+                  : authMode === 'register'
+                  ? 'Create Candidate Account'
+                  : authMode === 'forgot'
+                  ? 'Recover Account Password'
+                  : 'Set New Password'}
+              </h3>
             </div>
+            <button
+              onClick={() => {
+                setIsAuthModalOpen(false);
+                setAuthError('');
+                setAuthSuccessMsg('');
+              }}
+              aria-label="Close dialog"
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
             {(authMode === 'login' || authMode === 'register') && (
               <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl text-xs border border-slate-200/60">
@@ -1210,8 +1220,7 @@ export default function App() {
               )}
             </form>
           </div>
-        </div>
-      )}
+        </Modal>
 
       {/* Footer */}
       <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10 border-t border-slate-200/60 dark:border-slate-800/60">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { MCQQuestion } from '../types';
+import { Modal } from './common/Modal';
 
 interface ReportModalProps {
   question: MCQQuestion | null;
@@ -33,15 +34,23 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md">
-      <div className="glass-panel w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col border border-white/80 animate-in fade-in zoom-in-95 duration-200">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      titleId="report-modal-title"
+      maxWidth="max-w-lg"
+    >
+      <div className="glass-panel w-full rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col border border-white/80 animate-in fade-in zoom-in-95 duration-200">
         <div className="glass-nav px-4 sm:px-5 py-3 sm:py-4 border-b border-slate-200/80 flex items-center justify-between">
           <div className="flex items-center gap-2 text-slate-800">
             <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
-            <h3 className="font-semibold text-slate-900 text-sm sm:text-base">Report Question Content</h3>
+            <h3 id="report-modal-title" className="font-semibold text-slate-900 text-sm sm:text-base">
+              Report Question Content
+            </h3>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close dialog"
             className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -114,6 +123,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };

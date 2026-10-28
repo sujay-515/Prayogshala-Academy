@@ -17,6 +17,7 @@ import {
 import { MCQQuestion, UnitCategory, QuestionStatus, ExamCategory, DifficultyLevel } from '../../types';
 import { QuestionFormModal } from './QuestionFormModal';
 import { generateNextQuestionCode } from '../../utils/mcqParser';
+import { Modal } from '../common/Modal';
 
 interface ManualQuestionManagerProps {
   questions: MCQQuestion[];
@@ -830,15 +831,21 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       />
 
       {/* History Modal */}
-      {viewHistoryQuestion && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded p-6 shadow-xl space-y-3">
+      <Modal
+        isOpen={!!viewHistoryQuestion}
+        onClose={() => setViewHistoryQuestion(null)}
+        titleId="view-history-modal-title"
+        maxWidth="max-w-md"
+      >
+        {viewHistoryQuestion && (
+          <div className="bg-white border border-slate-200 w-full rounded p-6 shadow-xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-semibold text-slate-900 text-sm">
+              <h3 id="view-history-modal-title" className="font-semibold text-slate-900 text-sm">
                 History: {viewHistoryQuestion.code}
               </h3>
               <button
                 onClick={() => setViewHistoryQuestion(null)}
+                aria-label="Close dialog"
                 className="text-xs text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 Close
@@ -858,14 +865,21 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Delete Single Question In-App Confirmation Modal */}
-      {questionToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded p-5 sm:p-6 shadow-xl space-y-4 max-h-[90dvh] overflow-y-auto">
-            <h3 className="font-semibold text-slate-900 text-sm">Delete Question ({questionToDelete.code})?</h3>
+      <Modal
+        isOpen={!!questionToDelete}
+        onClose={() => setQuestionToDelete(null)}
+        titleId="delete-question-modal-title"
+        maxWidth="max-w-md"
+      >
+        {questionToDelete && (
+          <div className="bg-white border border-slate-200 w-full rounded p-5 sm:p-6 shadow-xl space-y-4 max-h-[90dvh] overflow-y-auto">
+            <h3 id="delete-question-modal-title" className="font-semibold text-slate-900 text-sm">
+              Delete Question ({questionToDelete.code})?
+            </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
               Are you sure you want to permanently delete this question from the question bank?
               <span className="block mt-2 font-mono text-xs text-slate-800 bg-slate-50 p-2.5 rounded border border-slate-200 line-clamp-3">
@@ -890,38 +904,43 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {/* Bulk Delete Selected In-App Confirmation Modal */}
-      {bulkDeleteConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded p-6 shadow-xl space-y-4">
-            <h3 className="font-semibold text-slate-900 text-sm">Delete {selectedIds.size} Selected Questions?</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to permanently delete these <strong className="text-slate-900">{selectedIds.size}</strong> selected questions from the question bank? This action cannot be undone.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setBulkDeleteConfirmOpen(false)}
-                className="px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onBulkDeleteQuestions(Array.from(selectedIds));
-                  setSelectedIds(new Set());
-                  setBulkDeleteConfirmOpen(false);
-                }}
-                className="px-4 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
-              >
-                Delete {selectedIds.size} questions
-              </button>
-            </div>
+      <Modal
+        isOpen={bulkDeleteConfirmOpen}
+        onClose={() => setBulkDeleteConfirmOpen(false)}
+        titleId="bulk-delete-modal-title"
+        maxWidth="max-w-md"
+      >
+        <div className="bg-white border border-slate-200 w-full rounded p-6 shadow-xl space-y-4">
+          <h3 id="bulk-delete-modal-title" className="font-semibold text-slate-900 text-sm">
+            Delete {selectedIds.size} Selected Questions?
+          </h3>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Are you sure you want to permanently delete these <strong className="text-slate-900">{selectedIds.size}</strong> selected questions from the question bank? This action cannot be undone.
+          </p>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => setBulkDeleteConfirmOpen(false)}
+              className="px-3 py-1.5 rounded border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-medium cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                onBulkDeleteQuestions(Array.from(selectedIds));
+                setSelectedIds(new Set());
+                setBulkDeleteConfirmOpen(false);
+              }}
+              className="px-4 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium cursor-pointer"
+            >
+              Delete {selectedIds.size} questions
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 };
