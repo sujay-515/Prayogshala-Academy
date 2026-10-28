@@ -1298,6 +1298,31 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+// ============================================================================
+// KNOWN CLIENT SPA ROUTES
+// NOTE TO DEVELOPER: When adding new top-level client routes to App.tsx,
+// you MUST add them to this KNOWN_CLIENT_ROUTES list so the production server
+// serves index.html with HTTP 200. Any other route receives HTTP 404 with
+// index.html so React Router renders the NotFound page with an accurate HTTP status.
+// ============================================================================
+export const KNOWN_CLIENT_ROUTES = [
+  '/',
+  '/home',
+  '/browse',
+  '/practice',
+  '/exam',
+  '/dashboard',
+  '/admin', // includes /admin and anything under it (/admin/*)
+];
+
+export function isKnownClientRoute(pathname: string): boolean {
+  const clean = pathname.split('?')[0].replace(/\/+$/, '') || '/';
+  return KNOWN_CLIENT_ROUTES.some((route) => {
+    if (route === '/') return clean === '/';
+    return clean === route || clean.startsWith(`${route}/`);
+  });
+}
+
 async function startServer() {
   await hydrateFromSupabase();
   bootstrapSuperAdmin();
@@ -1330,7 +1355,11 @@ async function startServer() {
       process.exit(1);
     }
     app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
+    app.get('*', (req, res) => {
+      const isKnown = isKnownClientRoute(req.path);
+      if (!isKnown) {
+        res.status(404);
+      }
       res.sendFile(indexPath);
     });
   }

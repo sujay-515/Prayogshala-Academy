@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/home/HomeView';
 import { BrowseQuestionBank } from './components/browse/BrowseQuestionBank';
@@ -21,6 +21,96 @@ import {
   UserAccount,
 } from './types';
 import { X, UserCheck } from 'lucide-react';
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[Application ErrorBoundary]:', error, errorInfo);
+  }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 text-center">
+          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-2xl p-8 max-w-md w-full shadow-sm">
+            <h2 className="text-xl font-bold text-red-900 dark:text-red-200 mb-2">Something went wrong</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              An unexpected application error occurred. You can reload the page to continue.
+            </p>
+            <button
+              onClick={this.handleReload}
+              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition shadow-sm cursor-pointer"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const NotFoundPage: React.FC = () => {
+  useEffect(() => {
+    let meta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+    let created = false;
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'robots';
+      document.head.appendChild(meta);
+      created = true;
+    }
+    const prevContent = meta.content;
+    meta.content = 'noindex, nofollow';
+
+    return () => {
+      if (created && meta && meta.parentNode) {
+        meta.parentNode.removeChild(meta);
+      } else if (meta) {
+        meta.content = prevContent;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
+      <div className="max-w-md w-full">
+        <h1 className="text-6xl font-extrabold text-blue-600 dark:text-blue-400 mb-3">404</h1>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Page Not Found</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+          The requested page could not be found. It may have been moved or does not exist.
+        </p>
+        <Link
+          to="/"
+          className="inline-flex items-center px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition shadow-sm"
+        >
+          Return to Home
+        </Link>
+      </div>
+    </div>
+  );
+};
 
 const STORAGE_KEY_QUESTIONS = 'medlab_qbank_questions_v2';
 const STORAGE_KEY_CATEGORIES = 'medlab_qbank_categories_v2';
@@ -751,9 +841,10 @@ export default function App() {
 
       {/* Main Content Area with React Router */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10">
-        <Routes>
-          <Route
-            path="/"
+        <ErrorBoundary>
+          <Routes>
+            <Route
+              path="/"
             element={
               <HomeView
                 categories={categories}
@@ -852,9 +943,10 @@ export default function App() {
               />
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
-      </main>
+      </ErrorBoundary>
+    </main>
 
       {/* Global Modals */}
       <DailyQuestionModal

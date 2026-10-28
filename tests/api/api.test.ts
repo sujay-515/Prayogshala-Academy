@@ -592,4 +592,21 @@ describe('MedLab QBank API Hardening Test Suite', () => {
 
     localDb.close();
   });
+
+  it('SPA Fallback: Known routes return HTTP 200 with HTML; unknown routes return HTTP 404 with HTML', async () => {
+    // Known client routes return HTTP 200
+    const knownPaths = ['/', '/home', '/browse', '/practice', '/exam', '/dashboard', '/admin', '/admin/system-logs'];
+    for (const p of knownPaths) {
+      const res = await request('GET', p);
+      assert.equal(res.status, 200, `Expected 200 for known route ${p}`);
+      assert.ok(res.headers['content-type']?.includes('text/html'), `Expected HTML for ${p}`);
+      assert.ok(res.rawBody.includes('<html') || res.rawBody.includes('<!DOCTYPE html>') || res.rawBody.includes('<!doctype html>'));
+    }
+
+    // Unknown client route returns HTTP 404 with index.html
+    const unknownRes = await request('GET', '/this-is-a-completely-unknown-page-route');
+    assert.equal(unknownRes.status, 404);
+    assert.ok(unknownRes.headers['content-type']?.includes('text/html'));
+    assert.ok(unknownRes.rawBody.includes('<html') || unknownRes.rawBody.includes('<!DOCTYPE html>') || unknownRes.rawBody.includes('<!doctype html>'));
+  });
 });
