@@ -704,4 +704,50 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     assert.equal(safeDataRes.status, 200);
   });
+
+  it('SEO: robots.txt, sitemap.xml, X-Robots-Tag header, and /privacy status code verification', async () => {
+    // 1. GET /robots.txt
+    const robotsRes = await request('GET', '/robots.txt');
+    assert.equal(robotsRes.status, 200);
+    assert.ok(robotsRes.headers['content-type']?.includes('text/plain'));
+    assert.ok(robotsRes.rawBody.includes('User-agent: *'));
+    assert.ok(robotsRes.rawBody.includes('Allow: /'));
+    assert.ok(robotsRes.rawBody.includes('Disallow: /admin'));
+    assert.ok(robotsRes.rawBody.includes('Disallow: /dashboard'));
+    assert.ok(robotsRes.rawBody.includes('Disallow: /api/'));
+    assert.ok(robotsRes.rawBody.includes('Sitemap:'));
+
+    // 2. GET /sitemap.xml
+    const sitemapRes = await request('GET', '/sitemap.xml');
+    assert.equal(sitemapRes.status, 200);
+    assert.ok(sitemapRes.headers['content-type']?.includes('xml'));
+    assert.ok(sitemapRes.rawBody.includes('<urlset'));
+    assert.ok(sitemapRes.rawBody.includes('/browse'));
+    assert.ok(sitemapRes.rawBody.includes('/practice'));
+    assert.ok(sitemapRes.rawBody.includes('/exam'));
+    assert.ok(sitemapRes.rawBody.includes('/privacy'));
+    assert.ok(sitemapRes.rawBody.includes('/terms'));
+    assert.ok(sitemapRes.rawBody.includes('/disclaimer'));
+    assert.ok(sitemapRes.rawBody.includes('/contact'));
+
+    // 3. X-Robots-Tag: noindex header enforcement
+    const apiRes = await request('GET', '/api/health');
+    assert.equal(apiRes.headers['x-robots-tag'], 'noindex');
+
+    const adminRes = await request('GET', '/admin');
+    assert.equal(adminRes.headers['x-robots-tag'], 'noindex');
+
+    const dashRes = await request('GET', '/dashboard');
+    assert.equal(dashRes.headers['x-robots-tag'], 'noindex');
+
+    // Public route must NOT send noindex header
+    const privacyRes = await request('GET', '/privacy');
+    assert.equal(privacyRes.status, 200);
+    assert.equal(privacyRes.headers['x-robots-tag'], undefined);
+    assert.ok(privacyRes.headers['content-type']?.includes('text/html'));
+
+    // Unknown route returns 404
+    const unknownRes = await request('GET', '/completely-unknown-path-for-testing');
+    assert.equal(unknownRes.status, 404);
+  });
 });

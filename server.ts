@@ -97,6 +97,18 @@ if (process.env.NODE_ENV !== 'development') {
       },
     })
   );
+
+  // SEO: Send X-Robots-Tag: noindex header for non-public paths (/api/*, /admin*, /dashboard*)
+  app.use((req, res, next) => {
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/admin') ||
+      req.path.startsWith('/dashboard')
+    ) {
+      res.setHeader('X-Robots-Tag', 'noindex');
+    }
+    next();
+  });
 }
 
 // 2. Rate Limiting Middleware (using express-rate-limit)
@@ -1252,6 +1264,54 @@ app.post('/api/backup/restore', requireAdmin, (req, res) => {
     categories: getAllCategories(),
     reports: getAllReports(),
   });
+});
+
+// ==================== SEO: ROBOTS.TXT & SITEMAP.XML ====================
+export const PUBLIC_SITEMAP_ROUTES = [
+  '/',
+  '/browse',
+  '/practice',
+  '/exam',
+  '/privacy',
+  '/terms',
+  '/disclaimer',
+  '/contact',
+];
+
+app.get('/robots.txt', (req, res) => {
+  const rawSiteUrl = process.env.SITE_URL?.trim();
+  const baseUrl = (rawSiteUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const robotsTxt = [
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /admin',
+    'Disallow: /dashboard',
+    'Disallow: /api/',
+    `Sitemap: ${baseUrl}/sitemap.xml`,
+    '',
+  ].join('\n');
+  res.type('text/plain');
+  res.send(robotsTxt);
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const rawSiteUrl = process.env.SITE_URL?.trim();
+  const baseUrl = (rawSiteUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+  const lastMod = new Date().toISOString().split('T')[0];
+
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...PUBLIC_SITEMAP_ROUTES.map((route) => {
+      const loc = route === '/' ? `${baseUrl}/` : `${baseUrl}${route}`;
+      const priority = route === '/' ? '1.0' : route === '/browse' || route === '/exam' ? '0.8' : '0.6';
+      return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+    }),
+    '</urlset>',
+  ].join('\n');
+
+  res.type('application/xml');
+  res.send(xml);
 });
 
 // 404 handler for unmatched /api/* routes
