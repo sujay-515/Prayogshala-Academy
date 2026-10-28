@@ -44,6 +44,7 @@ import {
   updateUserRole,
   createPasswordReset,
   verifyAndConsumeResetToken,
+  hashToken,
 } from './src/server/db';
 import { bootstrapSuperAdmin } from './src/server/bootstrap';
 import {
@@ -160,7 +161,8 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string } | null {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.slice(7);
+  const rawToken = authHeader.slice(7);
+  const tokenHash = hashToken(rawToken);
   const row = db
     .prepare(
       `SELECT s.user_id, s.role, s.created_at, u.username, u.email, u.display_name
@@ -168,12 +170,11 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
        JOIN users u ON u.id = s.user_id
        WHERE s.token = ?`
     )
-    .get(token) as any;
+    .get(tokenHash) as any;
   if (!row) return null;
 
   if (row.created_at && Date.now() - new Date(row.created_at).getTime() > SESSION_TTL_MS) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
-    syncDeleteSession(token);
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
     return null;
   }
 
@@ -289,19 +290,19 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
   // User role is strictly what is stored in the database
   const activeRole = userRow.role;
 
-  const token = crypto.randomBytes(24).toString('hex');
+  const rawToken = crypto.randomBytes(24).toString('hex');
+  const tokenHash = hashToken(rawToken);
   const now = new Date().toISOString();
   db.prepare('INSERT INTO sessions (token, user_id, role, created_at) VALUES (?, ?, ?, ?)').run(
-    token,
+    tokenHash,
     userRow.id,
     activeRole,
     now
   );
-  syncInsertSession(token, userRow.id, activeRole, now);
 
   return res.json({
     success: true,
-    token,
+    token: rawToken,
     user: {
       id: userRow.id,
       username: userRow.username,
@@ -386,14 +387,14 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     created_at: now,
   });
 
-  const token = crypto.randomBytes(24).toString('hex');
+  const rawToken = crypto.randomBytes(24).toString('hex');
+  const tokenHash = hashToken(rawToken);
   db.prepare('INSERT INTO sessions (token, user_id, role, created_at) VALUES (?, ?, ?, ?)').run(
-    token,
+    tokenHash,
     id,
     role,
     now
   );
-  syncInsertSession(token, id, role, now);
 
   // Send asynchronous welcome email via Resend if email was provided
   if (cleanEmail) {
@@ -404,7 +405,7 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
 
   return res.json({
     success: true,
-    token,
+    token: rawToken,
     user: {
       id,
       username: cleanUsername,
@@ -477,12 +478,13 @@ app.post('/api/auth/change-password', changePasswordLimiter, (req, res) => {
     return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
   }
 
-  const currentToken = req.headers.authorization?.slice(7);
+  const rawToken = req.headers.authorization?.slice(7);
+  const currentTokenHash = rawToken ? hashToken(rawToken) : '';
   const newHash = hashPassword(String(newPassword));
 
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, session.userId);
   // Delete all OTHER sessions for that user, keeping the current session
-  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(session.userId, currentToken || '');
+  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(session.userId, currentTokenHash);
 
   return res.json({ success: true, message: 'Password changed successfully.' });
 });
@@ -490,11 +492,11 @@ app.post('/api/auth/change-password', changePasswordLimiter, (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
-    syncDeleteSession(token);
+    const rawToken = authHeader.slice(7);
+    const tokenHash = hashToken(rawToken);
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
   }
-  res.json({ success: true });
+  res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 app.get('/api/auth/me', (req, res) => {

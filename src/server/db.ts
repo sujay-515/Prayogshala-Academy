@@ -254,35 +254,41 @@ export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
   return { success: true };
 }
 
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 export function createPasswordReset(userId: string): string {
   db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(userId);
-  const token = crypto.randomBytes(32).toString('hex');
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashToken(rawToken);
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 1 hour TTL
 
   db.prepare('INSERT INTO password_resets (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(
-    token,
+    tokenHash,
     userId,
     expiresAt,
     now.toISOString()
   );
 
-  return token;
+  return rawToken;
 }
 
-export function verifyAndConsumeResetToken(token: string, newPasswordHash: string): { success: boolean; error?: string } {
-  const row = db.prepare('SELECT * FROM password_resets WHERE token = ?').get(token) as any;
+export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: string): { success: boolean; error?: string } {
+  const tokenHash = hashToken(rawToken);
+  const row = db.prepare('SELECT * FROM password_resets WHERE token = ?').get(tokenHash) as any;
   if (!row) {
     return { success: false, error: 'Invalid or expired password reset link.' };
   }
 
   if (new Date(row.expires_at).getTime() < Date.now()) {
-    db.prepare('DELETE FROM password_resets WHERE token = ?').run(token);
+    db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
     return { success: false, error: 'Password reset link has expired. Please request a new one.' };
   }
 
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newPasswordHash, row.user_id);
-  db.prepare('DELETE FROM password_resets WHERE token = ?').run(token);
+  db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
 
   return { success: true };
@@ -729,19 +735,7 @@ export async function hydrateFromSupabase(): Promise<void> {
     }
   }
 
-  // 5. Hydrate Active Sessions
-  const cloudSessions = await supabaseRequest<any[]>('sessions?select=*');
-  if (Array.isArray(cloudSessions) && cloudSessions.length > 0) {
-    const upsertS = db.prepare(`
-      INSERT OR IGNORE INTO sessions (token, user_id, role, created_at)
-      VALUES (?, ?, ?, ?)
-    `);
-    for (const s of cloudSessions) {
-      upsertS.run(s.token, s.user_id, s.role, s.created_at);
-    }
-  }
-
-  // 6. Hydrate Unsubmitted PDF Staging Drafts
+  // 5. Hydrate Unsubmitted PDF Staging Drafts (sessions & password_resets remain local-only)
   const cloudStaging = await supabaseRequest<any[]>('pdf_staging_drafts?select=*');
   if (Array.isArray(cloudStaging) && cloudStaging.length > 0) {
     for (const st of cloudStaging) {

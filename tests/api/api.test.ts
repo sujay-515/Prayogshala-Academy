@@ -503,4 +503,93 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(lateSubmit.status, 200);
     assert.equal(lateSubmit.body.late, true);
   });
+
+  it('SEC-10: Session and reset tokens are hashed with SHA-256 at rest and invalidated cleanly', async () => {
+    const crypto = await import('node:crypto');
+    const { DatabaseSync } = await import('node:sqlite');
+    const dbPath = path.join(tempDir, 'medlab_qbank.sqlite');
+
+    // 1. Login user to get raw token
+    const loginRes = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'BrandNewPassword456!',
+      },
+    });
+    assert.equal(loginRes.status, 200);
+    const rawToken = loginRes.body.token;
+    assert.ok(rawToken);
+
+    // 2. Query SQLite DB: raw token must NOT exist, but sha256(rawToken) MUST exist
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const localDb = new DatabaseSync(dbPath);
+
+    const rawMatch = localDb.prepare('SELECT * FROM sessions WHERE token = ?').get(rawToken);
+    assert.equal(rawMatch, undefined);
+
+    const hashMatch = localDb.prepare('SELECT * FROM sessions WHERE token = ?').get(tokenHash) as any;
+    assert.ok(hashMatch);
+    assert.equal(hashMatch.token, tokenHash);
+
+    // 3. Authenticated request with rawToken succeeds
+    const meRes = await request('GET', '/api/auth/me', { token: rawToken });
+    assert.equal(meRes.status, 200);
+
+    // 4. Logout invalidates the hashed session
+    const logoutRes = await request('POST', '/api/auth/logout', { token: rawToken });
+    assert.equal(logoutRes.status, 200);
+
+    const afterLogoutMe = await request('GET', '/api/auth/me', { token: rawToken });
+    assert.equal(afterLogoutMe.status, 401);
+
+    const hashMatchAfterLogout = localDb.prepare('SELECT * FROM sessions WHERE token = ?').get(tokenHash);
+    assert.equal(hashMatchAfterLogout, undefined);
+
+    // 5. Password reset tokens are also hashed with sha256 at rest
+    const studentUser = localDb.prepare('SELECT id FROM users WHERE username = ?').get('teststudent1') as any;
+    const rawResetToken = 'my_secret_reset_token_raw_12345';
+    const hashResetToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
+
+    // Insert reset row with hashed token in DB
+    localDb.prepare('DELETE FROM password_resets WHERE user_id = ?').run(studentUser.id);
+    localDb.prepare('INSERT INTO password_resets (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(
+      hashResetToken,
+      studentUser.id,
+      new Date(Date.now() + 3600 * 1000).toISOString(),
+      new Date().toISOString()
+    );
+
+    // Verify raw reset token does not match in DB, but hash does
+    const rawResetMatch = localDb.prepare('SELECT * FROM password_resets WHERE token = ?').get(rawResetToken);
+    assert.equal(rawResetMatch, undefined);
+
+    const hashResetMatch = localDb.prepare('SELECT * FROM password_resets WHERE token = ?').get(hashResetToken) as any;
+    assert.ok(hashResetMatch);
+    assert.equal(hashResetMatch.user_id, studentUser.id);
+
+    // Call reset-password API with raw token
+    const resetRes = await request('POST', '/api/auth/reset-password', {
+      body: {
+        token: rawResetToken,
+        newPassword: 'ResetPasswordSuccess123!',
+      },
+    });
+    assert.equal(resetRes.status, 200);
+    assert.equal(resetRes.body.success, true);
+
+    // Reset token is consumed (deleted) from database
+    const hashResetAfterConsume = localDb.prepare('SELECT * FROM password_resets WHERE token = ?').get(hashResetToken);
+    assert.equal(hashResetAfterConsume, undefined);
+
+    // Login with new password works
+    const loginAfterReset = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'teststudent1',
+        password: 'ResetPasswordSuccess123!',
+      },
+    });
+    assert.equal(loginAfterReset.status, 200);
+
+    localDb.close();
+  });
 });

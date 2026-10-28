@@ -287,26 +287,12 @@ export function syncSaveSourcePdf(
   });
 }
 
-export function syncInsertSession(token: string, userId: string, role: string, createdAt: string): void {
-  if (!isSupabaseConfigured()) return;
-  void supabaseRequest('sessions?on_conflict=token', {
-    method: 'POST',
-    prefer: 'resolution=merge-duplicates,return=minimal',
-    body: {
-      token,
-      user_id: userId,
-      role,
-      created_at: createdAt,
-    },
-  });
+export function syncInsertSession(_token: string, _userId: string, _role: string, _createdAt: string): void {
+  // SEC-10: Sessions and tokens are strictly local and not synced to Supabase
 }
 
-export function syncDeleteSession(token: string): void {
-  if (!isSupabaseConfigured()) return;
-  void supabaseRequest(`sessions?token=eq.${encodeURIComponent(token)}`, {
-    method: 'DELETE',
-    prefer: 'return=minimal',
-  });
+export function syncDeleteSession(_token: string): void {
+  // SEC-10: Sessions and tokens are strictly local and not synced to Supabase
 }
 
 export function syncInsertActiveExam(exam: {
@@ -363,12 +349,7 @@ export function syncDeleteStagingDrafts(id: string): void {
 }
 
 export function syncCleanupExpiredRecords(): void {
-  if (!isSupabaseConfigured()) return;
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  void supabaseRequest(`sessions?created_at=lt.${encodeURIComponent(cutoff)}`, {
-    method: 'DELETE',
-    prefer: 'return=minimal',
-  });
+  // Sessions & reset tokens remain local-only; no remote cloud cleanup needed
 }
 
 export { supabaseRequest };
