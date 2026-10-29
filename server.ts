@@ -282,6 +282,32 @@ const answerCheckDailyLimiter = rateLimit({
   },
 });
 
+const examStartLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: (_req) => {
+    const raw = process.env.EXAM_START_PER_HOUR;
+    const parsed = raw ? parseInt(raw, 10) : 10;
+    return isNaN(parsed) ? 10 : parsed;
+  },
+  keyGenerator: (req) => {
+    const session = getSessionUser(req);
+    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
+  },
+  skip: (req) => {
+    const session = getSessionUser(req);
+    return session?.role === 'admin' || session?.role === 'superadmin';
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Too many exam sessions started this hour. Please wait before starting another exam.',
+    });
+  },
+});
+
 // Middleware to enforce role-based administrator permissions on management endpoints
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const session = getSessionUser(req);
@@ -981,7 +1007,7 @@ app.put('/api/stats', (req, res) => {
 
 // ==================== PROTECTED EXAM ENGINE APIs ====================
 // Protects correct answers during active examinations (Section 4 of app.pdf)
-app.post('/api/exams/start', (req, res) => {
+app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const {
     examCategory = 'All',
     unit = 'All',
@@ -1119,7 +1145,7 @@ app.post('/api/exams/:id/submit', (req, res) => {
   return res.json({
     success: true,
     result: scoreResult,
-    gradedQuestions: fullQuestions, // Safe to reveal correctAnswer & explanation for review
+    gradedQuestions: fullQuestions.map(toGradedExamQuestion), // Strips admin metadata, safe to reveal answers & explanations
     late: isLate,
   });
 });

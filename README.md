@@ -150,6 +150,7 @@ npm run backup
 | `ANSWER_CHECK_USER_PER_DAY` | Max answer checks per day for authenticated non-admin users. | Optional | `1500` |
 | `ANSWER_CHECK_GUEST_PER_HOUR` | Max answer checks per hour for guest / anonymous visitors. | Optional | `60` |
 | `ANSWER_CHECK_GUEST_PER_DAY` | Max answer checks per day for guest / anonymous visitors. | Optional | `200` |
+| `EXAM_START_PER_HOUR` | Max exam sessions that can be started per hour per user/IP. | Optional | `10` |
 | `STRICT_PLACEHOLDERS` | When set to `true`, fails `npm run build` if config placeholders remain. | Optional | `false` |
 
 > [!IMPORTANT]
