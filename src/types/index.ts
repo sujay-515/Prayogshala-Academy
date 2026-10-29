@@ -11,6 +11,7 @@ export type QuestionStatus = 'Draft' | 'Under-Review' | 'Approved' | 'Published'
 export interface MCQOption {
   id: 'A' | 'B' | 'C' | 'D' | 'E';
   text: string;
+  rationale?: string;
 }
 
 export interface VersionAudit {

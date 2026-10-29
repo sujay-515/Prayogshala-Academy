@@ -63,7 +63,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
     const result = await checkQuestionAnswer(questionId, optId);
     setBusyQuestionId(null);
 
-    if (result.status === 200) {
+    if (result.ok) {
       setRevealedResults((prev) => ({
         ...prev,
         [questionId]: { selected: optId, ...result.data },

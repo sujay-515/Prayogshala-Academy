@@ -13,8 +13,8 @@ export interface CheckAnswerSuccess {
 }
 
 export type CheckAnswerResult =
-  | { status: 200; data: CheckAnswerSuccess }
-  | { status: number; error: string; isRateLimit: boolean };
+  | { ok: true; status: 200; data: CheckAnswerSuccess }
+  | { ok: false; status: number; error: string; isRateLimit: boolean };
 
 export async function checkQuestionAnswer(
   questionId: string,
@@ -39,6 +39,7 @@ export async function checkQuestionAnswer(
 
     if (res.status === 429) {
       return {
+        ok: false,
         status: 429,
         error:
           data?.error ||
@@ -49,6 +50,7 @@ export async function checkQuestionAnswer(
 
     if (!res.ok) {
       return {
+        ok: false,
         status: res.status,
         error: data?.error || 'Unable to verify answer. Please try again.',
         isRateLimit: false,
@@ -56,11 +58,13 @@ export async function checkQuestionAnswer(
     }
 
     return {
+      ok: true,
       status: 200,
       data: data as CheckAnswerSuccess,
     };
   } catch {
     return {
+      ok: false,
       status: 0,
       error: 'Network error checking answer. Please check your connection and retry.',
       isRateLimit: false,

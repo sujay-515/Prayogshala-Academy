@@ -141,7 +141,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     const result = await checkQuestionAnswer(currentQ.id, optId);
     setIsChecking(false);
 
-    if (result.status === 200) {
+    if (result.ok) {
       const data = result.data;
       setCheckResults((prev) => ({ ...prev, [currentQ.id]: data }));
       setRevealedStatus((prev) => ({ ...prev, [currentQ.id]: true }));

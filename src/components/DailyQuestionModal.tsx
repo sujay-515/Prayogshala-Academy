@@ -75,7 +75,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
     const result = await checkQuestionAnswer(question.id, optId);
     setIsChecking(false);
 
-    if (result.status === 200) {
+    if (result.ok) {
       const data = result.data;
       setCheckResult(data);
       setHasSubmitted(true);
