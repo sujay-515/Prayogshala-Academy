@@ -7,10 +7,13 @@ import {
   Bookmark,
   Flag,
   CheckCircle2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
+import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
 
 interface BrowseQuestionBankProps {
   questions: MCQQuestion[];
@@ -42,6 +45,47 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(15);
+  const [revealedResults, setRevealedResults] = useState<Record<string, { selected: string } & CheckAnswerSuccess>>({});
+  const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
+  const [checkErrors, setCheckErrors] = useState<Record<string, { optionId: string; message: string; isRateLimit: boolean }>>({});
+  const [ariaAnnouncement, setAriaAnnouncement] = useState<string>('');
+
+  const handleCheckQuestionOption = async (questionId: string, optId: string) => {
+    if (busyQuestionId === questionId) return;
+    setBusyQuestionId(questionId);
+    setCheckErrors((prev) => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    setAriaAnnouncement(`Checking option ${optId}...`);
+
+    const result = await checkQuestionAnswer(questionId, optId);
+    setBusyQuestionId(null);
+
+    if (result.status === 200) {
+      setRevealedResults((prev) => ({
+        ...prev,
+        [questionId]: { selected: optId, ...result.data },
+      }));
+      setExpandedQuestionId(questionId);
+      setAriaAnnouncement(
+        result.data.correct
+          ? `Correct! Option ${result.data.correctAnswer} is the right answer.`
+          : `Incorrect. The correct answer is Option ${result.data.correctAnswer}.`
+      );
+    } else {
+      setCheckErrors((prev) => ({
+        ...prev,
+        [questionId]: {
+          optionId: optId,
+          message: result.error,
+          isRateLimit: result.isRateLimit,
+        },
+      }));
+      setAriaAnnouncement(result.error);
+    }
+  };
 
   useEffect(() => {
     if (initialUnit) {
@@ -446,32 +490,110 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
 
                 <p className="text-sm font-medium text-slate-900 leading-snug">{q.questionText}</p>
 
-                {/* Options List */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {q.options.map((opt) => (
-                    <div
-                      key={opt.id}
-                      className={`p-2.5 rounded border flex items-start gap-2 break-words ${
-                        isExpanded && opt.id === q.correctAnswer
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-medium'
-                          : 'bg-slate-50/70 border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <span className="font-semibold shrink-0">{opt.id}.</span>
-                      <span className="leading-relaxed">{opt.text}</span>
+                {/* Aria-live region */}
+                <div className="sr-only" aria-live="polite" aria-atomic="true">
+                  {ariaAnnouncement}
+                </div>
+
+                {/* Error Alert with Retry */}
+                {checkErrors[q.id] && (
+                  <div role="alert" className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                    <div className="flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{checkErrors[q.id].message}</span>
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => handleCheckQuestionOption(q.id, checkErrors[q.id].optionId)}
+                      className="px-3 py-1.5 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded font-medium text-xs transition-colors cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                {/* Options List with Interactive Check */}
+                <div
+                  role="radiogroup"
+                  aria-label={`Options for question ${q.code || ''}`}
+                  aria-busy={busyQuestionId === q.id}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs"
+                >
+                  {q.options.map((opt) => {
+                    const result = revealedResults[q.id];
+                    const isChecked = Boolean(result);
+                    const isSelected = result?.selected === opt.id;
+                    const isCorrect = isChecked && opt.id.toUpperCase() === result.correctAnswer.toUpperCase();
+                    const isBusyCheckingThis = busyQuestionId === q.id;
+
+                    let btnStyles = 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-white hover:border-cyan-300';
+                    if (isChecked) {
+                      if (isCorrect) {
+                        btnStyles = 'bg-emerald-50 border-emerald-400 text-emerald-950 font-medium';
+                      } else if (isSelected && !isCorrect) {
+                        btnStyles = 'bg-rose-50 border-rose-300 text-rose-950';
+                      } else {
+                        btnStyles = 'bg-slate-50/40 border-slate-200/60 text-slate-400 opacity-60';
+                      }
+                    }
+
+                    const stateText = isChecked
+                      ? isCorrect
+                        ? ' (Correct Answer)'
+                        : isSelected
+                        ? ' (Your Selection)'
+                        : ''
+                      : '';
+
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        disabled={isBusyCheckingThis}
+                        aria-label={`Option ${opt.id}: ${opt.text}${stateText}`}
+                        onClick={() => handleCheckQuestionOption(q.id, opt.id)}
+                        className={`p-2.5 min-h-[44px] rounded border flex items-start gap-2 break-words text-left transition-all cursor-pointer ${btnStyles}`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`font-semibold shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-xs ${
+                            isChecked && isCorrect
+                              ? 'bg-emerald-700 text-white'
+                              : isChecked && isSelected && !isCorrect
+                              ? 'bg-rose-700 text-white'
+                              : 'bg-slate-200/70 text-slate-700'
+                          }`}
+                        >
+                          {isBusyCheckingThis ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            opt.id
+                          )}
+                        </span>
+                        <span className="leading-relaxed flex-1">{opt.text}</span>
+                        {stateText && <span className="sr-only">{stateText}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Toggle details */}
                 <div className="pt-1 flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    onClick={() => setExpandedQuestionId(isExpanded ? null : q.id)}
-                    className="text-xs font-semibold text-slate-700 hover:text-cyan-700 flex items-center gap-1 cursor-pointer py-1 transition-colors"
-                  >
-                    <span>{isExpanded ? 'Hide Answer & Explanation' : 'View Answer & Clinical Pearl'}</span>
-                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-cyan-600" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
-                  </button>
+                  {revealedResults[q.id] ? (
+                    <button
+                      onClick={() => setExpandedQuestionId(isExpanded ? null : q.id)}
+                      className="text-xs font-semibold text-slate-700 hover:text-cyan-700 flex items-center gap-1 cursor-pointer py-1 transition-colors min-h-[44px]"
+                    >
+                      <span>{isExpanded ? 'Hide Answer & Explanation' : 'View Answer & Clinical Pearl'}</span>
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-cyan-600" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-500 italic flex items-center gap-1 py-1">
+                      <span>Click any option above to verify answer and reveal clinical pearl</span>
+                    </span>
+                  )}
 
                   <div className="text-xs text-slate-400">
                     {q.examCategories.join(' · ')}
@@ -479,19 +601,19 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 </div>
 
                 {/* Expanded Box */}
-                {isExpanded && (
+                {isExpanded && revealedResults[q.id] && (
                   <div className="bg-slate-50 p-3.5 rounded border border-slate-200 text-xs text-slate-700 space-y-2">
                     <div className="flex items-center gap-1.5 font-semibold text-emerald-800">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Correct Answer: Option {q.correctAnswer}</span>
+                      <span>Correct Answer: Option {revealedResults[q.id].correctAnswer}</span>
                     </div>
                     <div>
                       <strong className="text-slate-900 block mb-0.5">Clinical Discussion:</strong>
-                      <p className="leading-relaxed break-words">{q.explanation}</p>
+                      <p className="leading-relaxed break-words">{revealedResults[q.id].explanation}</p>
                     </div>
-                    {q.reference && (
+                    {revealedResults[q.id].reference && (
                       <div className="pt-2 border-t border-slate-200 text-xs text-slate-500 break-words">
-                        Reference: {q.reference}
+                        Reference: {revealedResults[q.id].reference}
                       </div>
                     )}
                   </div>

@@ -7,10 +7,12 @@ import {
   ArrowRight,
   ArrowLeft,
   RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
+import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
 
 interface PracticeModeProps {
   questions: MCQQuestion[];
@@ -49,6 +51,10 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [revealedStatus, setRevealedStatus] = useState<Record<string, boolean>>({});
+  const [checkResults, setCheckResults] = useState<Record<string, CheckAnswerSuccess>>({});
+  const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [checkError, setCheckError] = useState<{ optionId: string; message: string; isRateLimit: boolean } | null>(null);
+  const [ariaAnnouncement, setAriaAnnouncement] = useState<string>('');
 
   // Automatically start custom subset session when passed from Dashboard or Browse
   useEffect(() => {
@@ -57,6 +63,10 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       setCurrentIndex(0);
       setSelectedAnswers({});
       setRevealedStatus({});
+      setCheckResults({});
+      setCheckError(null);
+      setIsChecking(false);
+      setAriaAnnouncement('');
       setIsSessionActive(true);
     }
   }, [customSubset]);
@@ -105,6 +115,10 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     setCurrentIndex(0);
     setSelectedAnswers({});
     setRevealedStatus({});
+    setCheckResults({});
+    setCheckError(null);
+    setIsChecking(false);
+    setAriaAnnouncement('');
     setIsSessionActive(true);
   };
 
@@ -117,28 +131,47 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const isRevealed = currentQ ? !!revealedStatus[currentQ.id] : false;
   const isBookmarked = currentQ ? bookmarkedIds.includes(currentQ.id) : false;
 
-  const handleSelectOption = (optId: string) => {
-    if (!currentQ || isRevealed) return;
+  const handleSelectOption = async (optId: string) => {
+    if (!currentQ || isRevealed || isChecking) return;
+    setCheckError(null);
+    setIsChecking(true);
     setSelectedAnswers((prev) => ({ ...prev, [currentQ.id]: optId }));
-  };
+    setAriaAnnouncement(`Checking option ${optId}...`);
 
-  const handleCheckAnswer = () => {
-    if (!currentQ || !selectedAnswers[currentQ.id]) return;
-    setRevealedStatus((prev) => ({ ...prev, [currentQ.id]: true }));
-    const chosen = selectedAnswers[currentQ.id];
-    const isCorrect = chosen === currentQ.correctAnswer;
-    onRecordAnswer(currentQ, chosen, isCorrect);
+    const result = await checkQuestionAnswer(currentQ.id, optId);
+    setIsChecking(false);
+
+    if (result.status === 200) {
+      const data = result.data;
+      setCheckResults((prev) => ({ ...prev, [currentQ.id]: data }));
+      setRevealedStatus((prev) => ({ ...prev, [currentQ.id]: true }));
+      onRecordAnswer(currentQ, optId, data.correct);
+      setAriaAnnouncement(
+        data.correct
+          ? `Correct! Option ${data.correctAnswer} is the right answer.`
+          : `Incorrect. The correct answer is Option ${data.correctAnswer}.`
+      );
+    } else {
+      setCheckError({
+        optionId: optId,
+        message: result.error,
+        isRateLimit: result.isRateLimit,
+      });
+      setAriaAnnouncement(result.error);
+    }
   };
 
   const handleNext = () => {
     if (currentIndex < sessionQuestions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
+      setCheckError(null);
     }
   };
 
   const handlePrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
+      setCheckError(null);
     }
   };
 
@@ -146,16 +179,16 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     let answered = 0;
     let correct = 0;
     for (const q of sessionQuestions) {
-      if (revealedStatus[q.id]) {
+      if (revealedStatus[q.id] && checkResults[q.id]) {
         answered++;
-        if (selectedAnswers[q.id] === q.correctAnswer) {
+        if (checkResults[q.id].correct) {
           correct++;
         }
       }
     }
     const pct = answered > 0 ? Math.round((correct / answered) * 100) : 0;
     return { answered, correct, pct };
-  }, [sessionQuestions, revealedStatus, selectedAnswers]);
+  }, [sessionQuestions, revealedStatus, checkResults]);
 
   if (!isSessionActive || !currentQ) {
     return (
@@ -430,11 +463,42 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
           {currentQ.questionText}
         </div>
 
+        {/* Error Alert with Retry Button */}
+        {checkError && (
+          <div role="alert" className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{checkError.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSelectOption(checkError.optionId)}
+              className="px-4 py-2 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-medium text-xs transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Aria-live announcement for screen readers */}
+        <div className="sr-only" aria-live="polite" aria-atomic="true">
+          {ariaAnnouncement}
+        </div>
+
         {/* Option Choices */}
-        <div role="radiogroup" aria-labelledby="practice-question-stem" className="space-y-2.5">
+        <div
+          role="radiogroup"
+          aria-labelledby="practice-question-stem"
+          aria-busy={isChecking}
+          className="space-y-2.5"
+        >
           {currentQ.options.map((option) => {
             const isSelected = selectedAnswers[currentQ.id] === option.id;
-            const isCorrectAnswer = option.id === currentQ.correctAnswer;
+            const currentResult = checkResults[currentQ.id];
+            const isCorrectAnswer =
+              isRevealed &&
+              currentResult &&
+              option.id.toUpperCase() === currentResult.correctAnswer.toUpperCase();
 
             let cardStyles = 'glass-card hover:bg-white hover:border-cyan-300 text-slate-800 hover:shadow-xs';
 
@@ -446,6 +510,8 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               } else {
                 cardStyles = 'bg-slate-50/40 border-slate-200/60 text-slate-400 opacity-60';
               }
+            } else if (isSelected && isChecking) {
+              cardStyles = 'bg-cyan-50 border-cyan-500 text-slate-900 ring-2 ring-cyan-500/50 shadow-xs animate-pulse';
             } else if (isSelected) {
               cardStyles = 'bg-cyan-50/80 backdrop-blur-xs border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-xs';
             }
@@ -465,7 +531,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                 key={option.id}
                 type="button"
                 role="radio"
-                disabled={isRevealed}
+                disabled={isRevealed || isChecking}
                 aria-checked={isSelected}
                 aria-label={`Option ${option.id}: ${option.text}${stateText}`}
                 onClick={() => handleSelectOption(option.id)}
@@ -483,7 +549,11 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                       : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {option.id}
+                  {isChecking && isSelected ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    option.id
+                  )}
                 </span>
                 <span className="text-xs sm:text-sm leading-relaxed flex-1">{option.text}</span>
                 {stateText && <span className="sr-only">{stateText}</span>}
@@ -492,32 +562,19 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
           })}
         </div>
 
-        {/* Check Answer Button */}
-        {!isRevealed && (
-          <div className="pt-2 flex justify-end">
-            <button
-              disabled={!selectedAnswers[currentQ.id]}
-              onClick={handleCheckAnswer}
-              className="px-5 py-2.5 min-h-[44px] bg-cyan-700 hover:bg-cyan-800 disabled:opacity-40 text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
-            >
-              Check Answer
-            </button>
-          </div>
-        )}
-
         {/* Clinical Rationale & Reference Box */}
-        {isRevealed && (
+        {isRevealed && checkResults[currentQ.id] && (
           <div className="p-4.5 rounded border bg-slate-50 border-slate-200 space-y-3">
             <div className="flex items-center gap-2">
-              {selectedAnswers[currentQ.id] === currentQ.correctAnswer ? (
+              {checkResults[currentQ.id].correct ? (
                 <div className="flex items-center gap-1.5 text-emerald-800 font-semibold text-xs sm:text-sm">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Correct: Option {currentQ.correctAnswer}</span>
+                  <span>Correct: Option {checkResults[currentQ.id].correctAnswer}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5 text-rose-800 font-semibold text-xs sm:text-sm">
                   <AlertCircle className="w-4 h-4 text-rose-600" />
-                  <span>Incorrect. The correct answer is Option {currentQ.correctAnswer}.</span>
+                  <span>Incorrect. The correct answer is Option {checkResults[currentQ.id].correctAnswer}.</span>
                 </div>
               )}
             </div>
@@ -525,13 +582,13 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             <div className="text-xs sm:text-sm text-slate-700 leading-relaxed space-y-2">
               <div>
                 <strong className="text-slate-900 font-semibold block mb-0.5">Clinical Rationale:</strong>
-                <p>{currentQ.explanation}</p>
+                <p>{checkResults[currentQ.id].explanation}</p>
               </div>
 
-              {currentQ.reference && (
+              {checkResults[currentQ.id].reference && (
                 <div className="pt-2.5 border-t border-slate-200 text-xs text-slate-500">
                   <span className="font-semibold text-slate-600">Reference: </span>
-                  {currentQ.reference}
+                  {checkResults[currentQ.id].reference}
                 </div>
               )}
             </div>
@@ -560,7 +617,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
           {sessionQuestions.map((q, idx) => {
             const isCurr = idx === currentIndex;
             const isAnsweredQ = revealedStatus[q.id];
-            const isCorrectQ = isAnsweredQ && selectedAnswers[q.id] === q.correctAnswer;
+            const isCorrectQ = isAnsweredQ && checkResults[q.id]?.correct;
 
             let dotStyles = 'bg-white border-slate-200 text-slate-600';
             if (isAnsweredQ) {

@@ -9,9 +9,11 @@ import {
   RotateCcw,
   ShieldCheck,
   Printer,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
-import { calculateExamScore, ExamScoreResult } from '../../utils/scoring';
+import { ExamScoreResult } from '../../utils/scoring';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
@@ -59,6 +61,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
   const [examResult, setExamResult] = useState<ExamScoreResult | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isExamRunning || examResult) return;
@@ -116,10 +122,16 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   }, [publishedQuestions, examCategory, selectedUnit, selectedDifficulty]);
 
   const startExam = async () => {
+    setStartError(null);
+    setIsStarting(true);
     try {
+      const token = localStorage.getItem('medlab_auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch('/api/exams/start', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           examCategory,
           unit: selectedUnit,
@@ -129,8 +141,15 @@ export const ExamMode: React.FC<ExamModeProps> = ({
           shuffleOptions,
         }),
       });
-      const data = await res.json();
-      if (res.ok && data.success && Array.isArray(data.questions) && data.questions.length > 0) {
+      const data = await res.json().catch(() => null);
+      if (res.status === 429) {
+        setStartError(
+          data?.error ||
+          'Exam start limit reached (maximum 10 exam sessions per hour). Please wait before starting another exam.'
+        );
+        return;
+      }
+      if (res.ok && data?.success && Array.isArray(data.questions) && data.questions.length > 0) {
         setActiveExamId(data.examId);
         setExamQuestions(data.questions);
         setCurrentIndex(0);
@@ -140,44 +159,16 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         setIsReviewScreenOpen(false);
         setShowConfirmModal(false);
         setExamResult(null);
+        setSubmitError(null);
         setIsExamRunning(true);
         return;
       }
+      setStartError(data?.error || 'Failed to start examination session. Please check question filters.');
     } catch {
-      // Fallback to local generation if offline
+      setStartError('Network error connecting to exam server. Please check your connection and retry.');
+    } finally {
+      setIsStarting(false);
     }
-
-    const pool = [...filteredPool];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    const chosen = pool.slice(0, questionCount).map((q) => {
-      if (!shuffleOptions || q.options.length <= 1) return q;
-      const taggedOpts = q.options.map((o) => ({
-        text: o.text,
-        wasCorrect: o.id === q.correctAnswer,
-      }));
-      for (let i = taggedOpts.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [taggedOpts[i], taggedOpts[j]] = [taggedOpts[j], taggedOpts[i]];
-      }
-      const newOpts = q.options.map((opt, idx) => ({ id: opt.id, text: taggedOpts[idx].text }));
-      const correctIdx = taggedOpts.findIndex((o) => o.wasCorrect);
-      const newCorrect = correctIdx >= 0 ? newOpts[correctIdx].id : q.correctAnswer;
-      return { ...q, options: newOpts, correctAnswer: newCorrect };
-    });
-
-    setActiveExamId(null);
-    setExamQuestions(chosen);
-    setCurrentIndex(0);
-    setUserAnswers({});
-    setFlaggedIds(new Set());
-    setSecondsRemaining(durationMinutes * 60);
-    setIsReviewScreenOpen(false);
-    setShowConfirmModal(false);
-    setExamResult(null);
-    setIsExamRunning(true);
   };
 
   useEffect(() => {
@@ -212,64 +203,60 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   };
 
   const handleFinalSubmit = async () => {
-    const timeSpent = durationMinutes * 60 - secondsRemaining;
-
-    if (activeExamId) {
-      try {
-        const res = await fetch(`/api/exams/${activeExamId}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userAnswers,
-            timeSpentSeconds: timeSpent,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok && data.success && data.result) {
-          const finalGraded: MCQQuestion[] = Array.isArray(data.gradedQuestions)
-            ? data.gradedQuestions
-            : examQuestions;
-          setExamQuestions(finalGraded);
-          setExamResult(data.result);
-          setIsExamRunning(false);
-          setShowConfirmModal(false);
-          setIsReviewScreenOpen(false);
-
-          onCompleteExam(
-            {
-              title: `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`,
-              score: data.result.score,
-              total: data.result.total,
-              timeSpentSeconds: timeSpent,
-              passed: data.result.passed,
-            },
-            finalGraded,
-            userAnswers
-          );
-          return;
-        }
-      } catch {
-        // Fallback below
-      }
+    if (!activeExamId) {
+      setSubmitError('No active exam session ID found. Cannot submit.');
+      return;
     }
 
-    const result = calculateExamScore(examQuestions, userAnswers, timeSpent, 70);
-    setExamResult(result);
-    setIsExamRunning(false);
-    setShowConfirmModal(false);
-    setIsReviewScreenOpen(false);
+    const timeSpent = durationMinutes * 60 - secondsRemaining;
+    setSubmitError(null);
+    setIsSubmitting(true);
 
-    onCompleteExam(
-      {
-        title: `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`,
-        score: result.score,
-        total: result.total,
-        timeSpentSeconds: timeSpent,
-        passed: result.passed,
-      },
-      examQuestions,
-      userAnswers
-    );
+    try {
+      const token = localStorage.getItem('medlab_auth_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(`/api/exams/${activeExamId}/submit`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          userAnswers,
+          timeSpentSeconds: timeSpent,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success && data.result) {
+        const finalGraded: MCQQuestion[] = Array.isArray(data.gradedQuestions)
+          ? data.gradedQuestions
+          : examQuestions;
+        setExamQuestions(finalGraded);
+        setExamResult(data.result);
+        setIsExamRunning(false);
+        setShowConfirmModal(false);
+        setIsReviewScreenOpen(false);
+
+        onCompleteExam(
+          {
+            title: `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`,
+            score: data.result.score,
+            total: data.result.total,
+            timeSpentSeconds: timeSpent,
+            passed: data.result.passed,
+          },
+          finalGraded,
+          userAnswers
+        );
+        return;
+      }
+
+      setSubmitError(data?.error || 'Server error grading examination. Please retry.');
+    } catch {
+      setSubmitError('Network error submitting exam. Please check your connection and retry.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatTime = (secs: number) => {
@@ -609,17 +596,42 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             />
           </div>
 
+          {startError && (
+            <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{startError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={startExam}
+                className="px-3.5 py-1.5 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded font-medium text-xs transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">
               Available pool: <strong className="text-slate-900">{filteredPool.length}</strong> questions
             </span>
             <button
-              disabled={filteredPool.length === 0}
+              disabled={filteredPool.length === 0 || isStarting}
               onClick={startExam}
-              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
+              className="px-5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
             >
-              <span>Start Examination</span>
-              <ArrowRight className="w-4 h-4 text-cyan-400" />
+              {isStarting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Preparing Examination...</span>
+                </>
+              ) : (
+                <>
+                  <span>Start Examination</span>
+                  <ArrowRight className="w-4 h-4 text-cyan-400" />
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -935,18 +947,36 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             )}
           </p>
 
+          {submitError && (
+            <div role="alert" className="p-3 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
             <button
+              disabled={isSubmitting}
               onClick={() => setShowConfirmModal(false)}
-              className="px-3 py-1.5 rounded border border-slate-300 text-slate-700 text-xs font-medium cursor-pointer hover:bg-slate-50 transition-colors"
+              className="px-3 py-2 min-h-[44px] rounded border border-slate-300 text-slate-700 text-xs font-medium cursor-pointer hover:bg-slate-50 transition-colors disabled:opacity-40"
             >
               Cancel
             </button>
             <button
+              disabled={isSubmitting}
               onClick={handleFinalSubmit}
-              className="px-4 py-1.5 rounded bg-slate-900 text-white text-xs font-medium cursor-pointer hover:bg-slate-800 transition-colors"
+              className="px-4 py-2 min-h-[44px] rounded bg-slate-900 text-white text-xs font-medium cursor-pointer hover:bg-slate-800 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
-              Submit
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Submitting...</span>
+                </>
+              ) : (
+                <span>Submit</span>
+              )}
             </button>
           </div>
         </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle2, AlertCircle, Bookmark } from 'lucide-react';
+import { X, CheckCircle2, AlertCircle, Bookmark, Loader2 } from 'lucide-react';
 import { MCQQuestion } from '../types';
 import { getSafeImageUrl } from '../utils/urlSecurity';
 import { Modal } from './common/Modal';
+import { checkQuestionAnswer, CheckAnswerSuccess } from '../utils/answerCheck';
 
 interface DailyQuestionModalProps {
   question?: MCQQuestion | null;
@@ -25,10 +26,18 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
 }) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState<boolean>(false);
+  const [checkResult, setCheckResult] = useState<CheckAnswerSuccess | null>(null);
+  const [isChecking, setIsChecking] = useState<boolean>(false);
+  const [checkError, setCheckError] = useState<{ optionId: string; message: string; isRateLimit: boolean } | null>(null);
+  const [ariaAnnouncement, setAriaAnnouncement] = useState<string>('');
 
   useEffect(() => {
     setSelectedOption(null);
     setHasSubmitted(false);
+    setCheckResult(null);
+    setCheckError(null);
+    setIsChecking(false);
+    setAriaAnnouncement('');
   }, [question?.id, isOpen]);
 
   if (!isOpen) return null;
@@ -56,19 +65,46 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
     );
   }
 
-  const isCorrect = selectedOption === question.correctAnswer;
+  const handleSelectOption = async (optId: string) => {
+    if (hasSubmitted || isChecking) return;
+    setSelectedOption(optId);
+    setCheckError(null);
+    setIsChecking(true);
+    setAriaAnnouncement(`Checking option ${optId}...`);
 
-  const handleSubmit = () => {
-    if (selectedOption && !hasSubmitted) {
+    const result = await checkQuestionAnswer(question.id, optId);
+    setIsChecking(false);
+
+    if (result.status === 200) {
+      const data = result.data;
+      setCheckResult(data);
       setHasSubmitted(true);
-      onRecordAnswer?.(question, selectedOption, selectedOption === question.correctAnswer);
+      onRecordAnswer?.(question, optId, data.correct);
+      setAriaAnnouncement(
+        data.correct
+          ? `Correct! Option ${data.correctAnswer} is the right answer.`
+          : `Incorrect. The correct answer is Option ${data.correctAnswer}.`
+      );
+    } else {
+      setCheckError({
+        optionId: optId,
+        message: result.error,
+        isRateLimit: result.isRateLimit,
+      });
+      setAriaAnnouncement(result.error);
     }
   };
 
   const handleReset = () => {
     setSelectedOption(null);
     setHasSubmitted(false);
+    setCheckResult(null);
+    setCheckError(null);
+    setIsChecking(false);
+    setAriaAnnouncement('');
   };
+
+  const isCorrect = checkResult?.correct ?? false;
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} titleId="daily-question-title" maxWidth="max-w-2xl">
@@ -141,15 +177,45 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
             </div>
           )}
 
-          <div className="text-sm sm:text-base font-medium text-slate-900 leading-relaxed">
+          <div id="daily-question-stem" className="text-sm sm:text-base font-medium text-slate-900 leading-relaxed">
             {question.questionText}
           </div>
 
+          {/* Error Alert with Retry */}
+          {checkError && (
+            <div role="alert" className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{checkError.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleSelectOption(checkError.optionId)}
+                className="px-3.5 py-1.5 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-medium text-xs transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Aria-live region */}
+          <div className="sr-only" aria-live="polite" aria-atomic="true">
+            {ariaAnnouncement}
+          </div>
+
           {/* Options */}
-          <div className="space-y-2">
+          <div
+            role="radiogroup"
+            aria-labelledby="daily-question-stem"
+            aria-busy={isChecking}
+            className="space-y-2"
+          >
             {question.options.map((opt) => {
               const isSelected = selectedOption === opt.id;
-              const isTheCorrectOne = opt.id === question.correctAnswer;
+              const isTheCorrectOne =
+                hasSubmitted &&
+                checkResult &&
+                opt.id.toUpperCase() === checkResult.correctAnswer.toUpperCase();
 
               let btnStyles = 'bg-white/80 border-slate-200/90 text-slate-800 hover:bg-white hover:border-cyan-300 shadow-2xs';
               if (hasSubmitted) {
@@ -160,32 +226,60 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
                 } else {
                   btnStyles = 'bg-slate-50/50 border-slate-200/50 text-slate-400 opacity-60';
                 }
+              } else if (isSelected && isChecking) {
+                btnStyles = 'bg-cyan-50 border-cyan-500 text-slate-900 ring-2 ring-cyan-500/50 shadow-2xs animate-pulse';
               } else if (isSelected) {
                 btnStyles = 'bg-cyan-50/90 border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-2xs';
               }
 
+              const stateText = hasSubmitted
+                ? isTheCorrectOne
+                  ? ' (Correct Answer)'
+                  : isSelected
+                  ? ' (Incorrect Selection)'
+                  : ''
+                : isSelected
+                ? ' (Selected)'
+                : '';
+
               return (
                 <button
                   key={opt.id}
-                  disabled={hasSubmitted}
-                  onClick={() => setSelectedOption(opt.id)}
-                  className={`w-full text-left p-3 rounded-lg border backdrop-blur-xs transition-all flex items-start gap-3 cursor-pointer ${btnStyles}`}
+                  type="button"
+                  role="radio"
+                  disabled={hasSubmitted || isChecking}
+                  aria-checked={isSelected}
+                  aria-label={`Option ${opt.id}: ${opt.text}${stateText}`}
+                  onClick={() => handleSelectOption(opt.id)}
+                  className={`w-full text-left p-3 min-h-[48px] rounded-lg border backdrop-blur-xs transition-all flex items-start gap-3 cursor-pointer ${btnStyles}`}
                 >
                   <span
+                    aria-hidden="true"
                     className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 transition-colors ${
-                      isSelected ? 'bg-cyan-700 text-white shadow-xs' : 'bg-slate-100/80 text-slate-700'
+                      hasSubmitted && isTheCorrectOne
+                        ? 'bg-emerald-700 text-white'
+                        : hasSubmitted && isSelected && !isTheCorrectOne
+                        ? 'bg-rose-700 text-white'
+                        : isSelected
+                        ? 'bg-cyan-700 text-white shadow-xs'
+                        : 'bg-slate-100/80 text-slate-700'
                     }`}
                   >
-                    {opt.id}
+                    {isChecking && isSelected ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      opt.id
+                    )}
                   </span>
-                  <span className="text-xs sm:text-sm leading-relaxed">{opt.text}</span>
+                  <span className="text-xs sm:text-sm leading-relaxed flex-1">{opt.text}</span>
+                  {stateText && <span className="sr-only">{stateText}</span>}
                 </button>
               );
             })}
           </div>
 
           {/* Feedback & Explanation */}
-          {hasSubmitted && (
+          {hasSubmitted && checkResult && (
             <div className={`p-4 rounded-lg border backdrop-blur-xs text-sm ${isCorrect ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900 shadow-2xs' : 'bg-rose-50/90 border-rose-200 text-rose-900 shadow-2xs'}`}>
               <div className="flex items-center gap-2 font-semibold mb-2">
                 {isCorrect ? (
@@ -196,19 +290,19 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
                 ) : (
                   <>
                     <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-                    <span>Incorrect. The correct answer is option {question.correctAnswer}.</span>
+                    <span>Incorrect. The correct answer is option {checkResult.correctAnswer}.</span>
                   </>
                 )}
               </div>
               <div className="text-slate-700 text-xs sm:text-sm leading-relaxed space-y-2 mt-2">
                 <div>
                   <strong className="text-slate-900 font-semibold">Clinical Rationale: </strong>
-                  {question.explanation}
+                  {checkResult.explanation}
                 </div>
-                {question.reference && (
+                {checkResult.reference && (
                   <div className="text-xs text-slate-500 pt-2 border-t border-slate-200/80">
                     <span className="font-semibold text-slate-600">Reference: </span>
-                    {question.reference}
+                    {checkResult.reference}
                   </div>
                 )}
               </div>
@@ -237,15 +331,7 @@ export const DailyQuestionModal: React.FC<DailyQuestionModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {!hasSubmitted ? (
-              <button
-                disabled={!selectedOption}
-                onClick={handleSubmit}
-                className="px-4 py-2 bg-gradient-to-r from-cyan-700 to-teal-700 hover:from-cyan-800 hover:to-teal-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-medium rounded-lg transition-all shadow-xs cursor-pointer"
-              >
-                Submit
-              </button>
-            ) : (
+            {hasSubmitted && (
               <button
                 onClick={handleReset}
                 className="px-4 py-2 bg-white/90 border border-slate-200/90 hover:bg-white text-slate-700 text-xs sm:text-sm font-medium rounded-lg transition-colors cursor-pointer shadow-2xs"
