@@ -146,6 +146,10 @@ npm run backup
 | `BACKUP_KEEP` | Number of recent database backup snapshots retained during rotation. | Optional | `7` |
 | `BACKUP_INTERVAL_HOURS` | Number of hours between automated in-process backups. | Optional | Unset (disabled) |
 | `RATE_LIMIT_REGISTER_MAX` | Max registrations allowed per IP per hour. | Optional | `20` |
+| `ANSWER_CHECK_USER_PER_HOUR` | Max answer checks per hour for authenticated non-admin users. | Optional | `300` |
+| `ANSWER_CHECK_USER_PER_DAY` | Max answer checks per day for authenticated non-admin users. | Optional | `1500` |
+| `ANSWER_CHECK_GUEST_PER_HOUR` | Max answer checks per hour for guest / anonymous visitors. | Optional | `60` |
+| `ANSWER_CHECK_GUEST_PER_DAY` | Max answer checks per day for guest / anonymous visitors. | Optional | `200` |
 | `STRICT_PLACEHOLDERS` | When set to `true`, fails `npm run build` if config placeholders remain. | Optional | `false` |
 
 > [!IMPORTANT]

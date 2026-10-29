@@ -187,8 +187,14 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 // Helper to resolve session from Authorization header (with 7-day TTL expiration check)
 function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string } | null {
+  if ((req as any)._sessionUser !== undefined) {
+    return (req as any)._sessionUser;
+  }
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    (req as any)._sessionUser = null;
+    return null;
+  }
   const rawToken = authHeader.slice(7);
   const tokenHash = hashToken(rawToken);
   const row = db
@@ -199,21 +205,82 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
        WHERE s.token = ?`
     )
     .get(tokenHash) as any;
-  if (!row) return null;
-
-  if (row.created_at && Date.now() - new Date(row.created_at).getTime() > SESSION_TTL_MS) {
-    db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
+  if (!row) {
+    (req as any)._sessionUser = null;
     return null;
   }
 
-  return {
+  if (row.created_at && Date.now() - new Date(row.created_at).getTime() > SESSION_TTL_MS) {
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
+    (req as any)._sessionUser = null;
+    return null;
+  }
+
+  const user = {
     userId: row.user_id,
     role: row.role,
     username: row.username,
     email: row.email || undefined,
     displayName: row.display_name,
   };
+  (req as any)._sessionUser = user;
+  return user;
 }
+
+// Rate limiters for question answer checking (Practice, Daily Question, Browse reveal)
+const answerCheckHourlyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: (req) => {
+    const session = getSessionUser(req);
+    const userMax = parseInt(process.env.ANSWER_CHECK_USER_PER_HOUR || '300', 10);
+    const guestMax = parseInt(process.env.ANSWER_CHECK_GUEST_PER_HOUR || '60', 10);
+    return session ? (isNaN(userMax) ? 300 : userMax) : (isNaN(guestMax) ? 60 : guestMax);
+  },
+  keyGenerator: (req) => {
+    const session = getSessionUser(req);
+    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
+  },
+  skip: (req) => {
+    const session = getSessionUser(req);
+    return session?.role === 'admin' || session?.role === 'superadmin';
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Hourly answer check limit reached. Please wait or sign in to continue.',
+    });
+  },
+});
+
+const answerCheckDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: (req) => {
+    const session = getSessionUser(req);
+    const userMax = parseInt(process.env.ANSWER_CHECK_USER_PER_DAY || '1500', 10);
+    const guestMax = parseInt(process.env.ANSWER_CHECK_GUEST_PER_DAY || '200', 10);
+    return session ? (isNaN(userMax) ? 1500 : userMax) : (isNaN(guestMax) ? 200 : guestMax);
+  },
+  keyGenerator: (req) => {
+    const session = getSessionUser(req);
+    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
+  },
+  skip: (req) => {
+    const session = getSessionUser(req);
+    return session?.role === 'admin' || session?.role === 'superadmin';
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Daily answer check limit reached. Please try again tomorrow or sign in.',
+    });
+  },
+});
 
 // Middleware to enforce role-based administrator permissions on management endpoints
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -782,6 +849,50 @@ app.get('/api/questions/:id', (req, res) => {
   }
   return res.json({ success: true, question: isAdmin ? q : toPublicQuestion(q) });
 });
+
+app.post(
+  '/api/questions/:id/check',
+  answerCheckHourlyLimiter,
+  answerCheckDailyLimiter,
+  (req, res) => {
+    const q = getQuestionById(req.params.id);
+    if (!q) {
+      return res.status(404).json({ success: false, error: 'Question not found' });
+    }
+    const session = getSessionUser(req);
+    const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
+    if (q.status !== 'Published' && !isAdmin) {
+      return res.status(404).json({ success: false, error: 'Question not found' });
+    }
+
+    const { selected } = req.body || {};
+    if (!selected || typeof selected !== 'string') {
+      return res.status(400).json({ success: false, error: 'Selected option is required' });
+    }
+
+    const matchedOption = (q.options || []).find(
+      (opt) => opt.id === selected || opt.id.toLowerCase() === selected.toLowerCase()
+    );
+    if (!matchedOption) {
+      return res.status(400).json({ success: false, error: 'Invalid option selected' });
+    }
+
+    const correct = matchedOption.id.toLowerCase() === q.correctAnswer.toLowerCase();
+
+    return res.json({
+      success: true,
+      correct,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      reference: q.reference || '',
+      options: (q.options || []).map((opt) => ({
+        id: opt.id,
+        text: opt.text,
+        ...(opt.rationale ? { rationale: opt.rationale } : {}),
+      })),
+    });
+  }
+);
 
 app.post('/api/questions', requireAdmin, (req, res) => {
   const question: MCQQuestion = req.body.question || req.body;

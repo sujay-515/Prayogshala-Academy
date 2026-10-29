@@ -111,6 +111,11 @@ export function toGradedExamQuestion(q: MCQQuestion): GradedExamQuestion {
   const pub = toPublicQuestion(q);
   return {
     ...pub,
+    options: (q.options || []).map((opt) => ({
+      id: opt.id,
+      text: opt.text,
+      ...(opt.rationale ? { rationale: opt.rationale } : {}),
+    })),
     correctAnswer: q.correctAnswer,
     explanation: q.explanation,
     reference: q.reference || '',
