@@ -162,6 +162,29 @@ npm run backup
 > **Persistent Volume Requirement for SQLite**:
 > MedLab QBank stores relational state, sessions, accounts, and examination history in SQLite (`data/medlab_qbank.sqlite`). In containerized or serverless hosting environments, `DATA_DIR` must be mounted on a persistent disk volume. Ephemeral containers will lose all data upon restart without persistent storage.
 
+### Answer Protection Architecture
+
+MedLab QBank protects question answer keys, clinical rationales, and explanations from bulk scraping and client-side inspection through an allowlist serialization architecture:
+
+1. **Allowlist Field Serialization**:
+   - Non-administrative endpoints (`/api/bootstrap`, `GET /api/questions`, `GET /api/questions/:id`, `POST /api/exams/start`, and `/api/auth/export`) strictly serialize questions using `toPublicQuestion()`.
+   - All **reveal-only** fields (`correctAnswer`, `explanation`, `reference`, and per-option rationales) and **admin-only** fields (`status`, `sourceDocument`, `pageNumber`, `versionHistory`, `flags`) are excluded from public payloads.
+   - Admin and superadmin callers retain full access on authorized management routes.
+
+2. **On-Demand Answer Verification**:
+   - In practice sessions, daily questions, and browse mode, students submit their chosen option to `POST /api/questions/:id/check`.
+   - The server verifies that the question is published, validates the selected option, and returns `{ correct: boolean }` along with the explanation and textbook citation.
+   - Timed exams are graded strictly on the server via `POST /api/exams/:id/submit`; graded questions are returned only after grading completes.
+
+3. **Rate Limiting Controls**:
+   - Answer checks are rate-limited via `ANSWER_CHECK_USER_PER_HOUR` (`300`), `ANSWER_CHECK_USER_PER_DAY` (`1500`), `ANSWER_CHECK_GUEST_PER_HOUR` (`60`), and `ANSWER_CHECK_GUEST_PER_DAY` (`200`).
+   - Exam session creation is throttled via `EXAM_START_PER_HOUR` (`10`).
+   - Gemini PDF OCR extraction is capped via `EXTRACT_PDF_PER_HOUR` (`20`).
+
+4. **Inherent Web Security Limitations**:
+   - Answer protection prevents trivial inspection and substantially raises the computational and temporal cost of automated extraction.
+   - However, because students must legitimately see answers and explanations as part of learning, no web application can completely eliminate distributed, slow-rate extraction over extended time periods. Our Terms of Service explicitly prohibit automated scraping, and rate limiters ensure suspicious extraction patterns can be detected and throttled.
+
 ### First Administrator Onboarding
 1. On your initial deployment, supply `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` (minimum 12 characters) in your environment variables.
 2. Boot the application. The server checks if any superadmin exists; finding none, it creates the superadmin account with scrypt password hashing.
