@@ -11,7 +11,7 @@ import { parseRawMCQText, findDuplicateQuestion, validateExtractedQuestion } fro
 import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
 import { calculateExamScore } from './src/utils/scoring';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
-import { ExtractedMCQDraft, MCQQuestion, QuestionReport } from './src/types';
+import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
 import {
   db,
   hashPassword,
@@ -280,13 +280,15 @@ if (process.env.NODE_ENV === 'test') {
 app.get('/api/bootstrap', (req, res) => {
   const session = getSessionUser(req);
   const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
+  const allQuestions = getAllQuestions(isAdmin);
+  const questionsToSend = isAdmin ? allQuestions : allQuestions.map(toPublicQuestion);
   const userId = session ? session.userId : 'usr-guest';
   res.json({
     success: true,
-    questions: getAllQuestions(isAdmin),
+    questions: questionsToSend,
     categories: getAllCategories(),
     reports: isAdmin ? getAllReports() : [],
-    stats: getUserStats(userId),
+    stats: session ? getUserStats(userId) : null,
     sourcePdfs: isAdmin ? listSourcePdfs() : [],
     user: session
       ? {
@@ -759,9 +761,12 @@ app.get('/api/questions', (req, res) => {
     includeUnpublished: isAdmin,
   });
 
+  const questionsToSend = isAdmin ? result.questions : result.questions.map(toPublicQuestion);
+
   res.json({
     success: true,
     ...result,
+    questions: questionsToSend,
   });
 });
 
@@ -771,10 +776,11 @@ app.get('/api/questions/:id', (req, res) => {
     return res.status(404).json({ success: false, error: 'Question not found' });
   }
   const session = getSessionUser(req);
-  if (q.status !== 'Published' && session?.role !== 'admin' && session?.role !== 'superadmin') {
+  const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
+  if (q.status !== 'Published' && !isAdmin) {
     return res.status(403).json({ success: false, error: 'Question is not published' });
   }
-  return res.json({ success: true, question: q });
+  return res.json({ success: true, question: isAdmin ? q : toPublicQuestion(q) });
 });
 
 app.post('/api/questions', requireAdmin, (req, res) => {
@@ -949,12 +955,8 @@ app.post('/api/exams/start', (req, res) => {
     durationMinutes,
   });
 
-  // Strip correctAnswer and explanation before sending to client!
-  const sanitizedQuestions = preparedQuestions.map(({ correctAnswer, explanation, ...safeQuestion }) => ({
-    ...safeQuestion,
-    correctAnswer: '' as any,
-    explanation: '',
-  }));
+  // Convert questions to public shape using strict allowlist serializer
+  const sanitizedQuestions = preparedQuestions.map(toPublicQuestion);
 
   return res.json({
     success: true,

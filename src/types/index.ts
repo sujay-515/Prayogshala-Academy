@@ -51,6 +51,72 @@ export interface MCQQuestion {
   flags?: string[];
 }
 
+export interface PublicMCQQuestion {
+  id: string;
+  code: string;
+  questionText: string;
+  options: MCQOption[];
+  clinicalCase?: string;
+  tableData?: TableData;
+  imageUrl?: string;
+  unit: string;
+  subject: string;
+  topic: string;
+  subtopic?: string;
+  difficulty: DifficultyLevel;
+  examCategories: ExamCategory[];
+}
+
+/**
+ * Strict allowlist serializer converting full stored MCQ data into public candidate shape.
+ * Strips all REVEAL-ONLY fields (correctAnswer, explanation, reference) and ADMIN-ONLY fields
+ * (status, audit history, source PDF info, internal flags).
+ */
+export function toPublicQuestion(q: MCQQuestion): PublicMCQQuestion {
+  const pub: PublicMCQQuestion = {
+    id: q.id,
+    code: q.code,
+    questionText: q.questionText,
+    options: q.options.map((opt) => ({
+      id: opt.id,
+      text: opt.text,
+    })),
+    unit: q.unit,
+    subject: q.subject,
+    topic: q.topic,
+    difficulty: q.difficulty,
+    examCategories: [...q.examCategories],
+  };
+
+  if (q.clinicalCase) pub.clinicalCase = q.clinicalCase;
+  if (q.tableData) {
+    pub.tableData = {
+      headers: [...q.tableData.headers],
+      rows: q.tableData.rows.map((row) => [...row]),
+    };
+  }
+  if (q.imageUrl) pub.imageUrl = q.imageUrl;
+  if (q.subtopic) pub.subtopic = q.subtopic;
+
+  return pub;
+}
+
+export interface GradedExamQuestion extends PublicMCQQuestion {
+  correctAnswer: 'A' | 'B' | 'C' | 'D' | 'E';
+  explanation: string;
+  reference?: string;
+}
+
+export function toGradedExamQuestion(q: MCQQuestion): GradedExamQuestion {
+  const pub = toPublicQuestion(q);
+  return {
+    ...pub,
+    correctAnswer: q.correctAnswer,
+    explanation: q.explanation,
+    reference: q.reference || '',
+  };
+}
+
 export interface ExtractedMCQDraft {
   id: string;
   tempCode: string;
