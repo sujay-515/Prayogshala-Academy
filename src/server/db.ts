@@ -534,6 +534,39 @@ export function saveAllCategories(categories: UnitCategory[], skipCloudSync = fa
   }
 }
 
+export function restoreBackup(data: {
+  questions?: MCQQuestion[];
+  categories?: UnitCategory[];
+  reports?: QuestionReport[];
+}): void {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (Array.isArray(data.questions)) {
+      for (const q of data.questions) {
+        upsertQuestion(q, true);
+      }
+    }
+    if (Array.isArray(data.categories)) {
+      db.exec('DELETE FROM categories');
+      const insertC = db.prepare('INSERT INTO categories (id, sort_order, data_json) VALUES (?, ?, ?)');
+      data.categories.forEach((cat, idx) => {
+        insertC.run(cat.id, idx, JSON.stringify(cat));
+      });
+    }
+    if (Array.isArray(data.reports)) {
+      for (const r of data.reports) {
+        insertReport(r, true);
+      }
+    }
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  if (Array.isArray(data.questions)) syncBulkQuestions(data.questions);
+  if (Array.isArray(data.categories)) syncSaveCategories(data.categories);
+}
+
 export function getAllReports(): QuestionReport[] {
   const rows = db.prepare('SELECT * FROM reports ORDER BY submitted_at DESC').all() as any[];
   return rows.map((r) => ({

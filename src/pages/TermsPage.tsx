@@ -65,7 +65,7 @@ export const TermsPage: React.FC = () => {
             </h2>
             <p className="mb-2">When using the Platform, you agree that you will not:</p>
             <ul className="list-disc pl-5 space-y-1.5 text-sm">
-              <li>Scrape, crawl, harvest, or bulk-export question data or explanations through automated bots or scripts.</li>
+              <li>Scrape, crawl, harvest, or bulk-export question data or explanations through automated bots or scripts. You are strictly prohibited from using any automated tool, scraper, crawler, bot, script, spider, or browser extension to perform bulk extraction, automated scraping, or unauthorized downloading of questions, answers, answer keys, rationales, explanations, or citations from the Platform.</li>
               <li>Circumvent or tamper with examination timers, scoring engines, or rate-limiting safeguards.</li>
               <li>Attempt SQL injection, cross-site scripting (XSS), prototype pollution, or payload tampering.</li>
               <li>Share administrative access tokens or credentials with unauthorized third parties.</li>

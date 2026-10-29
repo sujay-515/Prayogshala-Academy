@@ -321,7 +321,7 @@ export default function App() {
           if (Array.isArray(data.questions)) setQuestions(data.questions);
           if (Array.isArray(data.categories)) setCategories(data.categories);
           if (Array.isArray(data.reports)) setReports(data.reports);
-          if (data.stats) setStats(data.stats);
+          if (data.stats && authToken) setStats(data.stats);
           if (data.user) {
             setCurrentUser(data.user);
             try {
@@ -384,8 +384,10 @@ export default function App() {
     return headers;
   };
 
-  // Helper to persist stats to SQLite backend
+  // Helper to persist stats to SQLite backend (authenticated users only; guests use localStorage)
   const persistStatsToServer = (updatedStats: UserStats) => {
+    const token = authToken || localStorage.getItem(STORAGE_KEY_TOKEN);
+    if (!token) return;
     fetch('/api/stats', {
       method: 'PUT',
       headers: getAuthHeaders(),

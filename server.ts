@@ -46,6 +46,7 @@ import {
   createPasswordReset,
   verifyAndConsumeResetToken,
   hashToken,
+  restoreBackup,
 } from './src/server/db';
 import { bootstrapSuperAdmin } from './src/server/bootstrap';
 import {
@@ -308,6 +309,28 @@ const examStartLimiter = rateLimit({
   },
 });
 
+const extractPdfLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: (_req) => {
+    const raw = process.env.EXTRACT_PDF_PER_HOUR;
+    const parsed = raw ? parseInt(raw, 10) : 20;
+    return isNaN(parsed) ? 20 : parsed;
+  },
+  keyGenerator: (req) => {
+    const session = getSessionUser(req);
+    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { trustProxy: false },
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'PDF extraction limit reached (20 requests per hour). Please wait before processing more documents.',
+    });
+  },
+});
+
 // Middleware to enforce role-based administrator permissions on management endpoints
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const session = getSessionUser(req);
@@ -334,7 +357,7 @@ function requireSuperAdmin(req: express.Request, res: express.Response, next: ex
 
 // 3. Route-specific body parsers with early auth/role checks (ORDER MATTERS: registered BEFORE the global 100kb parser)
 // Unauthenticated or unauthorized callers are rejected immediately before large bodies can be buffered.
-app.post('/api/extract-pdf', requireAdmin, express.json({ limit: '50mb' }));
+app.post('/api/extract-pdf', requireAdmin, extractPdfLimiter, express.json({ limit: '50mb' }));
 app.post('/api/backup/restore', requireAdmin, express.json({ limit: '25mb' }));
 app.post('/api/staging', requireAdmin, express.json({ limit: '25mb' }));
 app.post('/api/questions/bulk-import', requireAdmin, express.json({ limit: '10mb' }));
@@ -946,14 +969,184 @@ app.post('/api/questions/bulk-delete', requireAdmin, (req, res) => {
   return res.json({ success: true, deleted });
 });
 
+function validateQuestionPayload(q: any): string | null {
+  if (!q || typeof q !== 'object' || Array.isArray(q)) {
+    return 'Question must be a valid object';
+  }
+  if (!q.id || typeof q.id !== 'string') {
+    return 'Question id is required and must be a string';
+  }
+  if (!q.questionText || typeof q.questionText !== 'string') {
+    return `Question ${q.id}: questionText is required`;
+  }
+  if (!Array.isArray(q.options) || q.options.length < 2) {
+    return `Question ${q.id}: options must be an array of at least 2 options`;
+  }
+  for (const opt of q.options) {
+    if (!opt || typeof opt !== 'object' || !opt.id || typeof opt.text !== 'string') {
+      return `Question ${q.id}: each option must have an id and text`;
+    }
+  }
+  if (q.imageUrl && !isSafeImageUrl(q.imageUrl)) {
+    return `Question ${q.id}: unsafe or invalid imageUrl provided`;
+  }
+  return null;
+}
+
+function validateUserStats(stats: any): string | null {
+  if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
+    return 'stats must be an object';
+  }
+
+  const allowedKeys = new Set([
+    'totalAnswered',
+    'totalCorrect',
+    'streakDays',
+    'lastActiveDate',
+    'bookmarkedIds',
+    'revisionQueueIds',
+    'subjectPerformance',
+    'topicPerformance',
+    'examRecords',
+  ]);
+
+  for (const key of Object.keys(stats)) {
+    if (!allowedKeys.has(key)) {
+      return `Unknown field in stats: ${key}`;
+    }
+  }
+
+  if (
+    typeof stats.totalAnswered !== 'number' ||
+    stats.totalAnswered < 0 ||
+    stats.totalAnswered > 1_000_000 ||
+    !Number.isFinite(stats.totalAnswered)
+  ) {
+    return 'totalAnswered must be a finite number between 0 and 1,000,000';
+  }
+  if (
+    typeof stats.totalCorrect !== 'number' ||
+    stats.totalCorrect < 0 ||
+    stats.totalCorrect > stats.totalAnswered ||
+    !Number.isFinite(stats.totalCorrect)
+  ) {
+    return 'totalCorrect must be a finite number between 0 and totalAnswered';
+  }
+  if (
+    typeof stats.streakDays !== 'number' ||
+    stats.streakDays < 0 ||
+    stats.streakDays > 10_000 ||
+    !Number.isFinite(stats.streakDays)
+  ) {
+    return 'streakDays must be a finite number between 0 and 10,000';
+  }
+  if (typeof stats.lastActiveDate !== 'string' || stats.lastActiveDate.length > 50) {
+    return 'lastActiveDate must be a string up to 50 characters';
+  }
+
+  if (!Array.isArray(stats.bookmarkedIds) || stats.bookmarkedIds.length > 5000) {
+    return 'bookmarkedIds must be an array of up to 5,000 IDs';
+  }
+  for (const id of stats.bookmarkedIds) {
+    if (typeof id !== 'string' || id.length > 100) {
+      return 'Invalid bookmark ID in bookmarkedIds';
+    }
+  }
+
+  if (!Array.isArray(stats.revisionQueueIds) || stats.revisionQueueIds.length > 5000) {
+    return 'revisionQueueIds must be an array of up to 5,000 IDs';
+  }
+  for (const id of stats.revisionQueueIds) {
+    if (typeof id !== 'string' || id.length > 100) {
+      return 'Invalid revision ID in revisionQueueIds';
+    }
+  }
+
+  if (
+    !stats.subjectPerformance ||
+    typeof stats.subjectPerformance !== 'object' ||
+    Array.isArray(stats.subjectPerformance)
+  ) {
+    return 'subjectPerformance must be an object';
+  }
+  const subKeys = Object.keys(stats.subjectPerformance);
+  if (subKeys.length > 100) return 'subjectPerformance exceeds maximum subjects';
+  for (const k of subKeys) {
+    if (k.length > 100) return 'Subject name too long';
+    const sub = stats.subjectPerformance[k];
+    if (
+      !sub ||
+      typeof sub !== 'object' ||
+      typeof sub.answered !== 'number' ||
+      typeof sub.correct !== 'number' ||
+      sub.answered < 0 ||
+      sub.correct < 0 ||
+      sub.correct > sub.answered
+    ) {
+      return 'Invalid subjectPerformance entry';
+    }
+  }
+
+  if (stats.topicPerformance !== undefined) {
+    if (
+      !stats.topicPerformance ||
+      typeof stats.topicPerformance !== 'object' ||
+      Array.isArray(stats.topicPerformance)
+    ) {
+      return 'topicPerformance must be an object';
+    }
+    const topKeys = Object.keys(stats.topicPerformance);
+    if (topKeys.length > 500) return 'topicPerformance exceeds maximum topics';
+    for (const k of topKeys) {
+      if (k.length > 100) return 'Topic name too long';
+      const top = stats.topicPerformance[k];
+      if (
+        !top ||
+        typeof top !== 'object' ||
+        typeof top.answered !== 'number' ||
+        typeof top.correct !== 'number' ||
+        top.answered < 0 ||
+        top.correct < 0 ||
+        top.correct > top.answered
+      ) {
+        return 'Invalid topicPerformance entry';
+      }
+    }
+  }
+
+  if (!Array.isArray(stats.examRecords) || stats.examRecords.length > 500) {
+    return 'examRecords must be an array of up to 500 records';
+  }
+  for (const rec of stats.examRecords) {
+    if (!rec || typeof rec !== 'object') return 'Invalid exam record';
+    if (typeof rec.id !== 'string' || rec.id.length > 100) return 'Invalid exam record id';
+    if (typeof rec.title !== 'string' || rec.title.length > 200) return 'Invalid exam record title';
+    if (
+      typeof rec.score !== 'number' ||
+      typeof rec.total !== 'number' ||
+      rec.score < 0 ||
+      rec.score > rec.total
+    ) {
+      return 'Invalid exam record score/total';
+    }
+    if (typeof rec.timeSpentSeconds !== 'number' || rec.timeSpentSeconds < 0) {
+      return 'Invalid exam record timeSpentSeconds';
+    }
+    if (typeof rec.passed !== 'boolean') return 'Invalid exam record passed';
+  }
+
+  return null;
+}
+
 app.post('/api/questions/bulk-upsert', requireAdmin, (req, res) => {
   const { questions } = req.body;
-  if (!Array.isArray(questions) || questions.some((q) => !q || typeof q.id !== 'string')) {
-    return res.status(400).json({ success: false, error: 'questions array with ids required' });
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ success: false, error: 'Non-empty questions array required' });
   }
   for (const q of questions) {
-    if (q.imageUrl && !isSafeImageUrl(q.imageUrl)) {
-      return res.status(400).json({ success: false, error: `Invalid imageUrl for question ${q.code || q.id}` });
+    const err = validateQuestionPayload(q);
+    if (err) {
+      return res.status(400).json({ success: false, error: err });
     }
   }
   bulkInsertQuestions(questions);
@@ -971,12 +1164,13 @@ app.post('/api/questions/bulk-status', requireAdmin, (req, res) => {
 
 app.post('/api/questions/bulk-import', requireAdmin, (req, res) => {
   const { questions } = req.body;
-  if (!Array.isArray(questions)) {
-    return res.status(400).json({ success: false, error: 'questions array required' });
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ success: false, error: 'Non-empty questions array required' });
   }
   for (const q of questions) {
-    if (q.imageUrl && !isSafeImageUrl(q.imageUrl)) {
-      return res.status(400).json({ success: false, error: `Invalid imageUrl for question ${q.code || q.id}` });
+    const err = validateQuestionPayload(q);
+    if (err) {
+      return res.status(400).json({ success: false, error: err });
     }
   }
   bulkInsertQuestions(questions);
@@ -996,12 +1190,24 @@ app.put('/api/categories', requireAdmin, (req, res) => {
 // ==================== USER STATS & ANALYTICS APIs ====================
 app.put('/api/stats', (req, res) => {
   const session = getSessionUser(req);
-  const userId = session ? session.userId : 'usr-guest';
-  const { stats } = req.body;
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required to save statistics.' });
+  }
+
+  const { stats, ...rest } = req.body || {};
+  if (Object.keys(rest).length > 0) {
+    return res.status(400).json({ success: false, error: 'Unknown top-level fields in request body.' });
+  }
   if (!stats) {
     return res.status(400).json({ success: false, error: 'stats object required' });
   }
-  saveUserStats(userId, stats);
+
+  const validationError = validateUserStats(stats);
+  if (validationError) {
+    return res.status(400).json({ success: false, error: validationError });
+  }
+
+  saveUserStats(session.userId, stats);
   return res.json({ success: true, stats });
 });
 
@@ -1494,18 +1700,36 @@ app.get('/api/backup/export', requireAdmin, (req, res) => {
 });
 
 app.post('/api/backup/restore', requireAdmin, (req, res) => {
-  const { questions, categories, reports } = req.body;
+  const { questions, categories, reports, ...rest } = req.body || {};
+  if (Object.keys(rest).length > 0) {
+    return res.status(400).json({ success: false, error: 'Unknown fields in backup restore payload.' });
+  }
+  if (questions !== undefined && !Array.isArray(questions)) {
+    return res.status(400).json({ success: false, error: 'questions must be an array' });
+  }
+  if (categories !== undefined && !Array.isArray(categories)) {
+    return res.status(400).json({ success: false, error: 'categories must be an array' });
+  }
+  if (reports !== undefined && !Array.isArray(reports)) {
+    return res.status(400).json({ success: false, error: 'reports must be an array' });
+  }
+
   if (Array.isArray(questions)) {
-    bulkInsertQuestions(questions);
-  }
-  if (Array.isArray(categories)) {
-    saveAllCategories(categories);
-  }
-  if (Array.isArray(reports)) {
-    for (const r of reports) {
-      insertReport(r);
+    for (const q of questions) {
+      const err = validateQuestionPayload(q);
+      if (err) {
+        return res.status(400).json({ success: false, error: err });
+      }
     }
   }
+
+  try {
+    restoreBackup({ questions, categories, reports });
+  } catch (err) {
+    console.error('[Backup Restore Error]', err);
+    return res.status(500).json({ success: false, error: 'Database transaction error during restore.' });
+  }
+
   res.json({
     success: true,
     questions: getAllQuestions(true),

@@ -1115,4 +1115,145 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(examRateLimit.body.success, false);
     assert.ok(examRateLimit.body.error?.includes('Too many exam sessions'));
   });
+
+  it('Phase 7 Leftover Hardening: validates stats PUT, ensures atomic rollback on invalid bulk batches', async () => {
+    // 1. Authenticate superadmin and student
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    const adminToken = adminLogin.body.token;
+
+    const studentLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'sentinel_student@example.com',
+        password: 'StudentPassword123!',
+      },
+    });
+    const studentToken = studentLogin.body.token;
+
+    // 2. PUT /api/stats: require authentication
+    const statsAnon = await request('PUT', '/api/stats', {
+      body: { stats: { totalAnswered: 10, totalCorrect: 8 } },
+    });
+    assert.equal(statsAnon.status, 401);
+
+    // 3. PUT /api/stats: reject unknown fields with 400
+    const statsUnknown = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: { stats: { totalAnswered: 10, totalCorrect: 8, rogueField: 'inject' } },
+    });
+    assert.equal(statsUnknown.status, 400);
+    assert.ok(statsUnknown.body.error?.includes('Unknown field'));
+
+    // 4. PUT /api/stats: validate bounds (numbers within sane bounds)
+    const statsNegative = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: {
+        stats: {
+          totalAnswered: -5,
+          totalCorrect: 0,
+          streakDays: 0,
+          lastActiveDate: '2026-10-29',
+          bookmarkedIds: [],
+          revisionQueueIds: [],
+          subjectPerformance: {},
+          examRecords: [],
+        },
+      },
+    });
+    assert.equal(statsNegative.status, 400);
+
+    const statsCorrectExceeds = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: {
+        stats: {
+          totalAnswered: 5,
+          totalCorrect: 10,
+          streakDays: 0,
+          lastActiveDate: '2026-10-29',
+          bookmarkedIds: [],
+          revisionQueueIds: [],
+          subjectPerformance: {},
+          examRecords: [],
+        },
+      },
+    });
+    assert.equal(statsCorrectExceeds.status, 400);
+
+    // 5. PUT /api/stats: valid payload succeeds
+    const validStats = {
+      totalAnswered: 15,
+      totalCorrect: 12,
+      streakDays: 3,
+      lastActiveDate: '2026-10-29',
+      bookmarkedIds: ['q-sentinel-probe'],
+      revisionQueueIds: [],
+      subjectPerformance: { 'Clinical Chemistry': { answered: 15, correct: 12 } },
+      examRecords: [],
+    };
+    const statsValid = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: { stats: validStats },
+    });
+    assert.equal(statsValid.status, 200);
+    assert.equal(statsValid.body.success, true);
+
+    // 6. Bulk import batch atomicity: batch with one invalid item rolls back completely
+    const countBefore = (await request('GET', '/api/questions', { token: adminToken })).body.total;
+
+    const validItem = {
+      id: 'q-atomic-valid-1',
+      code: 'ATOMIC-01',
+      questionText: 'Atomic question text 1',
+      options: [
+        { id: 'A', text: 'Option A' },
+        { id: 'B', text: 'Option B' },
+      ],
+      correctAnswer: 'A',
+      explanation: 'Explanation',
+      status: 'Published',
+      unit: 'Hematology',
+      subject: 'Coagulation',
+    };
+    const invalidItem = {
+      id: 'q-atomic-invalid-2',
+      code: 'ATOMIC-02',
+      questionText: 'Atomic question text 2 with unsafe URL',
+      options: [
+        { id: 'A', text: 'Option A' },
+        { id: 'B', text: 'Option B' },
+      ],
+      imageUrl: 'javascript:alert(1)',
+      status: 'Published',
+      unit: 'Hematology',
+      subject: 'Coagulation',
+    };
+
+    const bulkRes = await request('POST', '/api/questions/bulk-import', {
+      token: adminToken,
+      body: { questions: [validItem, invalidItem] },
+    });
+    assert.equal(bulkRes.status, 400);
+    assert.ok(bulkRes.body.error?.includes('unsafe or invalid imageUrl'));
+
+    // Assert validItem was NOT inserted
+    const countAfter = (await request('GET', '/api/questions', { token: adminToken })).body.total;
+    assert.equal(countAfter, countBefore);
+
+    const checkValidNotInserted = await request('GET', '/api/questions/q-atomic-valid-1', { token: adminToken });
+    assert.equal(checkValidNotInserted.status, 404);
+
+    // 7. Backup restore atomicity: batch with one invalid item changes nothing
+    const restoreRes = await request('POST', '/api/backup/restore', {
+      token: adminToken,
+      body: { questions: [validItem, invalidItem] },
+    });
+    assert.equal(restoreRes.status, 400);
+
+    const countAfterRestore = (await request('GET', '/api/questions', { token: adminToken })).body.total;
+    assert.equal(countAfterRestore, countBefore);
+  });
 });
