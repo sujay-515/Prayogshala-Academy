@@ -247,7 +247,7 @@ const answerCheckHourlyLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
@@ -274,7 +274,7 @@ const answerCheckDailyLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
@@ -300,7 +300,7 @@ const examStartLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
@@ -322,7 +322,7 @@ const extractPdfLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
+  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
