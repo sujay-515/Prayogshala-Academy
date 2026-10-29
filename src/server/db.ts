@@ -420,15 +420,15 @@ export function upsertQuestion(q: MCQQuestion, skipCloudSync = false): void {
       data_json = excluded.data_json
   `).run(
     q.id,
-    q.code,
-    q.unit,
-    q.subject,
-    q.topic,
+    q.code || '',
+    q.unit || '',
+    q.subject || '',
+    q.topic || '',
     q.subtopic || null,
-    q.difficulty,
-    q.status,
-    q.createdAt,
-    q.updatedAt,
+    q.difficulty || 'Medium',
+    q.status || 'Draft',
+    q.createdAt || new Date().toISOString(),
+    q.updatedAt || new Date().toISOString(),
     JSON.stringify(q)
   );
   if (!skipCloudSync) {

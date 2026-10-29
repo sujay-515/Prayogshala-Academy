@@ -93,6 +93,9 @@ describe('MedLab QBank API Hardening Test Suite', () => {
         INITIAL_ADMIN_EMAIL: 'bootstrap_superadmin@example.com',
         INITIAL_ADMIN_PASSWORD: 'BootstrapPassword123!',
         RATE_LIMIT_REGISTER_MAX: '50',
+        ANSWER_CHECK_GUEST_PER_HOUR: '5',
+        ANSWER_CHECK_USER_PER_HOUR: '8',
+        EXAM_START_PER_HOUR: '5',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -862,5 +865,254 @@ describe('MedLab QBank API Hardening Test Suite', () => {
       },
     });
     assert.equal(loginDeleted.status, 401);
+  });
+
+  it('Phase 7 Answer Protection: hides sentinels, validates check endpoint, and enforces exam limits', async () => {
+    // 1. Authenticate superadmin
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    assert.equal(adminLogin.status, 200);
+    const adminToken = adminLogin.body.token;
+
+    // 2. Register student
+    const studentReg = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'sentinel_student',
+        email: 'sentinel_student@example.com',
+        displayName: 'Sentinel Student',
+        password: 'StudentPassword123!',
+      },
+    });
+    assert.equal(studentReg.status, 200);
+    const studentToken = studentReg.body.token;
+
+    // 3. Seed question with sentinels
+    const EXP_SENTINEL = 'EXP_SENTINEL_SECRET_HEPATIC_9988';
+    const RAT_SENTINEL = 'RAT_SENTINEL_SECRET_RATIONALE_7766';
+    const REF_SENTINEL = 'REF_SENTINEL_SECRET_TIETZ_5544';
+    const SRC_SENTINEL = 'SRC_SENTINEL_ADMIN_INTERNAL_3322';
+
+    const sentinelQ = {
+      id: 'q-sentinel-probe',
+      code: 'SENTINEL-PROBE-01',
+      questionText: 'Which enzyme is most specific for acute hepatocellular injury?',
+      options: [
+        { id: 'A', text: 'Alkaline Phosphatase (ALP)' },
+        { id: 'B', text: 'Alanine Aminotransferase (ALT)', rationale: RAT_SENTINEL },
+      ],
+      correctAnswer: 'B',
+      explanation: EXP_SENTINEL,
+      reference: REF_SENTINEL,
+      sourceDocument: SRC_SENTINEL,
+      unit: 'Clinical Chemistry',
+      subject: 'Enzymology',
+      topic: 'Liver Function',
+      difficulty: 'Medium',
+      examCategories: ['ASCP', 'AMT'],
+      status: 'Published',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const createRes = await request('POST', '/api/questions', {
+      token: adminToken,
+      body: { question: sentinelQ },
+    });
+    assert.equal(createRes.status, 200);
+
+    // Also seed a draft question to test unpublished protection
+    const draftQ = {
+      id: 'q-sentinel-draft',
+      code: 'DRAFT-PROBE-01',
+      questionText: 'Unpublished draft question probe?',
+      options: [
+        { id: 'A', text: 'Draft Option A' },
+        { id: 'B', text: 'Draft Option B' },
+      ],
+      correctAnswer: 'A',
+      explanation: 'Draft explanation text',
+      status: 'Draft',
+      unit: 'Hematology',
+      subject: 'RBCs',
+      examCategories: ['ASCP'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await request('POST', '/api/questions', {
+      token: adminToken,
+      body: { question: draftQ },
+    });
+
+    // 4. Start an exam as student so an active exam exists
+    const examStart = await request('POST', '/api/exams/start', {
+      token: studentToken,
+      body: { questionCount: 1, durationMinutes: 10 },
+    });
+    assert.equal(examStart.status, 200);
+    const examId = examStart.body.examId;
+
+    // 5. Verify sentinels are completely hidden from anonymous and student endpoints:
+    // a) /api/bootstrap
+    const bootAnon = await request('GET', '/api/bootstrap');
+    assert.ok(!bootAnon.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!bootAnon.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!bootAnon.rawBody.includes(REF_SENTINEL));
+    assert.ok(!bootAnon.rawBody.includes(SRC_SENTINEL));
+
+    // b) GET /api/questions
+    const listAnon = await request('GET', '/api/questions');
+    assert.ok(!listAnon.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!listAnon.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!listAnon.rawBody.includes(REF_SENTINEL));
+    assert.ok(!listAnon.rawBody.includes(SRC_SENTINEL));
+
+    const listStudent = await request('GET', '/api/questions', { token: studentToken });
+    assert.ok(!listStudent.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!listStudent.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!listStudent.rawBody.includes(REF_SENTINEL));
+    assert.ok(!listStudent.rawBody.includes(SRC_SENTINEL));
+
+    // c) GET /api/questions/:id
+    const getAnon = await request('GET', `/api/questions/${sentinelQ.id}`);
+    assert.equal(getAnon.status, 200);
+    assert.ok(!getAnon.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!getAnon.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!getAnon.rawBody.includes(REF_SENTINEL));
+    assert.ok(!getAnon.rawBody.includes(SRC_SENTINEL));
+
+    const getStudent = await request('GET', `/api/questions/${sentinelQ.id}`, { token: studentToken });
+    assert.equal(getStudent.status, 200);
+    assert.ok(!getStudent.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!getStudent.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!getStudent.rawBody.includes(REF_SENTINEL));
+    assert.ok(!getStudent.rawBody.includes(SRC_SENTINEL));
+
+    // d) POST /api/exams/start
+    assert.ok(!examStart.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!examStart.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!examStart.rawBody.includes(REF_SENTINEL));
+    assert.ok(!examStart.rawBody.includes(SRC_SENTINEL));
+
+    // e) GET /api/auth/export (while active exam exists)
+    const exportStudent = await request('GET', '/api/auth/export', { token: studentToken });
+    assert.equal(exportStudent.status, 200);
+    assert.ok(!exportStudent.rawBody.includes(EXP_SENTINEL));
+    assert.ok(!exportStudent.rawBody.includes(RAT_SENTINEL));
+    assert.ok(!exportStudent.rawBody.includes(REF_SENTINEL));
+    assert.ok(!exportStudent.rawBody.includes(SRC_SENTINEL));
+
+    // 6. Verify sentinels DO appear for admin routes
+    const getAdmin = await request('GET', `/api/questions/${sentinelQ.id}`, { token: adminToken });
+    assert.equal(getAdmin.status, 200);
+    assert.ok(getAdmin.rawBody.includes(EXP_SENTINEL));
+    assert.ok(getAdmin.rawBody.includes(RAT_SENTINEL));
+    assert.ok(getAdmin.rawBody.includes(REF_SENTINEL));
+    assert.ok(getAdmin.rawBody.includes(SRC_SENTINEL));
+
+    // 7. Test Check Endpoint
+    // Correct selection
+    const checkCorrect = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'B' },
+    });
+    assert.equal(checkCorrect.status, 200);
+    assert.equal(checkCorrect.body.correct, true);
+    assert.equal(checkCorrect.body.correctAnswer, 'B');
+    assert.ok(checkCorrect.rawBody.includes(EXP_SENTINEL));
+    assert.ok(checkCorrect.rawBody.includes(RAT_SENTINEL));
+    assert.ok(checkCorrect.rawBody.includes(REF_SENTINEL));
+    // Must NOT reveal admin-only sourceDocument
+    assert.ok(!checkCorrect.rawBody.includes(SRC_SENTINEL));
+
+    // Incorrect selection
+    const checkIncorrect = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkIncorrect.status, 200);
+    assert.equal(checkIncorrect.body.correct, false);
+    assert.equal(checkIncorrect.body.correctAnswer, 'B');
+
+    // Invalid option returns 400
+    const checkInvalidOpt = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'Z' },
+    });
+    assert.equal(checkInvalidOpt.status, 400);
+
+    // Unknown id returns 404
+    const checkUnknown = await request('POST', '/api/questions/nonexistent-question-id/check', {
+      token: studentToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkUnknown.status, 404);
+
+    // Unpublished question returns 404 for student
+    const checkDraftStudent = await request('POST', `/api/questions/${draftQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkDraftStudent.status, 404);
+
+    // Unpublished question returns 200 for admin
+    const checkDraftAdmin = await request('POST', `/api/questions/${draftQ.id}/check`, {
+      token: adminToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkDraftAdmin.status, 200);
+    assert.equal(checkDraftAdmin.body.correct, true);
+
+    // 8. Exam submit returns gradedQuestions with reveal fields but stripped of admin fields
+    const examSubmit = await request('POST', `/api/exams/${examId}/submit`, {
+      token: studentToken,
+      body: { userAnswers: {} },
+    });
+    assert.equal(examSubmit.status, 200);
+    assert.equal(examSubmit.body.success, true);
+    assert.ok(Array.isArray(examSubmit.body.gradedQuestions));
+    assert.ok(!examSubmit.rawBody.includes(SRC_SENTINEL));
+
+    // 9. Rate limiting on check endpoint:
+    // User limit was set to 8. Student already made 4 checks. Let's make 5 more to exceed 8.
+    for (let i = 0; i < 4; i++) {
+      await request('POST', `/api/questions/${sentinelQ.id}/check`, {
+        token: studentToken,
+        body: { selected: 'B' },
+      });
+    }
+    const checkRateLimit = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'B' },
+    });
+    assert.equal(checkRateLimit.status, 429);
+    assert.equal(checkRateLimit.body.success, false);
+    assert.ok(checkRateLimit.body.error?.includes('limit'));
+
+    // Admin is exempt from answer check rate limit
+    const checkAdminExempt = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
+      token: adminToken,
+      body: { selected: 'B' },
+    });
+    assert.equal(checkAdminExempt.status, 200);
+
+    // 10. Exam start rate limiter:
+    // Limit is 5 per hour. Student already started 1. Let's start 4 more to hit limit.
+    for (let i = 0; i < 4; i++) {
+      await request('POST', '/api/exams/start', {
+        token: studentToken,
+        body: { questionCount: 1, durationMinutes: 5 },
+      });
+    }
+    const examRateLimit = await request('POST', '/api/exams/start', {
+      token: studentToken,
+      body: { questionCount: 1, durationMinutes: 5 },
+    });
+    assert.equal(examRateLimit.status, 429);
+    assert.equal(examRateLimit.body.success, false);
+    assert.ok(examRateLimit.body.error?.includes('Too many exam sessions'));
   });
 });
