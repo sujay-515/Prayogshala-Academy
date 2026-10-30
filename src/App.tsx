@@ -21,6 +21,7 @@ import {
   QuestionStatus,
   ExamCategory,
   UserAccount,
+  toPublicQuestion,
 } from './types';
 import { X, UserCheck } from 'lucide-react';
 
@@ -150,13 +151,22 @@ const STORAGE_KEY_REPORTS = 'medlab_qbank_reports_v2';
 const STORAGE_KEY_TOKEN = 'medlab_qbank_auth_token_v1';
 const STORAGE_KEY_USER = 'medlab_qbank_current_user_v1';
 
-// Purge legacy temporary seed and test data from localStorage
+import { hasRevealOnlyFields, sanitizeQuestionsForCache } from './utils/cacheSanitizer';
+
+// Discard legacy data and purge cached question lists containing reveal-only fields
 try {
   localStorage.removeItem('medlab_qbank_questions_v1');
   localStorage.removeItem('medlab_qbank_stats_v1');
   localStorage.removeItem('medlab_qbank_reports_v1');
-  localStorage.removeItem(STORAGE_KEY_QUESTIONS);
   localStorage.removeItem(STORAGE_KEY_REPORTS);
+  const cachedQ = localStorage.getItem(STORAGE_KEY_QUESTIONS);
+  if (cachedQ) {
+    const parsed = JSON.parse(cachedQ);
+    if (Array.isArray(parsed) && hasRevealOnlyFields(parsed)) {
+      console.warn('[Cache] Stale client cache contains reveal-only fields; purging.');
+      localStorage.removeItem(STORAGE_KEY_QUESTIONS);
+    }
+  }
 } catch {
   // Ignore storage errors
 }
@@ -234,14 +244,19 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_QUESTIONS);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= INITIAL_QUESTIONS.length) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          if (hasRevealOnlyFields(parsed)) {
+            console.warn('[Cache] Stale client cache contains reveal-only fields; discarding.');
+            localStorage.removeItem(STORAGE_KEY_QUESTIONS);
+            return [];
+          }
+          return parsed.map((q) => toPublicQuestion(q) as MCQQuestion);
         }
       }
     } catch (e) {
       console.warn('Failed to load stored questions:', e);
     }
-    return INITIAL_QUESTIONS;
+    return [];
   });
 
   const [categories, setCategories] = useState<UnitCategory[]>(() => {
@@ -338,14 +353,15 @@ export default function App() {
       });
   }, [authToken]);
 
-  // Keep lightweight localStorage offline cache synchronized (capped at 100 items without heavy base64 images)
+  // Keep lightweight localStorage offline cache synchronized (capped at 100 items, public fields only, never answer keys)
   useEffect(() => {
     try {
-      const lightweightCache = questions.slice(0, 100).map((q) =>
-        q.imageUrl && q.imageUrl.startsWith('data:') && q.imageUrl.length > 2048
-          ? { ...q, imageUrl: undefined }
-          : q
-      );
+      const lightweightCache = questions.slice(0, 100).map((q) => {
+        const pub = toPublicQuestion(q);
+        return pub.imageUrl && pub.imageUrl.startsWith('data:') && pub.imageUrl.length > 2048
+          ? { ...pub, imageUrl: undefined }
+          : pub;
+      });
       localStorage.setItem(STORAGE_KEY_QUESTIONS, JSON.stringify(lightweightCache));
     } catch (e) {
       console.warn('Storage quota error:', e);

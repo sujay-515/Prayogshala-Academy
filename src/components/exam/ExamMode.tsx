@@ -125,7 +125,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     setStartError(null);
     setIsStarting(true);
     try {
-      const token = localStorage.getItem('medlab_auth_token');
+      const token = localStorage.getItem('medlab_qbank_auth_token_v1') || localStorage.getItem('medlab_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -213,7 +213,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('medlab_auth_token');
+      const token = localStorage.getItem('medlab_qbank_auth_token_v1') || localStorage.getItem('medlab_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 

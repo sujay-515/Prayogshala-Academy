@@ -78,7 +78,7 @@ export function toPublicQuestion(q: MCQQuestion): PublicMCQQuestion {
     id: q.id,
     code: q.code,
     questionText: q.questionText,
-    options: q.options.map((opt) => ({
+    options: (q.options || []).map((opt) => ({
       id: opt.id,
       text: opt.text,
     })),
@@ -86,7 +86,7 @@ export function toPublicQuestion(q: MCQQuestion): PublicMCQQuestion {
     subject: q.subject,
     topic: q.topic,
     difficulty: q.difficulty,
-    examCategories: [...q.examCategories],
+    examCategories: Array.isArray(q.examCategories) ? [...q.examCategories] : [],
   };
 
   if (q.clinicalCase) pub.clinicalCase = q.clinicalCase;
