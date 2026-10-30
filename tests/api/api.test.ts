@@ -137,11 +137,16 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     }
   });
 
-  it('GET /api/health returns 200 and database status', async () => {
+  it('GET /api/health returns 200 and stripped database status (no version/metrics leak)', async () => {
     const res = await request('GET', '/api/health');
     assert.equal(res.status, 200);
     assert.equal(res.body.status, 'ok');
     assert.equal(res.body.database, 'sqlite');
+    assert.equal(res.body.totalQuestions, undefined);
+    assert.equal(res.body.supabaseConnected, undefined);
+    assert.equal(res.body.hasGeminiApiKey, undefined);
+    assert.equal(res.body.version, undefined);
+    assert.equal(res.body.uptime, undefined);
   });
 
   it('Rejects 2MB body to /api/auth/login with 413 Payload Too Large', async () => {

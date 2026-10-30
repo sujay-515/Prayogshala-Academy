@@ -74,17 +74,32 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 // 1. Reverse proxy configuration & security headers
-const rawTrustProxy = process.env.TRUST_PROXY;
-let trustProxySetting: number | boolean = process.env.NODE_ENV === 'production' ? 1 : 0;
-if (rawTrustProxy !== undefined) {
-  const parsed = parseInt(rawTrustProxy, 10);
-  trustProxySetting = isNaN(parsed) ? rawTrustProxy === 'true' : parsed;
+const rawTrustProxy = process.env.TRUST_PROXY?.trim();
+let trustProxySetting: number | false = false;
+
+if (rawTrustProxy !== undefined && rawTrustProxy !== '') {
+  if (/^\d+$/.test(rawTrustProxy)) {
+    trustProxySetting = parseInt(rawTrustProxy, 10);
+  } else {
+    console.warn(
+      `[Security Warning] Invalid TRUST_PROXY value "${rawTrustProxy}". TRUST_PROXY must be a non-negative integer hop count (e.g., '1' for a single reverse proxy). Disabling proxy trust.`
+    );
+    trustProxySetting = false;
+  }
+} else if (process.env.NODE_ENV === 'production') {
+  trustProxySetting = 1;
 }
-app.set('trust proxy', trustProxySetting);
+
+if (trustProxySetting !== false) {
+  app.set('trust proxy', trustProxySetting);
+}
 app.disable('x-powered-by');
 
 // Security headers via Helmet (Production only; skipped in development)
 if (process.env.NODE_ENV !== 'development') {
+  if (process.env.NODE_ENV === 'production' && !process.env.CSP_MODE) {
+    console.warn('[Security Warning] CSP_MODE is unset; defaulting Content-Security-Policy to report-only mode.');
+  }
   const isEnforceCsp = process.env.CSP_MODE?.trim().toLowerCase() === 'enforce';
   app.use(
     helmet({
@@ -357,16 +372,12 @@ app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 // Health check (also triggers a background Supabase keep-alive ping to prevent 7-day free-tier pause)
 app.get('/api/health', (req, res) => {
-  const totalQuestions = (db.prepare('SELECT COUNT(*) as cnt FROM questions').get() as { cnt: number }).cnt;
   if (isSupabaseConfigured()) {
     void pingSupabaseKeepAlive().catch((err) => console.warn('[KeepAlive Error]', err));
   }
   res.json({
     status: 'ok',
     database: isSupabaseConfigured() ? 'sqlite+supabase' : 'sqlite',
-    supabaseConnected: isSupabaseConfigured(),
-    totalQuestions,
-    hasGeminiApiKey: !!apiKey,
   });
 });
 
@@ -1681,7 +1692,7 @@ Return ONLY valid raw JSON with NO markdown backticks or commentary.`;
     });
   } catch (error: any) {
     console.error('Extraction error:', error);
-    res.status(500).json({ success: false, error: error.message || 'Extraction failed' });
+    res.status(500).json({ success: false, error: 'AI extraction failed. Check server logs.' });
   }
 });
 

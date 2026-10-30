@@ -2,6 +2,16 @@
 // MedLab QBank — Transactional Email Service via Resend
 // ============================================================================
 
+export function escapeHtml(str: string): string {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -75,10 +85,10 @@ export async function sendWelcomeEmail(to: string, displayName: string) {
             <div class="badge">Laboratory Medicine & Pathology Licensing</div>
           </div>
           <div class="content">
-            <p>Hello <strong>${displayName}</strong>,</p>
+            <p>Hello <strong>${escapeHtml(displayName)}</strong>,</p>
             <p>Welcome to MedLab QBank. Your student candidate profile is now active and ready for your certification preparation.</p>
             <p>With your account, your progress, timed mock exams, bookmarks, and subject mastery analytics will automatically sync across devices.</p>
-            <a href="${appUrl}" class="button" style="color: #ffffff;">Launch Question Bank</a>
+            <a href="${escapeHtml(appUrl)}" class="button" style="color: #ffffff;">Launch Question Bank</a>
           </div>
           <div class="footer">
             Syllabi aligned with ASCP · NHPC · PSC · DHA · AIMS licensing guidelines.<br>
@@ -131,19 +141,19 @@ export async function sendStaffInviteEmail(
             <div class="badge">Administrative Invitation</div>
           </div>
           <div class="content">
-            <p>Hello <strong>${displayName}</strong>,</p>
-            <p>You have been granted <strong>${roleLabel}</strong> access to the MedLab QBank pathology management system.</p>
+            <p>Hello <strong>${escapeHtml(displayName)}</strong>,</p>
+            <p>You have been granted <strong>${escapeHtml(roleLabel)}</strong> access to the MedLab QBank pathology management system.</p>
             <p>You can now manage the question bank repository, review student-reported errors, import PDF exams, and configure syllabus hierarchies.</p>
             ${
               tempPassword
                 ? `<div class="cred-box">
-                    <strong>Email:</strong> ${to}<br>
-                    <strong>Temporary Password:</strong> ${tempPassword}
+                    <strong>Email:</strong> ${escapeHtml(to)}<br>
+                    <strong>Temporary Password:</strong> ${escapeHtml(tempPassword)}
                   </div>
                   <p>Please log in and update your password immediately.</p>`
                 : ''
             }
-            <a href="${appUrl}/admin" class="button" style="color: #ffffff;">Access Staff Console</a>
+            <a href="${escapeHtml(appUrl)}/admin" class="button" style="color: #ffffff;">Access Staff Console</a>
           </div>
           <div class="footer">
             MedLab QBank Pathology Review & Ingestion System.<br>
@@ -189,12 +199,12 @@ export async function sendPasswordResetEmail(to: string, resetToken: string) {
           </div>
           <div class="content">
             <p>Hello,</p>
-            <p>We received a request to reset the password for your MedLab QBank account associated with <strong>${to}</strong>.</p>
+            <p>We received a request to reset the password for your MedLab QBank account associated with <strong>${escapeHtml(to)}</strong>.</p>
             <p>Click the link below to set a new password. This link is valid for 1 hour.</p>
-            <a href="${resetLink}" class="button" style="color: #ffffff;">Reset Password</a>
+            <a href="${escapeHtml(resetLink)}" class="button" style="color: #ffffff;">Reset Password</a>
             <p style="margin-top: 24px; font-size: 12px; color: #64748b;">
               If the button does not work, copy and paste this URL into your browser:<br>
-              <a href="${resetLink}" style="color: #0891b2;">${resetLink}</a>
+              <a href="${escapeHtml(resetLink)}" style="color: #0891b2;">${escapeHtml(resetLink)}</a>
             </p>
           </div>
           <div class="footer">

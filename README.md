@@ -129,7 +129,7 @@ npm run backup
 | `NODE_ENV` | Application environment (`production`, `development`, `test`). In production, serves `dist/` and enables security headers. | **Required** in prod | None |
 | `PORT` | HTTP port on which Express listens. | Optional | `3001` (or `3000`) |
 | `DATA_DIR` | Absolute or relative path to persistent SQLite database storage directory. | Optional | `data` |
-| `TRUST_PROXY` | Proxy trust hop count (`1` or boolean) for Express behind reverse proxies/CDNs. | Optional | `1` in prod, `0` otherwise |
+| `TRUST_PROXY` | Reverse proxy hop count (non-negative integer string e.g. `1` or `2`). Invalid values fall back to untrusted. | Optional | `1` in prod, unset otherwise |
 | `SITE_URL` | Canonical server-side domain URL (used for `robots.txt` and `sitemap.xml`). | **Recommended** in prod | Request host header |
 | `VITE_SITE_URL` | Canonical client-side site URL (injected into bundle at build time). | **Required at BUILD time** | `window.location.origin` |
 | `INITIAL_ADMIN_EMAIL` | Email for initial superadmin bootstrapping on clean database install. | Required for 1st boot | None |
