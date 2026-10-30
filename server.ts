@@ -201,7 +201,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
   const tokenHash = hashToken(rawToken);
   const row = db
     .prepare(
-      `SELECT s.user_id, s.role, s.created_at, u.username, u.email, u.display_name
+      `SELECT s.user_id, u.role, s.created_at, u.username, u.email, u.display_name
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.token = ?`
@@ -343,7 +343,7 @@ function requireSuperAdmin(req: express.Request, res: express.Response, next: ex
 // 3. Route-specific body parsers with early auth/role checks (ORDER MATTERS: registered BEFORE the global 100kb parser)
 // Unauthenticated or unauthorized callers are rejected immediately before large bodies can be buffered.
 app.post('/api/extract-pdf', requireAdmin, extractPdfLimiter, express.json({ limit: '50mb' }));
-app.post('/api/backup/restore', requireAdmin, express.json({ limit: '25mb' }));
+app.post('/api/backup/restore', requireSuperAdmin, express.json({ limit: '25mb' }));
 app.post('/api/staging', requireAdmin, express.json({ limit: '25mb' }));
 app.post('/api/questions/bulk-import', requireAdmin, express.json({ limit: '10mb' }));
 app.post('/api/questions/bulk-upsert', requireAdmin, express.json({ limit: '10mb' }));
@@ -768,6 +768,9 @@ app.patch('/api/admin/users/:id/role', requireSuperAdmin, (req, res) => {
     return res.status(400).json(result);
   }
 
+  // Immediately revoke all active sessions for the user whose role changed
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(targetId);
+
   if (isSupabaseConfigured()) {
     syncUpdateUserRole(targetId, role);
   }
@@ -779,6 +782,13 @@ app.post('/api/admin/users', requireSuperAdmin, (req, res) => {
   const { username, email, displayName, role = 'admin', password } = req.body;
   if (!username || !email || !displayName) {
     return res.status(400).json({ success: false, error: 'Username, email, and display name are required.' });
+  }
+
+  if (role === 'superadmin') {
+    return res.status(400).json({ success: false, error: "Cannot assign 'superadmin' role via user invitation." });
+  }
+  if (role && !['admin', 'student'].includes(role)) {
+    return res.status(400).json({ success: false, error: "Role must be 'admin' or 'student'." });
   }
 
   const cleanUsername = String(username).toLowerCase().trim();
@@ -795,7 +805,7 @@ app.post('/api/admin/users', requireSuperAdmin, (req, res) => {
   const passwordHash = hashPassword(tempPassword);
   const id = `usr-${Date.now()}`;
   const now = new Date().toISOString();
-  const assignedRole = role === 'superadmin' ? 'superadmin' : 'admin';
+  const assignedRole = role === 'student' ? 'student' : 'admin';
   const statsJson = JSON.stringify(DEFAULT_USER_STATS);
 
   db.prepare(
@@ -1684,7 +1694,7 @@ app.get('/api/backup/export', requireAdmin, (req, res) => {
   });
 });
 
-app.post('/api/backup/restore', requireAdmin, (req, res) => {
+app.post('/api/backup/restore', requireSuperAdmin, (req, res) => {
   const { questions, categories, reports, ...rest } = req.body || {};
   if (Object.keys(rest).length > 0) {
     return res.status(400).json({ success: false, error: 'Unknown fields in backup restore payload.' });

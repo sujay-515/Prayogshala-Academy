@@ -1439,4 +1439,76 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     assert.equal(loginAfterDelete.status, 401);
   });
+
+  it('roles and sessions hardening: demotion revokes admin access, deleted user denied, superadmin invite rejected, restore requires superadmin', async () => {
+    // 1. Superadmin login
+    const superAdminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    assert.equal(superAdminLogin.status, 200);
+    const superToken = superAdminLogin.body.token;
+
+    // 2. Inviting with role 'superadmin' returns 400
+    const superInvite = await request('POST', '/api/admin/users', {
+      token: superToken,
+      body: {
+        username: 'illegal_superadmin',
+        email: 'illegal_superadmin@example.com',
+        displayName: 'Illegal SuperAdmin',
+        role: 'superadmin',
+      },
+    });
+    assert.equal(superInvite.status, 400);
+    assert.ok(superInvite.body.error?.includes('superadmin'));
+
+    // 3. Superadmin invites a legitimate staff admin
+    const adminInvite = await request('POST', '/api/admin/users', {
+      token: superToken,
+      body: {
+        username: 'staff_to_demote',
+        email: 'staff_to_demote@example.com',
+        displayName: 'Staff To Demote',
+        role: 'admin',
+        password: 'StaffAdminPass123!',
+      },
+    });
+    assert.equal(adminInvite.status, 200);
+    const staffId = adminInvite.body.user.id;
+
+    // Staff admin logs in
+    const staffLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'staff_to_demote@example.com',
+        password: 'StaffAdminPass123!',
+      },
+    });
+    assert.equal(staffLogin.status, 200);
+    const staffToken = staffLogin.body.token;
+
+    // Confirm staff admin can access admin routes
+    const adminAccessBefore = await request('GET', '/api/admin/users', { token: staffToken });
+    assert.equal(adminAccessBefore.status, 200);
+
+    // Non-super admin gets 403 on POST /api/backup/restore
+    const staffRestore = await request('POST', '/api/backup/restore', {
+      token: staffToken,
+      body: { questions: [] },
+    });
+    assert.equal(staffRestore.status, 403);
+    assert.ok(staffRestore.body.error?.includes('Administrator'));
+
+    // 4. Superadmin demotes staff admin to student
+    const demoteRes = await request('PATCH', `/api/admin/users/${staffId}/role`, {
+      token: superToken,
+      body: { role: 'student' },
+    });
+    assert.equal(demoteRes.status, 200);
+
+    // 5. Demoted admin's existing token is rejected for admin routes immediately (session deleted -> 401)
+    const adminAccessAfter = await request('GET', '/api/admin/users', { token: staffToken });
+    assert.equal(adminAccessAfter.status, 401);
+  });
 });

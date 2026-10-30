@@ -45,12 +45,12 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
   const [inviteDisplayName, setInviteDisplayName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'superadmin'>('admin');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'student'>('admin');
   const [invitePassword, setInvitePassword] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ success: boolean; tempPassword?: string; message?: string } | null>(null);
 
-  const isSuperAdmin = currentUser?.role === 'superadmin' || currentUser?.username === 'admin';
+  const isSuperAdmin = currentUser?.role === 'superadmin';
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -324,7 +324,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                 </tr>
               ) : (
                 filteredUsers.map((u) => {
-                  const isHead = u.role === 'superadmin' || u.username === 'admin';
+                  const isHead = u.role === 'superadmin';
                   return (
                     <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-4 py-3">
@@ -533,7 +533,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 cursor-pointer"
                 >
                   <option value="admin">Staff Administrator (Manage QBank & Reports)</option>
-                  <option value="superadmin">Lead / Head Administrator (Full Control)</option>
+                  <option value="student">Student Candidate (Read & Attempt Only)</option>
                 </select>
               </div>
 
