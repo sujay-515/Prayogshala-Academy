@@ -496,7 +496,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     const dbPath = path.join(tempDir, 'medlab_qbank.sqlite');
     const localDb = new DatabaseSync(dbPath);
     localDb.prepare('UPDATE active_exams SET started_at = ? WHERE id = ?').run(
-      new Date(Date.now() - 300 * 1000).toISOString(), // 5 minutes ago
+      new Date(Date.now() - 600 * 1000).toISOString(), // 10 minutes ago (exceeds clamped 5m duration + 120s grace)
       lateExamId
     );
     localDb.close();
@@ -1591,5 +1591,85 @@ describe('MedLab QBank API Hardening Test Suite', () => {
       body: { identifier: username, password: newPassword },
     });
     assert.equal(newLogin.status, 200);
+  });
+
+  it('exam inputs and check endpoint: clamps questionCount (1..200) and durationMinutes (5..300), blocks /check during active exam with 409, normalizes answers', async () => {
+    const studentUsername = `exam_student_${Date.now()}`;
+    const studentPassword = 'ExamStudentPass123!';
+
+    const regRes = await request('POST', '/api/auth/register', {
+      body: {
+        username: studentUsername,
+        email: `${studentUsername}@example.com`,
+        password: studentPassword,
+        displayName: 'Exam Student',
+      },
+    });
+    assert.equal(regRes.status, 200);
+
+    const loginRes = await request('POST', '/api/auth/login', {
+      body: { identifier: studentUsername, password: studentPassword },
+    });
+    assert.equal(loginRes.status, 200);
+    const studentToken = loginRes.body.token;
+
+    // 1. Clamping: min values (questionCount: 0 -> 1, durationMinutes: 1 -> 5)
+    const minExamRes = await request('POST', '/api/exams/start', {
+      token: studentToken,
+      body: {
+        questionCount: 0,
+        durationMinutes: 1,
+      },
+    });
+    assert.equal(minExamRes.status, 200);
+    assert.equal(minExamRes.body.durationMinutes, 5);
+    assert.ok(minExamRes.body.questions.length >= 1);
+
+    // 2. Clamping: max values (durationMinutes: 999 -> 300)
+    const maxExamRes = await request('POST', '/api/exams/start', {
+      token: studentToken,
+      body: {
+        questionCount: 999,
+        durationMinutes: 999,
+      },
+    });
+    assert.equal(maxExamRes.status, 200);
+    assert.equal(maxExamRes.body.durationMinutes, 300);
+    assert.ok(maxExamRes.body.questions.length <= 200);
+
+    // Pick a question from the active exam
+    const activeExamId = maxExamRes.body.examId;
+    const examQuestionId = maxExamRes.body.questions[0].id;
+    assert.ok(examQuestionId);
+
+    // 3. Deny check attempts for questions in active exam with 409
+    const checkDuringExam = await request('POST', `/api/questions/${examQuestionId}/check`, {
+      token: studentToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkDuringExam.status, 409);
+    assert.ok(checkDuringExam.body.error?.toLowerCase().includes('active exam'));
+
+    // 4. Submit exam
+    const submitRes = await request('POST', `/api/exams/${activeExamId}/submit`, {
+      token: studentToken,
+      body: { userAnswers: { [examQuestionId]: 'a' } },
+    });
+    assert.equal(submitRes.status, 200);
+
+    // Clean up earlier minExam so no other active exam blocks
+    await request('POST', `/api/exams/${minExamRes.body.examId}/submit`, {
+      token: studentToken,
+      body: { userAnswers: {} },
+    });
+
+    // 5. Now check endpoint succeeds and handles trimmed/lowercase option gracefully
+    const checkAfterExam = await request('POST', `/api/questions/${examQuestionId}/check`, {
+      token: studentToken,
+      body: { selected: ' a ' },
+    });
+    assert.equal(checkAfterExam.status, 200);
+    assert.equal(typeof checkAfterExam.body.correct, 'boolean');
+    assert.ok(checkAfterExam.body.correctAnswer);
   });
 });

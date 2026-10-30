@@ -9,7 +9,7 @@ import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { parseRawMCQText, findDuplicateQuestion, validateExtractedQuestion } from './src/utils/mcqParser';
 import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
-import { calculateExamScore } from './src/utils/scoring';
+import { calculateExamScore, normalizeAnswer } from './src/utils/scoring';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
 import { getRateLimitKey } from './src/server/rateLimit';
@@ -929,19 +929,45 @@ app.post(
       return res.status(404).json({ success: false, error: 'Question not found' });
     }
 
+    // Deny check attempts if student is currently taking an active exam containing this question
+    if (session?.userId) {
+      const activeExams = db
+        .prepare('SELECT id, questions_json, started_at, duration_minutes FROM active_exams WHERE user_id = ?')
+        .all(session.userId) as any[];
+      for (const exam of activeExams) {
+        const startedAtMs = new Date(exam.started_at).getTime();
+        const durationSeconds = (exam.duration_minutes || 0) * 60;
+        const isExpired = durationSeconds > 0 && Date.now() > (startedAtMs + (durationSeconds + 120) * 1000);
+        if (!isExpired) {
+          try {
+            const examQuestions: MCQQuestion[] = JSON.parse(exam.questions_json);
+            if (examQuestions.some((eq) => eq.id === q.id)) {
+              return res.status(409).json({
+                success: false,
+                error: 'Cannot check answers while an active exam session containing this question is in progress.',
+              });
+            }
+          } catch {
+            // ignore JSON parse errors
+          }
+        }
+      }
+    }
+
     const { selected } = req.body || {};
     if (!selected || typeof selected !== 'string') {
       return res.status(400).json({ success: false, error: 'Selected option is required' });
     }
 
+    const normalizedSelected = normalizeAnswer(selected);
     const matchedOption = (q.options || []).find(
-      (opt) => opt.id === selected || opt.id.toLowerCase() === selected.toLowerCase()
+      (opt) => normalizeAnswer(opt.id) === normalizedSelected
     );
     if (!matchedOption) {
       return res.status(400).json({ success: false, error: 'Invalid option selected' });
     }
 
-    const correct = matchedOption.id.toLowerCase() === q.correctAnswer.toLowerCase();
+    const correct = normalizeAnswer(matchedOption.id) === normalizeAnswer(q.correctAnswer);
 
     return res.json({
       success: true,
@@ -1233,10 +1259,14 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     examCategory = 'All',
     unit = 'All',
     difficulty = 'All',
-    questionCount = 10,
-    durationMinutes = 15,
     shuffleOptions = false,
-  } = req.body;
+  } = req.body || {};
+
+  const rawCount = parseInt(String(req.body?.questionCount), 10);
+  const questionCount = Number.isNaN(rawCount) ? 10 : Math.max(1, Math.min(200, rawCount));
+
+  const rawDuration = parseInt(String(req.body?.durationMinutes), 10);
+  const durationMinutes = Number.isNaN(rawDuration) ? 15 : Math.max(5, Math.min(300, rawDuration));
 
   const session = getSessionUser(req);
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
@@ -1320,6 +1350,7 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     success: true,
     examId,
     title,
+    durationMinutes,
     questions: sanitizedQuestions,
   });
 });

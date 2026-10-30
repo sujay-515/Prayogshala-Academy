@@ -13,6 +13,11 @@ export interface ExamScoreResult {
   incorrectQuestionIds: string[];
 }
 
+export function normalizeAnswer(ans: unknown): string {
+  if (typeof ans !== 'string') return '';
+  return ans.trim().toUpperCase();
+}
+
 export function calculateExamScore(
   questions: MCQQuestion[],
   userAnswers: Record<string, string>,
@@ -30,7 +35,7 @@ export function calculateExamScore(
     subjectPerformance[q.subject].total += 1;
 
     const answer = userAnswers[q.id];
-    if (answer && answer === q.correctAnswer) {
+    if (answer && normalizeAnswer(answer) === normalizeAnswer(q.correctAnswer)) {
       score += 1;
       subjectPerformance[q.subject].correct += 1;
     } else {

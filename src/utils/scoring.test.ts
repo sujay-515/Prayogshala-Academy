@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateExamScore, identifyWeakAreas } from './scoring';
+import { calculateExamScore, identifyWeakAreas, normalizeAnswer } from './scoring';
 import { MCQQuestion } from '../types';
 
 test('calculateExamScore computes correct accuracy and subject breakdown', () => {
@@ -71,4 +71,40 @@ test('identifyWeakAreas surfaces subjects with accuracy under threshold', () => 
   assert.equal(weak.length, 1);
   assert.equal(weak[0].subject, 'Blood Banking');
   assert.equal(weak[0].accuracy, 40);
+});
+
+test('normalizeAnswer trims whitespace and converts to uppercase', () => {
+  assert.equal(normalizeAnswer(' a '), 'A');
+  assert.equal(normalizeAnswer('B'), 'B');
+  assert.equal(normalizeAnswer(' c\n'), 'C');
+  assert.equal(normalizeAnswer(null), '');
+  assert.equal(normalizeAnswer(undefined), '');
+  assert.equal(normalizeAnswer(123), '');
+});
+
+test('calculateExamScore normalizes answer whitespace and case', () => {
+  const mockQuestions: MCQQuestion[] = [
+    {
+      id: 'q1',
+      code: 'LAB-01',
+      questionText: 'Question 1',
+      options: [{ id: 'A', text: 'Ans A' }, { id: 'B', text: 'Ans B' }],
+      correctAnswer: 'A',
+      explanation: 'Exp',
+      reference: 'Ref',
+      unit: 'Clinical Chemistry',
+      subject: 'Enzymology',
+      topic: 'Liver enzymes',
+      difficulty: 'Memory-based',
+      examCategories: ['ASCP'],
+      status: 'Published',
+      createdAt: '',
+      updatedAt: '',
+      versionHistory: [],
+    },
+  ];
+  // Passing ' a ' matches 'A'
+  const result = calculateExamScore(mockQuestions, { q1: ' a ' }, 10, 70);
+  assert.equal(result.score, 1);
+  assert.equal(result.percentage, 100);
 });
