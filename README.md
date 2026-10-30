@@ -191,9 +191,21 @@ MedLab QBank protects question answer keys, clinical rationales, and explanation
 3. Sign in to verify administrative access.
 4. Remove `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` from your hosting environment variables to prevent accidental re-triggering.
 
-### Post-Deployment Checklist
+### Post-Deployment Checklist & Automated Smoke Test
 - [ ] **Health Probe**: Verify `GET /api/health` returns HTTP 200 with JSON status.
 - [ ] **Trust Proxy & Client IPs**: Inspect server access logs to ensure client IP addresses are recorded correctly rather than internal load balancer IPs.
 - [ ] **Robots & Sitemap**: Verify `GET /robots.txt` and `GET /sitemap.xml` resolve with HTTP 200 and display your real production domain.
 - [ ] **Security Headers**: Verify `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `X-Robots-Tag: noindex` (on protected paths), and `Content-Security-Policy-Report-Only` (or `Content-Security-Policy` if `CSP_MODE=enforce`).
 - [ ] **Placeholder Check**: Confirm `src/config/site.ts` placeholders have been replaced with real contact and operator credentials.
+
+#### Automated Smoke Test
+Run the automated smoke test suite after deploying to verify health, security headers, file isolation, anti-leak serialization, and 413 payload limits:
+
+```bash
+# Test local production build
+npm run build
+BASE_URL=http://localhost:3001 npm run smoke
+
+# Test remote deployment target
+BASE_URL=https://qbank.example.com npm run smoke
+```
