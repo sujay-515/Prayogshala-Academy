@@ -1000,10 +1000,26 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     // e) GET /api/auth/export (while active exam exists)
     const exportStudent = await request('GET', '/api/auth/export', { token: studentToken });
     assert.equal(exportStudent.status, 200);
-    assert.ok(!exportStudent.rawBody.includes(EXP_SENTINEL));
-    assert.ok(!exportStudent.rawBody.includes(RAT_SENTINEL));
-    assert.ok(!exportStudent.rawBody.includes(REF_SENTINEL));
-    assert.ok(!exportStudent.rawBody.includes(SRC_SENTINEL));
+    assert.ok(!exportStudent.rawBody.includes(EXP_SENTINEL), 'export must not leak explanation sentinel');
+    assert.ok(!exportStudent.rawBody.includes(RAT_SENTINEL), 'export must not leak rationale sentinel');
+    assert.ok(!exportStudent.rawBody.includes(REF_SENTINEL), 'export must not leak reference sentinel');
+    assert.ok(!exportStudent.rawBody.includes(SRC_SENTINEL), 'export must not leak source sentinel');
+    assert.ok(!exportStudent.rawBody.includes('"correctAnswer"'), 'export must not contain correctAnswer key');
+    assert.ok(!exportStudent.rawBody.includes('"explanation"'), 'export must not contain explanation key');
+    assert.ok(!exportStudent.rawBody.includes('"reference"'), 'export must not contain reference key');
+    assert.ok(!exportStudent.rawBody.includes(sentinelQ.questionText), 'export must not contain question text from active_exams');
+
+    // f) GET /api/auth/me (while active exam exists)
+    const meStudent = await request('GET', '/api/auth/me', { token: studentToken });
+    assert.equal(meStudent.status, 200);
+    assert.ok(!meStudent.rawBody.includes(EXP_SENTINEL), 'auth/me must not leak explanation sentinel');
+    assert.ok(!meStudent.rawBody.includes(RAT_SENTINEL), 'auth/me must not leak rationale sentinel');
+    assert.ok(!meStudent.rawBody.includes(REF_SENTINEL), 'auth/me must not leak reference sentinel');
+    assert.ok(!meStudent.rawBody.includes(SRC_SENTINEL), 'auth/me must not leak source sentinel');
+    assert.ok(!meStudent.rawBody.includes('"correctAnswer"'), 'auth/me must not contain correctAnswer key');
+    assert.ok(!meStudent.rawBody.includes('"explanation"'), 'auth/me must not contain explanation key');
+    assert.ok(!meStudent.rawBody.includes('"reference"'), 'auth/me must not contain reference key');
+    assert.ok(!meStudent.rawBody.includes(sentinelQ.questionText), 'auth/me must not contain question text from active_exams');
 
     // 6. Verify sentinels DO appear for admin routes
     const getAdmin = await request('GET', `/api/questions/${sentinelQ.id}`, { token: adminToken });
