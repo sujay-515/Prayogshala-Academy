@@ -209,3 +209,25 @@ BASE_URL=http://localhost:3001 npm run smoke
 # Test remote deployment target
 BASE_URL=https://qbank.example.com npm run smoke
 ```
+
+### Releasing
+
+To publish a clean, production-ready codebase without historical artifacts, personal data, or draft files:
+
+1. Ensure your working directory is clean and all desired commits are on your branch (`main` or `final-fixes`).
+2. Run the clean snapshot script:
+   ```bash
+   ./scripts/make-clean-main.sh
+   ```
+   This script:
+   - Validates that the working tree is clean.
+   - Deletes any existing local `clean-main` branch.
+   - Creates an orphan branch `clean-main` containing exactly one commit with current tracked files.
+   - Verifies that no forbidden files (`data/`, `test_mcqs/`, `local-only/`, `.env*` other than `.env.example`, `*.sqlite*`, `*.pdf`) exist.
+   - Verifies that no legacy passwords or usernames exist in the tree.
+   - Switches back to your current working branch upon completion.
+
+3. Push **only** the `clean-main` branch to your **PRIVATE** remote repository (never push development history or untracked assets):
+   ```bash
+   git push origin clean-main:main
+   ```
