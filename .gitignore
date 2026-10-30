@@ -9,6 +9,10 @@ coverage/
 /data/
 .aistudio/
 .antigravity/
+.cursor/
+.gemini/
+.idea/
+.vscode/
 test_mcqs/
 local-only/
 *.pdf
