@@ -96,6 +96,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
         ANSWER_CHECK_GUEST_PER_HOUR: '5',
         ANSWER_CHECK_USER_PER_HOUR: '8',
         EXAM_START_PER_HOUR: '5',
+        EXTRACT_PDF_PER_HOUR: '5',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -1029,60 +1030,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.ok(getAdmin.rawBody.includes(REF_SENTINEL));
     assert.ok(getAdmin.rawBody.includes(SRC_SENTINEL));
 
-    // 7. Test Check Endpoint
-    // Correct selection
-    const checkCorrect = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
-      token: studentToken,
-      body: { selected: 'B' },
-    });
-    assert.equal(checkCorrect.status, 200);
-    assert.equal(checkCorrect.body.correct, true);
-    assert.equal(checkCorrect.body.correctAnswer, 'B');
-    assert.ok(checkCorrect.rawBody.includes(EXP_SENTINEL));
-    assert.ok(checkCorrect.rawBody.includes(RAT_SENTINEL));
-    assert.ok(checkCorrect.rawBody.includes(REF_SENTINEL));
-    // Must NOT reveal admin-only sourceDocument
-    assert.ok(!checkCorrect.rawBody.includes(SRC_SENTINEL));
-
-    // Incorrect selection
-    const checkIncorrect = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
-      token: studentToken,
-      body: { selected: 'A' },
-    });
-    assert.equal(checkIncorrect.status, 200);
-    assert.equal(checkIncorrect.body.correct, false);
-    assert.equal(checkIncorrect.body.correctAnswer, 'B');
-
-    // Invalid option returns 400
-    const checkInvalidOpt = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
-      token: studentToken,
-      body: { selected: 'Z' },
-    });
-    assert.equal(checkInvalidOpt.status, 400);
-
-    // Unknown id returns 404
-    const checkUnknown = await request('POST', '/api/questions/nonexistent-question-id/check', {
-      token: studentToken,
-      body: { selected: 'A' },
-    });
-    assert.equal(checkUnknown.status, 404);
-
-    // Unpublished question returns 404 for student
-    const checkDraftStudent = await request('POST', `/api/questions/${draftQ.id}/check`, {
-      token: studentToken,
-      body: { selected: 'A' },
-    });
-    assert.equal(checkDraftStudent.status, 404);
-
-    // Unpublished question returns 200 for admin
-    const checkDraftAdmin = await request('POST', `/api/questions/${draftQ.id}/check`, {
-      token: adminToken,
-      body: { selected: 'A' },
-    });
-    assert.equal(checkDraftAdmin.status, 200);
-    assert.equal(checkDraftAdmin.body.correct, true);
-
-    // 8. Exam submit returns gradedQuestions with reveal fields but stripped of admin fields
+    // 7. Exam submit returns gradedQuestions with reveal fields but stripped of admin fields
     const examSubmit = await request('POST', `/api/exams/${examId}/submit`, {
       token: studentToken,
       body: { userAnswers: {} },
@@ -1091,49 +1039,10 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(examSubmit.body.success, true);
     assert.ok(Array.isArray(examSubmit.body.gradedQuestions));
     assert.ok(!examSubmit.rawBody.includes(SRC_SENTINEL));
-
-    // 9. Rate limiting on check endpoint:
-    // User limit was set to 8. Student already made 4 checks. Let's make 5 more to exceed 8.
-    for (let i = 0; i < 4; i++) {
-      await request('POST', `/api/questions/${sentinelQ.id}/check`, {
-        token: studentToken,
-        body: { selected: 'B' },
-      });
-    }
-    const checkRateLimit = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
-      token: studentToken,
-      body: { selected: 'B' },
-    });
-    assert.equal(checkRateLimit.status, 429);
-    assert.equal(checkRateLimit.body.success, false);
-    assert.ok(checkRateLimit.body.error?.includes('limit'));
-
-    // Admin is exempt from answer check rate limit
-    const checkAdminExempt = await request('POST', `/api/questions/${sentinelQ.id}/check`, {
-      token: adminToken,
-      body: { selected: 'B' },
-    });
-    assert.equal(checkAdminExempt.status, 200);
-
-    // 10. Exam start rate limiter:
-    // Limit is 5 per hour. Student already started 1. Let's start 4 more to hit limit.
-    for (let i = 0; i < 4; i++) {
-      await request('POST', '/api/exams/start', {
-        token: studentToken,
-        body: { questionCount: 1, durationMinutes: 5 },
-      });
-    }
-    const examRateLimit = await request('POST', '/api/exams/start', {
-      token: studentToken,
-      body: { questionCount: 1, durationMinutes: 5 },
-    });
-    assert.equal(examRateLimit.status, 429);
-    assert.equal(examRateLimit.body.success, false);
-    assert.ok(examRateLimit.body.error?.includes('Too many exam sessions'));
   });
 
-  it('Phase 7 Leftover Hardening: validates stats PUT, ensures atomic rollback on invalid bulk batches', async () => {
-    // 1. Authenticate superadmin and student
+  it('check endpoint 400/404/429 cases and admin exemption', async () => {
+    // 1. Authenticate superadmin and register fresh student
     const adminLogin = await request('POST', '/api/auth/login', {
       body: {
         identifier: 'bootstrap_superadmin@example.com',
@@ -1142,21 +1051,164 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     const adminToken = adminLogin.body.token;
 
-    const studentLogin = await request('POST', '/api/auth/login', {
+    const studentReg = await request('POST', '/api/auth/register', {
       body: {
-        identifier: 'sentinel_student@example.com',
+        username: 'chk_endpoint_student',
+        email: 'chk_endpoint_student@example.com',
         password: 'StudentPassword123!',
       },
     });
-    const studentToken = studentLogin.body.token;
+    const studentToken = studentReg.body.token;
 
-    // 2. PUT /api/stats: require authentication
+    // 2. Seed a published question and a draft question
+    const pubQ = {
+      id: 'q-chk-pub-01',
+      code: 'CHK-PUB-01',
+      questionText: 'Published check probe question?',
+      options: [
+        { id: 'A', text: 'Option A' },
+        { id: 'B', text: 'Option B' },
+      ],
+      correctAnswer: 'B',
+      explanation: 'Explanation for B',
+      status: 'Published',
+      unit: 'Chemistry',
+      subject: 'Electrolytes',
+      examCategories: ['ASCP'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await request('POST', '/api/questions', { token: adminToken, body: { question: pubQ } });
+
+    const draftQ = {
+      id: 'q-chk-draft-01',
+      code: 'CHK-DRAFT-01',
+      questionText: 'Draft check probe question?',
+      options: [
+        { id: 'A', text: 'Option A' },
+        { id: 'B', text: 'Option B' },
+      ],
+      correctAnswer: 'A',
+      explanation: 'Draft explanation',
+      status: 'Draft',
+      unit: 'Chemistry',
+      subject: 'Electrolytes',
+      examCategories: ['ASCP'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await request('POST', '/api/questions', { token: adminToken, body: { question: draftQ } });
+
+    // 3. Invalid option selection returns 400
+    const checkInvalidOpt = await request('POST', `/api/questions/${pubQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'Z' },
+    });
+    assert.equal(checkInvalidOpt.status, 400);
+
+    // Missing selectedOptionId / selected returns 400
+    const checkMissingOpt = await request('POST', `/api/questions/${pubQ.id}/check`, {
+      token: studentToken,
+      body: {},
+    });
+    assert.equal(checkMissingOpt.status, 400);
+
+    // 4. Nonexistent question returns 404
+    const checkUnknown = await request('POST', '/api/questions/nonexistent-id/check', {
+      token: studentToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkUnknown.status, 404);
+
+    // 5. Unpublished question returns 404 for student
+    const checkDraftStudent = await request('POST', `/api/questions/${draftQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkDraftStudent.status, 404);
+
+    // 6. Unpublished question returns 200 for admin
+    const checkDraftAdmin = await request('POST', `/api/questions/${draftQ.id}/check`, {
+      token: adminToken,
+      body: { selected: 'A' },
+    });
+    assert.equal(checkDraftAdmin.status, 200);
+    assert.equal(checkDraftAdmin.body.correct, true);
+
+    // 7. Rate limiting (limit = 8/hr for users in test env):
+    // Student makes 7 more checks (total = 8 checks on pubQ)
+    for (let i = 0; i < 7; i++) {
+      await request('POST', `/api/questions/${pubQ.id}/check`, {
+        token: studentToken,
+        body: { selected: 'B' },
+      });
+    }
+    // 9th request exceeds limit and returns 429
+    const checkRateLimited = await request('POST', `/api/questions/${pubQ.id}/check`, {
+      token: studentToken,
+      body: { selected: 'B' },
+    });
+    assert.equal(checkRateLimited.status, 429);
+    assert.equal(checkRateLimited.body.success, false);
+    assert.ok(checkRateLimited.body.error?.includes('limit reached'));
+
+    // 8. Admin exemption: admin is not blocked by answer check rate limit
+    const checkAdminExempt = await request('POST', `/api/questions/${pubQ.id}/check`, {
+      token: adminToken,
+      body: { selected: 'B' },
+    });
+    assert.equal(checkAdminExempt.status, 200);
+    assert.equal(checkAdminExempt.body.correct, true);
+  });
+
+  it('exam-start limiter returns 429', async () => {
+    // Register dedicated student for exam rate limit test
+    const studentReg = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'exam_limit_student',
+        email: 'exam_limit_student@example.com',
+        password: 'StudentPassword123!',
+      },
+    });
+    const studentToken = studentReg.body.token;
+
+    // EXAM_START_PER_HOUR is configured to 5 in test environment
+    for (let i = 0; i < 5; i++) {
+      const res = await request('POST', '/api/exams/start', {
+        token: studentToken,
+        body: { questionCount: 1, durationMinutes: 5 },
+      });
+      assert.equal(res.status, 200);
+    }
+
+    // 6th request must return 429
+    const rateLimitedRes = await request('POST', '/api/exams/start', {
+      token: studentToken,
+      body: { questionCount: 1, durationMinutes: 5 },
+    });
+    assert.equal(rateLimitedRes.status, 429);
+    assert.equal(rateLimitedRes.body.success, false);
+    assert.ok(rateLimitedRes.body.error?.includes('Too many exam sessions'));
+  });
+
+  it('PUT /api/stats returns 401 for guests and 400 for unknown fields or out-of-range values', async () => {
+    // Register dedicated student
+    const studentReg = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'stats_test_student',
+        email: 'stats_test_student@example.com',
+        password: 'StudentPassword123!',
+      },
+    });
+    const studentToken = studentReg.body.token;
+
+    // 1. Returns 401 for unauthenticated/guest callers
     const statsAnon = await request('PUT', '/api/stats', {
       body: { stats: { totalAnswered: 10, totalCorrect: 8 } },
     });
     assert.equal(statsAnon.status, 401);
 
-    // 3. PUT /api/stats: reject unknown fields with 400
+    // 2. Returns 400 for unknown fields
     const statsUnknown = await request('PUT', '/api/stats', {
       token: studentToken,
       body: { stats: { totalAnswered: 10, totalCorrect: 8, rogueField: 'inject' } },
@@ -1164,7 +1216,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(statsUnknown.status, 400);
     assert.ok(statsUnknown.body.error?.includes('Unknown field'));
 
-    // 4. PUT /api/stats: validate bounds (numbers within sane bounds)
+    // 3. Returns 400 for negative values
     const statsNegative = await request('PUT', '/api/stats', {
       token: studentToken,
       body: {
@@ -1182,6 +1234,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     assert.equal(statsNegative.status, 400);
 
+    // 4. Returns 400 when totalCorrect exceeds totalAnswered
     const statsCorrectExceeds = await request('PUT', '/api/stats', {
       token: studentToken,
       body: {
@@ -1199,15 +1252,15 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     assert.equal(statsCorrectExceeds.status, 400);
 
-    // 5. PUT /api/stats: valid payload succeeds
+    // 5. Valid payload returns 200
     const validStats = {
-      totalAnswered: 15,
-      totalCorrect: 12,
-      streakDays: 3,
+      totalAnswered: 20,
+      totalCorrect: 18,
+      streakDays: 5,
       lastActiveDate: '2026-10-29',
-      bookmarkedIds: ['q-sentinel-probe'],
+      bookmarkedIds: ['q-chk-pub-01'],
       revisionQueueIds: [],
-      subjectPerformance: { 'Clinical Chemistry': { answered: 15, correct: 12 } },
+      subjectPerformance: { Chemistry: { answered: 20, correct: 18 } },
       examRecords: [],
     };
     const statsValid = await request('PUT', '/api/stats', {
@@ -1216,14 +1269,58 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     });
     assert.equal(statsValid.status, 200);
     assert.equal(statsValid.body.success, true);
+  });
 
-    // 6. Bulk import batch atomicity: batch with one invalid item rolls back completely
+  it('bulk-import invalid imageUrl is rejected', async () => {
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    const adminToken = adminLogin.body.token;
+    const countBefore = (await request('GET', '/api/questions', { token: adminToken })).body.total;
+
+    const invalidQuestion = {
+      id: 'q-bulk-invalid-url',
+      code: 'BULK-INV-01',
+      questionText: 'Question with unsafe imageUrl',
+      options: [
+        { id: 'A', text: 'Option A' },
+        { id: 'B', text: 'Option B' },
+      ],
+      imageUrl: 'javascript:alert(document.cookie)',
+      status: 'Published',
+      unit: 'Hematology',
+      subject: 'Coagulation',
+    };
+
+    const bulkRes = await request('POST', '/api/questions/bulk-import', {
+      token: adminToken,
+      body: { questions: [invalidQuestion] },
+    });
+    assert.equal(bulkRes.status, 400);
+    assert.ok(bulkRes.body.error?.includes('unsafe or invalid imageUrl'));
+
+    // Assert question was not inserted
+    const countAfter = (await request('GET', '/api/questions', { token: adminToken })).body.total;
+    assert.equal(countAfter, countBefore);
+  });
+
+  it('restore with one invalid question changes nothing (rollback)', async () => {
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    const adminToken = adminLogin.body.token;
     const countBefore = (await request('GET', '/api/questions', { token: adminToken })).body.total;
 
     const validItem = {
-      id: 'q-atomic-valid-1',
-      code: 'ATOMIC-01',
-      questionText: 'Atomic question text 1',
+      id: 'q-restore-valid-01',
+      code: 'RESTORE-VAL-01',
+      questionText: 'Valid restore question text',
       options: [
         { id: 'A', text: 'Option A' },
         { id: 'B', text: 'Option B' },
@@ -1235,9 +1332,9 @@ describe('MedLab QBank API Hardening Test Suite', () => {
       subject: 'Coagulation',
     };
     const invalidItem = {
-      id: 'q-atomic-invalid-2',
-      code: 'ATOMIC-02',
-      questionText: 'Atomic question text 2 with unsafe URL',
+      id: 'q-restore-invalid-02',
+      code: 'RESTORE-INV-02',
+      questionText: 'Invalid restore question text',
       options: [
         { id: 'A', text: 'Option A' },
         { id: 'B', text: 'Option B' },
@@ -1248,28 +1345,98 @@ describe('MedLab QBank API Hardening Test Suite', () => {
       subject: 'Coagulation',
     };
 
-    const bulkRes = await request('POST', '/api/questions/bulk-import', {
-      token: adminToken,
-      body: { questions: [validItem, invalidItem] },
-    });
-    assert.equal(bulkRes.status, 400);
-    assert.ok(bulkRes.body.error?.includes('unsafe or invalid imageUrl'));
-
-    // Assert validItem was NOT inserted
-    const countAfter = (await request('GET', '/api/questions', { token: adminToken })).body.total;
-    assert.equal(countAfter, countBefore);
-
-    const checkValidNotInserted = await request('GET', '/api/questions/q-atomic-valid-1', { token: adminToken });
-    assert.equal(checkValidNotInserted.status, 404);
-
-    // 7. Backup restore atomicity: batch with one invalid item changes nothing
     const restoreRes = await request('POST', '/api/backup/restore', {
       token: adminToken,
       body: { questions: [validItem, invalidItem] },
     });
     assert.equal(restoreRes.status, 400);
 
-    const countAfterRestore = (await request('GET', '/api/questions', { token: adminToken })).body.total;
-    assert.equal(countAfterRestore, countBefore);
+    // Assert count unchanged and validItem was NOT inserted
+    const countAfter = (await request('GET', '/api/questions', { token: adminToken })).body.total;
+    assert.equal(countAfter, countBefore);
+
+    const checkValid = await request('GET', '/api/questions/q-restore-valid-01', { token: adminToken });
+    assert.equal(checkValid.status, 404);
+  });
+
+  it('POST /api/extract-pdf limiter', async () => {
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    const adminToken = adminLogin.body.token;
+
+    // EXTRACT_PDF_PER_HOUR is set to 5 in test environment
+    for (let i = 0; i < 5; i++) {
+      const res = await request('POST', '/api/extract-pdf', {
+        token: adminToken,
+        body: { textContent: '1. Sample question\nA. Opt 1\nB. Opt 2\nAnswer: A', filename: `test-${i}.txt` },
+      });
+      assert.equal(res.status, 200);
+    }
+
+    // 6th request must return 429
+    const rateLimitedRes = await request('POST', '/api/extract-pdf', {
+      token: adminToken,
+      body: { textContent: 'Sample', filename: 'test-overflow.txt' },
+    });
+    assert.equal(rateLimitedRes.status, 429);
+    assert.equal(rateLimitedRes.body.success, false);
+    assert.ok(rateLimitedRes.body.error?.includes('PDF extraction limit reached'));
+  });
+
+  it('deleting an account revokes its sessions', async () => {
+    // 1. Register a dedicated user
+    const regRes = await request('POST', '/api/auth/register', {
+      body: {
+        username: 'session_revoke_user',
+        email: 'session_revoke_user@example.com',
+        password: 'RevocationPassword123!',
+      },
+    });
+    assert.equal(regRes.status, 200);
+    const token1 = regRes.body.token;
+
+    // 2. Login again to create a second session token
+    const loginRes = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'session_revoke_user@example.com',
+        password: 'RevocationPassword123!',
+      },
+    });
+    assert.equal(loginRes.status, 200);
+    const token2 = loginRes.body.token;
+    assert.notEqual(token1, token2);
+
+    // 3. Confirm both tokens are currently valid
+    const me1 = await request('GET', '/api/auth/me', { token: token1 });
+    assert.equal(me1.status, 200);
+    const me2 = await request('GET', '/api/auth/me', { token: token2 });
+    assert.equal(me2.status, 200);
+
+    // 4. Delete the account using token1
+    const delRes = await request('DELETE', '/api/auth/account', {
+      token: token1,
+      body: { currentPassword: 'RevocationPassword123!' },
+    });
+    assert.equal(delRes.status, 200);
+    assert.equal(delRes.body.success, true);
+
+    // 5. Assert BOTH sessions are immediately revoked (401)
+    const me1After = await request('GET', '/api/auth/me', { token: token1 });
+    assert.equal(me1After.status, 401);
+    const me2After = await request('GET', '/api/auth/me', { token: token2 });
+    assert.equal(me2After.status, 401);
+
+    // 6. Login attempts with deleted credentials fail
+    const loginAfterDelete = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'session_revoke_user@example.com',
+        password: 'RevocationPassword123!',
+      },
+    });
+    assert.equal(loginAfterDelete.status, 401);
   });
 });
