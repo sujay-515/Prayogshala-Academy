@@ -1672,4 +1672,65 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(typeof checkAfterExam.body.correct, 'boolean');
     assert.ok(checkAfterExam.body.correctAnswer);
   });
+
+  it('validation and data integrity: single question POST validates payload, bulk-status validates status, negative page/limit clamped', async () => {
+    // 1. Superadmin login
+    const loginRes = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    assert.equal(loginRes.status, 200);
+    const adminToken = loginRes.body.token;
+
+    // 2. Single question POST validates payload (rejects missing/invalid fields)
+    const invalidQRes = await request('POST', '/api/questions', {
+      token: adminToken,
+      body: {
+        id: 'inv-q-1',
+        // stem missing/too short
+        questionText: 'Short',
+        options: [{ id: 'A', text: 'Opt A' }],
+        correctAnswer: 'A',
+      },
+    });
+    assert.equal(invalidQRes.status, 400);
+    assert.equal(invalidQRes.body.success, false);
+    assert.ok(invalidQRes.body.error);
+
+    // 3. bulk-status rejects invalid status
+    const invalidStatusPost = await request('POST', '/api/questions/bulk-status', {
+      token: adminToken,
+      body: { ids: ['q1'], status: 'InvalidStatus' },
+    });
+    assert.equal(invalidStatusPost.status, 400);
+    assert.ok(invalidStatusPost.body.error?.includes('Published'));
+
+    const invalidStatusPut = await request('PUT', '/api/questions/bulk-status', {
+      token: adminToken,
+      body: { ids: ['q1'], status: 'Approved' },
+    });
+    assert.equal(invalidStatusPut.status, 400);
+    assert.ok(invalidStatusPut.body.error?.includes('Published'));
+
+    // Valid bulk-status succeeds
+    const validStatusPut = await request('PUT', '/api/questions/bulk-status', {
+      token: adminToken,
+      body: { ids: [], status: 'Draft' },
+    });
+    assert.equal(validStatusPut.status, 200);
+    assert.equal(validStatusPut.body.success, true);
+
+    // 4. Negative page and limit clamped
+    const negRes = await request('GET', '/api/questions?page=-5&limit=-20');
+    assert.equal(negRes.status, 200);
+    assert.equal(negRes.body.success, true);
+    assert.ok(negRes.body.page >= 1);
+
+    const hugeRes = await request('GET', '/api/questions?limit=9999');
+    assert.equal(hugeRes.status, 200);
+    assert.equal(hugeRes.body.success, true);
+    assert.ok(hugeRes.body.limit <= 200);
+  });
 });

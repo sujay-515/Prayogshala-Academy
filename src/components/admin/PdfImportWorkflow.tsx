@@ -546,7 +546,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
 
     const importedMCQs: MCQQuestion[] = selected.map((d, index) => {
       const validAnswer = (
-        ['A', 'B', 'C', 'D', 'E'].includes(d.correctAnswer) ? d.correctAnswer : d.options[0]?.id || 'A'
+        ['A', 'B', 'C', 'D', 'E'].includes(d.correctAnswer) ? d.correctAnswer : ''
       ) as 'A' | 'B' | 'C' | 'D' | 'E';
 
       return {
@@ -1093,6 +1093,11 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                     Page {draft.pageNumber}
                   </span>
                 )}
+                {(!draft.correctAnswer || !['A', 'B', 'C', 'D', 'E'].includes(draft.correctAnswer)) && (
+                  <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-semibold text-[10px]">
+                    Needs answer key
+                  </span>
+                )}
                 <span className="text-slate-400">·</span>
                 <span className="text-slate-700 font-medium">{draft.unit}</span>
                 <span className="text-slate-400">·</span>
@@ -1222,7 +1227,11 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
             <div className="pt-2 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
               <div>
                 <strong className="text-slate-800">Answer Key: </strong>
-                {draft.correctAnswer || 'None'}
+                {draft.correctAnswer && ['A', 'B', 'C', 'D', 'E'].includes(draft.correctAnswer) ? (
+                  draft.correctAnswer
+                ) : (
+                  <span className="text-rose-600 font-semibold">Needs answer key</span>
+                )}
               </div>
               <div>Source: {draft.sourceDocument}</div>
             </div>
@@ -1503,11 +1512,12 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
               </button>
 
               <button
-                disabled={selectedCount === 0}
+                disabled={selectedCount === 0 || incompleteSelectedDrafts.length > 0}
                 onClick={() => setShowFinalConfirmation(true)}
                 className="px-3.5 py-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white text-xs font-medium rounded-md shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title={incompleteSelectedDrafts.length > 0 ? 'Questions needing an answer key cannot be approved' : undefined}
               >
-                <span>Import Selected ({selectedCount})</span>
+                <span>Approve & Import Selected ({selectedCount})</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -1954,11 +1964,11 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
               Cancel
             </button>
             <button
-              disabled={selectedCount === 0}
+              disabled={selectedCount === 0 || incompleteSelectedDrafts.length > 0}
               onClick={handleExecuteImport}
               className="px-4 py-1.5 rounded bg-slate-900 disabled:opacity-40 text-white text-xs font-medium cursor-pointer"
             >
-              Import {selectedCount} questions
+              Approve & Import {selectedCount} questions
             </button>
           </div>
         </div>

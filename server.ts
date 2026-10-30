@@ -876,8 +876,11 @@ app.post('/api/admin/users', requireSuperAdmin, async (req, res) => {
 app.get('/api/questions', (req, res) => {
   const session = getSessionUser(req);
   const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
-  const page = req.query.page ? parseInt(String(req.query.page), 10) : undefined;
-  const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : undefined;
+  const rawPage = req.query.page ? parseInt(String(req.query.page), 10) : undefined;
+  const page = rawPage !== undefined ? (Number.isNaN(rawPage) ? 1 : Math.max(1, rawPage)) : undefined;
+
+  const rawLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : undefined;
+  const limit = rawLimit !== undefined ? (Number.isNaN(rawLimit) ? undefined : Math.max(1, Math.min(200, rawLimit))) : undefined;
 
   const result = queryQuestions({
     unit: req.query.unit as string | undefined,
@@ -992,6 +995,10 @@ app.post('/api/questions', requireAdmin, (req, res) => {
   if (question.imageUrl && !isSafeImageUrl(question.imageUrl)) {
     return res.status(400).json({ success: false, error: 'Invalid or unsafe question imageUrl provided.' });
   }
+  const validationError = validateQuestionPayload(question);
+  if (validationError) {
+    return res.status(400).json({ success: false, error: validationError });
+  }
   upsertQuestion(question);
   return res.json({ success: true, question });
 });
@@ -1023,8 +1030,11 @@ function validateQuestionPayload(q: any): string | null {
   if (!Array.isArray(q.options) || q.options.length < 2) {
     return `Question ${q.id}: options must be an array of at least 2 options`;
   }
-  for (const opt of q.options) {
-    if (!opt || typeof opt !== 'object' || !opt.id || typeof opt.text !== 'string') {
+  for (let i = 0; i < q.options.length; i++) {
+    const opt = q.options[i];
+    if (typeof opt === 'string') {
+      q.options[i] = { id: opt, text: opt };
+    } else if (!opt || typeof opt !== 'object' || !opt.id || typeof opt.text !== 'string') {
       return `Question ${q.id}: each option must have an id and text`;
     }
   }
@@ -1194,14 +1204,23 @@ app.post('/api/questions/bulk-upsert', requireAdmin, (req, res) => {
   return res.json({ success: true, count: questions.length });
 });
 
-app.post('/api/questions/bulk-status', requireAdmin, (req, res) => {
-  const { ids, status } = req.body;
+const handleBulkQuestionStatus = (req: express.Request, res: express.Response) => {
+  const { ids, status } = req.body || {};
   if (!Array.isArray(ids) || !status) {
     return res.status(400).json({ success: false, error: 'ids array and status required' });
   }
+  if (!['Published', 'Draft', 'Archived'].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      error: "Status must be one of: 'Published', 'Draft', 'Archived'.",
+    });
+  }
   const updated = bulkUpdateQuestionStatus(ids, status);
   return res.json({ success: true, questions: updated });
-});
+};
+
+app.post('/api/questions/bulk-status', requireAdmin, handleBulkQuestionStatus);
+app.put('/api/questions/bulk-status', requireAdmin, handleBulkQuestionStatus);
 
 app.post('/api/questions/bulk-import', requireAdmin, (req, res) => {
   const { questions } = req.body;
