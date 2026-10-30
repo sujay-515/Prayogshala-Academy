@@ -13,6 +13,7 @@ import { DisclaimerPage } from './pages/DisclaimerPage';
 import { ContactPage } from './pages/ContactPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
+import { getDailyQuestion } from './utils/dailyQuestion';
 import {
   MCQQuestion,
   UnitCategory,
@@ -848,10 +849,8 @@ export default function App() {
     }).catch(() => {});
   };
 
-  // Daily Question is deterministic based on current day of year among published questions
-  const publishedList = questions.filter((q) => q.status === 'Published');
-  const dayIndex = Math.floor(Date.now() / 86400000) % Math.max(1, publishedList.length);
-  const dailyQuestion = publishedList[dayIndex] || INITIAL_QUESTIONS[0];
+  // Daily Question is deterministic based on current local calendar date among published questions
+  const dailyQuestion = getDailyQuestion(questions);
 
   // Standalone Admin Console Mode (no student navbar, student tabs, or student footer)
   if (activeTab === 'admin' && !isViewingAsStudent) {
