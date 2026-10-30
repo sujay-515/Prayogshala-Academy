@@ -1,7 +1,7 @@
 import { db, hashPassword, DEFAULT_USER_STATS } from './db';
 import { syncUpsertUser } from './supabaseSync';
 
-export function bootstrapSuperAdmin(): void {
+export async function bootstrapSuperAdmin(): Promise<void> {
   const superAdminRow = db
     .prepare("SELECT id, email FROM users WHERE role = 'superadmin' LIMIT 1")
     .get() as { id: string; email?: string } | undefined;
@@ -71,7 +71,7 @@ export function bootstrapSuperAdmin(): void {
 
   const id = `usr-superadmin-${Date.now()}`;
   const now = new Date().toISOString();
-  const passwordHash = hashPassword(initialPassword);
+  const passwordHash = await hashPassword(initialPassword);
   const statsJson = JSON.stringify(DEFAULT_USER_STATS);
 
   db.prepare(`

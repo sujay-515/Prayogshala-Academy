@@ -114,7 +114,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: username || 'admin', password }),
+        body: JSON.stringify({ identifier: username, password }),
       });
       const data = await res.json();
       if (res.ok && data.success && (data.user?.role === 'admin' || data.user?.role === 'superadmin')) {

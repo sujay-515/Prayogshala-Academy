@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { promisify } from 'node:util';
 import { INITIAL_CATEGORIES } from '../data/categories';
 import { MCQQuestion, UnitCategory, UserStats, QuestionReport, QuestionStatus } from '../types';
 import {
@@ -133,23 +134,25 @@ try {
   db.prepare('ALTER TABLE reports ADD COLUMN user_id TEXT').run();
 } catch {}
 
-export function hashPassword(password: string, customSalt?: string): string {
+const scryptAsync = promisify(crypto.scrypt);
+
+export async function hashPassword(password: string, customSalt?: string): Promise<string> {
   const salt = customSalt || crypto.randomBytes(16).toString('hex');
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
-  return `${salt}:${hash}`;
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString('hex')}`;
 }
 
-export function verifyPassword(password: string, storedHash: string): boolean {
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   if (!storedHash) return false;
   if (storedHash.includes(':')) {
     const [salt, keyHex] = storedHash.split(':');
-    const derived = crypto.scryptSync(password, salt, 64);
+    const derived = (await scryptAsync(password, salt, 64)) as Buffer;
     const keyBuf = Buffer.from(keyHex, 'hex');
     if (derived.length !== keyBuf.length) return false;
     return crypto.timingSafeEqual(derived, keyBuf);
   }
   // Legacy static-salt compatibility
-  const legacyDerived = crypto.scryptSync(password, 'medlab_salt_2026', 64);
+  const legacyDerived = (await scryptAsync(password, 'medlab_salt_2026', 64)) as Buffer;
   const storedBuf = Buffer.from(storedHash, 'hex');
   if (legacyDerived.length !== storedBuf.length) return false;
   return crypto.timingSafeEqual(legacyDerived, storedBuf);
@@ -167,10 +170,11 @@ export const DEFAULT_USER_STATS: UserStats = {
   examRecords: [],
 };
 
-function seedDemoData() {
+async function seedDemoData() {
   const existingDemo = db.prepare("SELECT id FROM users WHERE username = 'demo_student'").get();
   if (!existingDemo) {
     const now = new Date().toISOString();
+    const demoPasswordHash = await hashPassword('StudentDemo123!');
     db.prepare(`
       INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -178,7 +182,7 @@ function seedDemoData() {
       'usr-demo-student',
       'demo_student',
       'demo.student@medlab.test',
-      hashPassword('StudentDemo123!'),
+      demoPasswordHash,
       'student',
       'Demo Medical Student',
       JSON.stringify(DEFAULT_USER_STATS),
@@ -199,7 +203,7 @@ function seedDatabaseIfNeeded() {
 
   // Optional demo data seeding strictly in development mode when explicitly requested
   if (process.env.SEED_DEMO_DATA === 'true' && process.env.NODE_ENV === 'development') {
-    seedDemoData();
+    void seedDemoData().catch((err) => console.error('Failed to seed demo data:', err));
   }
 }
 
@@ -291,9 +295,16 @@ export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: st
     return { success: false, error: 'Password reset link has expired. Please request a new one.' };
   }
 
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newPasswordHash, row.user_id);
-  db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
-  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newPasswordHash, row.user_id);
+    db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 
   return { success: true };
 }

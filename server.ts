@@ -404,18 +404,31 @@ app.get('/api/bootstrap', (req, res) => {
 });
 
 // ==================== AUTHENTICATION APIs ====================
-app.post('/api/auth/login', loginLimiter, (req, res) => {
-  const { identifier, username, password = '' } = req.body;
-  const loginId = String(identifier || username || 'admin').toLowerCase().trim();
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
+  const rawId = req.body?.identifier ?? req.body?.username;
+  const rawPw = req.body?.password;
+
+  if (
+    typeof rawId !== 'string' ||
+    !rawId.trim() ||
+    typeof rawPw !== 'string' ||
+    !rawPw ||
+    rawPw.length > 128
+  ) {
+    return res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
+  }
+
+  const loginId = rawId.toLowerCase().trim();
   const userRow = getUserByEmailOrUsername(loginId);
 
-  if (!userRow || !verifyPassword(String(password), userRow.password_hash)) {
+  if (!userRow || !(await verifyPassword(rawPw, userRow.password_hash))) {
     return res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
   }
 
   // Upgrade legacy unsalted hash to per-user random salt if needed
   if (!userRow.password_hash.includes(':')) {
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), userRow.id);
+    const upgradedHash = await hashPassword(rawPw);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(upgradedHash, userRow.id);
   }
 
   // User role is strictly what is stored in the database
@@ -445,7 +458,7 @@ app.post('/api/auth/login', loginLimiter, (req, res) => {
   });
 });
 
-app.post('/api/auth/register', registerLimiter, (req, res) => {
+app.post('/api/auth/register', registerLimiter, async (req, res) => {
   const { username, email, password, displayName } = req.body;
   if (!username || !password || typeof password !== 'string' || password.length < 8 || password.length > 128) {
     return res.status(400).json({
@@ -489,7 +502,7 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
     examRecords: [],
   };
 
-  const passwordHash = hashPassword(password);
+  const passwordHash = await hashPassword(password);
   const finalDisplayName = displayName?.trim() || cleanUsername;
   const statsJson = JSON.stringify(initialStats);
 
@@ -571,7 +584,7 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, (req, res) => {
   });
 });
 
-app.post('/api/auth/reset-password', resetPasswordLimiter, (req, res) => {
+app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword || typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
     return res.status(400).json({
@@ -580,7 +593,7 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, (req, res) => {
     });
   }
 
-  const newHash = hashPassword(String(newPassword));
+  const newHash = await hashPassword(String(newPassword));
   const result = verifyAndConsumeResetToken(String(token).trim(), newHash);
   if (!result.success) {
     return res.status(400).json(result);
@@ -589,7 +602,7 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, (req, res) => {
   return res.json({ success: true, message: 'Password has been reset successfully. You may now sign in.' });
 });
 
-app.post('/api/auth/change-password', changePasswordLimiter, (req, res) => {
+app.post('/api/auth/change-password', changePasswordLimiter, async (req, res) => {
   const session = getSessionUser(req);
   if (!session) {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
@@ -605,17 +618,24 @@ app.post('/api/auth/change-password', changePasswordLimiter, (req, res) => {
   }
 
   const userRow = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(session.userId) as any;
-  if (!userRow || !verifyPassword(String(currentPassword), userRow.password_hash)) {
+  if (!userRow || !(await verifyPassword(String(currentPassword), userRow.password_hash))) {
     return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
   }
 
   const rawToken = req.headers.authorization?.slice(7);
   const currentTokenHash = rawToken ? hashToken(rawToken) : '';
-  const newHash = hashPassword(String(newPassword));
+  const newHash = await hashPassword(String(newPassword));
 
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, session.userId);
-  // Delete all OTHER sessions for that user, keeping the current session
-  db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(session.userId, currentTokenHash);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, session.userId);
+    // Delete all OTHER sessions for that user, keeping the current session
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(session.userId, currentTokenHash);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
 
   return res.json({ success: true, message: 'Password changed successfully.' });
 });
@@ -700,7 +720,7 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
   return res.send(JSON.stringify(exportPayload, null, 2));
 });
 
-app.delete('/api/auth/account', accountDeleteLimiter, (req, res) => {
+app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
   const session = getSessionUser(req);
   if (!session) {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
@@ -712,7 +732,7 @@ app.delete('/api/auth/account', accountDeleteLimiter, (req, res) => {
   }
 
   const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId) as any;
-  if (!userRow || !verifyPassword(String(currentPassword), userRow.password_hash)) {
+  if (!userRow || !(await verifyPassword(String(currentPassword), userRow.password_hash))) {
     return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
   }
 
@@ -778,7 +798,7 @@ app.patch('/api/admin/users/:id/role', requireSuperAdmin, (req, res) => {
   return res.json({ success: true, role });
 });
 
-app.post('/api/admin/users', requireSuperAdmin, (req, res) => {
+app.post('/api/admin/users', requireSuperAdmin, async (req, res) => {
   const { username, email, displayName, role = 'admin', password } = req.body;
   if (!username || !email || !displayName) {
     return res.status(400).json({ success: false, error: 'Username, email, and display name are required.' });
@@ -802,7 +822,7 @@ app.post('/api/admin/users', requireSuperAdmin, (req, res) => {
   }
 
   const tempPassword = password || crypto.randomBytes(6).toString('hex');
-  const passwordHash = hashPassword(tempPassword);
+  const passwordHash = await hashPassword(tempPassword);
   const id = `usr-${Date.now()}`;
   const now = new Date().toISOString();
   const assignedRole = role === 'student' ? 'student' : 'admin';
@@ -1870,7 +1890,7 @@ export function isKnownClientRoute(pathname: string): boolean {
 
 async function startServer() {
   await hydrateFromSupabase();
-  bootstrapSuperAdmin();
+  await bootstrapSuperAdmin();
 
   // Keep Supabase Free Tier active & automatically purge expired temporary rows every 6 hours
   setInterval(() => {

@@ -1511,4 +1511,85 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     const adminAccessAfter = await request('GET', '/api/admin/users', { token: staffToken });
     assert.equal(adminAccessAfter.status, 401);
   });
+
+  it('password hashing & login hardening: rejects >128 chars, missing password/identifier, no admin fallback, atomic change-password session invalidation', async () => {
+    const username = `pwtest_${Date.now()}`;
+    const password = 'ValidInitialPassword123!';
+
+    // Register user
+    const regRes = await request('POST', '/api/auth/register', {
+      body: {
+        username,
+        email: `${username}@example.com`,
+        password,
+        displayName: 'Password Test User',
+      },
+    });
+    assert.equal(regRes.status, 200);
+
+    // 1. Missing password rejected with 401
+    const noPwRes = await request('POST', '/api/auth/login', {
+      body: { identifier: username },
+    });
+    assert.equal(noPwRes.status, 401);
+    assert.equal(noPwRes.body.error, 'Invalid username/email or password.');
+
+    // 2. Missing identifier rejected with 401 (no fallback to 'admin')
+    const noIdRes = await request('POST', '/api/auth/login', {
+      body: { password },
+    });
+    assert.equal(noIdRes.status, 401);
+    assert.equal(noIdRes.body.error, 'Invalid username/email or password.');
+
+    // 3. Password > 128 chars rejected with 401
+    const longPwRes = await request('POST', '/api/auth/login', {
+      body: { identifier: username, password: 'A'.repeat(129) },
+    });
+    assert.equal(longPwRes.status, 401);
+    assert.equal(longPwRes.body.error, 'Invalid username/email or password.');
+
+    // 4. Session 1 login
+    const s1Res = await request('POST', '/api/auth/login', {
+      body: { identifier: username, password },
+    });
+    assert.equal(s1Res.status, 200);
+    const s1Token = s1Res.body.token;
+
+    // Session 2 login
+    const s2Res = await request('POST', '/api/auth/login', {
+      body: { identifier: username, password },
+    });
+    assert.equal(s2Res.status, 200);
+    const s2Token = s2Res.body.token;
+
+    // Both sessions work before change
+    assert.equal((await request('GET', '/api/auth/me', { token: s1Token })).status, 200);
+    assert.equal((await request('GET', '/api/auth/me', { token: s2Token })).status, 200);
+
+    // Change password via Session 1
+    const newPassword = 'NewValidPassword123!';
+    const changeRes = await request('POST', '/api/auth/change-password', {
+      token: s1Token,
+      body: { currentPassword: password, newPassword },
+    });
+    assert.equal(changeRes.status, 200);
+
+    // Current session (s1) stays active
+    assert.equal((await request('GET', '/api/auth/me', { token: s1Token })).status, 200);
+
+    // Other session (s2) is atomically revoked -> 401
+    assert.equal((await request('GET', '/api/auth/me', { token: s2Token })).status, 401);
+
+    // Old password cannot log in
+    const oldLogin = await request('POST', '/api/auth/login', {
+      body: { identifier: username, password },
+    });
+    assert.equal(oldLogin.status, 401);
+
+    // New password logs in successfully
+    const newLogin = await request('POST', '/api/auth/login', {
+      body: { identifier: username, password: newPassword },
+    });
+    assert.equal(newLogin.status, 200);
+  });
 });
