@@ -21,6 +21,7 @@ import {
   syncSaveStagingDrafts,
   syncDeleteStagingDrafts,
   syncCleanupExpiredRecords,
+  logSupabaseDisabledOnce,
 } from './supabaseSync';
 
 const DATA_DIR = path.resolve(process.cwd(), process.env.DATA_DIR || 'data');
@@ -701,7 +702,10 @@ export function cleanupExpiredData(): void {
 }
 
 export async function hydrateFromSupabase(): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) {
+    logSupabaseDisabledOnce();
+    return;
+  }
 
   // Run automatic TTL cleanup first so expired temporary rows are removed before hydration
   cleanupExpiredData();

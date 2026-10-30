@@ -1,51 +1,28 @@
 import { MCQQuestion, UnitCategory, QuestionReport, UserStats } from '../types';
 
-let hasLoggedAnonError = false;
+let hasLoggedDisabled = false;
+
+export function logSupabaseDisabledOnce(): void {
+  if (!hasLoggedDisabled) {
+    console.log('Supabase sync disabled; running SQLite-only');
+    hasLoggedDisabled = true;
+  }
+}
 
 function getSupabaseConfig(): { url: string; key: string } | null {
-  const rawUrl = (process.env.SUPABASE_URL || '').trim();
-  const url = rawUrl.replace(/\/+$/, '').replace(/\/rest\/v1$/i, '');
-  if (!url) return null;
-
-  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
-  const rawKey = (process.env.SUPABASE_KEY || '').trim();
-  const anonKey = (process.env.SUPABASE_ANON_KEY || '').trim();
-
-  // If service_role key is explicitly provided, use it
-  if (serviceRoleKey) {
-    return { url, key: serviceRoleKey };
-  }
-
-  // Check candidate key (SUPABASE_KEY or SUPABASE_ANON_KEY)
-  const candidateKey = rawKey || anonKey;
-  if (!candidateKey) return null;
-
-  // Determine if candidate key is an anon key
-  let isAnonKey = candidateKey === anonKey;
-  if (!isAnonKey && candidateKey.includes('.')) {
-    try {
-      const parts = candidateKey.split('.');
-      if (parts.length >= 2) {
-        const payloadStr = Buffer.from(parts[1], 'base64').toString('utf8');
-        const payload = JSON.parse(payloadStr);
-        if (payload?.role === 'anon') {
-          isAnonKey = true;
-        }
-      }
-    } catch {}
-  }
-
-  if (isAnonKey) {
-    if (!hasLoggedAnonError) {
-      console.error(
-        '[Supabase Sync Error] Only the Supabase anon/public key was detected. Backend synchronization requires the service_role key (SUPABASE_SERVICE_ROLE_KEY) to access tables protected by Row Level Security. Supabase sync has been disabled.'
-      );
-      hasLoggedAnonError = true;
-    }
+  if (process.env.SUPABASE_SYNC_ENABLED !== 'true') {
     return null;
   }
 
-  return { url, key: candidateKey };
+  const rawUrl = (process.env.SUPABASE_URL || '').trim();
+  const url = rawUrl.replace(/\/+$/, '').replace(/\/rest\/v1$/i, '');
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+
+  if (!url || !serviceRoleKey) {
+    return null;
+  }
+
+  return { url, key: serviceRoleKey };
 }
 
 export function isSupabaseConfigured(): boolean {
@@ -95,7 +72,10 @@ async function supabaseRequest<T = any>(
 }
 
 export async function pingSupabaseKeepAlive(): Promise<boolean> {
-  if (!isSupabaseConfigured()) return false;
+  if (!isSupabaseConfigured()) {
+    logSupabaseDisabledOnce();
+    return false;
+  }
   const rows = await supabaseRequest<any[]>('categories?select=id&limit=1');
   return Array.isArray(rows);
 }

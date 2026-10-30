@@ -138,6 +138,7 @@ npm run backup
 | `EMAIL_FROM` | Sender display name and email address for transactional mail. | Optional | `MedLab QBank <onboarding@resend.dev>` |
 | `APP_URL` | Base public URL used in email reset links. | Optional | `http://localhost:3000` |
 | `GEMINI_API_KEY` | Google Gemini API key for administrative OCR of question documents. | Optional | Rule-based parser |
+| `SUPABASE_SYNC_ENABLED` | Opt-in flag for Supabase cloud synchronization (`"true"` to enable). | Optional | Unset (disabled) |
 | `SUPABASE_URL` | Optional Supabase cloud synchronization endpoint URL. | Optional | None |
 | `SUPABASE_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | Optional Supabase service role key for cloud synchronization. | Optional | None |
 | `SUPABASE_ANON_KEY` | Optional Supabase client anon key. | Optional | None |
