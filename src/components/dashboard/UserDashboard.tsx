@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
+import { clearUserScopedStorage } from '../../utils/storage';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
 
@@ -86,6 +87,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
+        if (res.status === 401) {
+          clearUserScopedStorage();
+          onLogout?.();
+        }
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to export account data.');
       }
@@ -130,6 +135,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
+        if (res.status === 401) {
+          clearUserScopedStorage();
+          onLogout?.();
+        }
         throw new Error(data.error || 'Failed to update password.');
       }
       setPwSuccess('Password changed successfully.');
@@ -162,11 +171,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
         throw new Error(data.error || 'Failed to delete account.');
       }
       setIsDeleteModalOpen(false);
+      clearUserScopedStorage();
       if (onLogout) {
         onLogout();
       } else {
-        localStorage.removeItem('medlab_qbank_auth_token_v1');
-        localStorage.removeItem('medlab_qbank_auth_user');
         window.location.href = '/';
       }
     } catch (err: any) {

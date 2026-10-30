@@ -152,6 +152,7 @@ const STORAGE_KEY_TOKEN = 'medlab_qbank_auth_token_v1';
 const STORAGE_KEY_USER = 'medlab_qbank_current_user_v1';
 
 import { hasRevealOnlyFields, sanitizeQuestionsForCache } from './utils/cacheSanitizer';
+import { clearUserScopedStorage } from './utils/storage';
 
 // Discard legacy data and purge cached question lists containing reveal-only fields
 try {
@@ -330,8 +331,15 @@ export default function App() {
     if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
     fetch('/api/bootstrap', { headers })
-      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 401) {
+          handleLogout();
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
+        if (!data) return;
         if (data.success) {
           if (Array.isArray(data.questions)) setQuestions(data.questions);
           if (Array.isArray(data.categories)) setCategories(data.categories);
@@ -408,7 +416,13 @@ export default function App() {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ stats: updatedStats }),
-    }).catch(() => {});
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          handleLogout();
+        }
+      })
+      .catch(() => {});
   };
 
   // Handler: Student/User Login, Registration, Forgot Password, or Reset
@@ -479,7 +493,18 @@ export default function App() {
         } catch {}
         setAuthToken(data.token);
         setCurrentUser(data.user);
-        if (data.stats) setStats(data.stats);
+        const resolvedStats: UserStats = data.stats || {
+          totalAnswered: 0,
+          totalCorrect: 0,
+          streakDays: 0,
+          lastActiveDate: new Date().toISOString().slice(0, 10),
+          bookmarkedIds: [],
+          revisionQueueIds: [],
+          subjectPerformance: {},
+          topicPerformance: {},
+          examRecords: [],
+        };
+        setStats(resolvedStats);
         if (data.user.role === 'admin' || data.user.role === 'superadmin') {
           setIsAdmin(true);
           setIsViewingAsStudent(false);
@@ -510,12 +535,23 @@ export default function App() {
         headers: { Authorization: `Bearer ${authToken}` },
       }).catch(() => {});
     }
-    localStorage.removeItem(STORAGE_KEY_TOKEN);
-    localStorage.removeItem(STORAGE_KEY_USER);
+    clearUserScopedStorage();
     setAuthToken(null);
     setCurrentUser(null);
     setIsAdmin(false);
     setIsViewingAsStudent(false);
+    setStats({
+      totalAnswered: 0,
+      totalCorrect: 0,
+      streakDays: 0,
+      lastActiveDate: new Date().toISOString().slice(0, 10),
+      bookmarkedIds: [],
+      revisionQueueIds: [],
+      subjectPerformance: {},
+      topicPerformance: {},
+      examRecords: [],
+    });
+    setReports([]);
     if (activeTab === 'admin') {
       window.history.replaceState(null, '', '/');
       setActiveTab('home');
