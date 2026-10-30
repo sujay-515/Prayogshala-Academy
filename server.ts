@@ -12,6 +12,7 @@ import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
 import { calculateExamScore } from './src/utils/scoring';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
+import { getRateLimitKey } from './src/server/rateLimit';
 import {
   db,
   hashPassword,
@@ -120,10 +121,10 @@ const createLimiter = (windowMs: number, max: number, message: string, skipSucce
   rateLimit({
     windowMs,
     max,
+    keyGenerator: (req) => getRateLimitKey(req, getSessionUser),
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: skipSuccessful,
-    validate: { trustProxy: false },
     handler: (_req, res) => {
       res.status(429).json({ success: false, error: message });
     },
@@ -237,17 +238,13 @@ const answerCheckHourlyLimiter = rateLimit({
     const guestMax = parseInt(process.env.ANSWER_CHECK_GUEST_PER_HOUR || '60', 10);
     return session ? (isNaN(userMax) ? 300 : userMax) : (isNaN(guestMax) ? 60 : guestMax);
   },
-  keyGenerator: (req) => {
-    const session = getSessionUser(req);
-    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
-  },
+  keyGenerator: (req) => getRateLimitKey(req, getSessionUser),
   skip: (req) => {
     const session = getSessionUser(req);
     return session?.role === 'admin' || session?.role === 'superadmin';
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
@@ -264,17 +261,13 @@ const answerCheckDailyLimiter = rateLimit({
     const guestMax = parseInt(process.env.ANSWER_CHECK_GUEST_PER_DAY || '200', 10);
     return session ? (isNaN(userMax) ? 1500 : userMax) : (isNaN(guestMax) ? 200 : guestMax);
   },
-  keyGenerator: (req) => {
-    const session = getSessionUser(req);
-    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
-  },
+  keyGenerator: (req) => getRateLimitKey(req, getSessionUser),
   skip: (req) => {
     const session = getSessionUser(req);
     return session?.role === 'admin' || session?.role === 'superadmin';
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
@@ -290,17 +283,13 @@ const examStartLimiter = rateLimit({
     const parsed = raw ? parseInt(raw, 10) : 10;
     return isNaN(parsed) ? 10 : parsed;
   },
-  keyGenerator: (req) => {
-    const session = getSessionUser(req);
-    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
-  },
+  keyGenerator: (req) => getRateLimitKey(req, getSessionUser),
   skip: (req) => {
     const session = getSessionUser(req);
     return session?.role === 'admin' || session?.role === 'superadmin';
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
@@ -316,13 +305,9 @@ const extractPdfLimiter = rateLimit({
     const parsed = raw ? parseInt(raw, 10) : 20;
     return isNaN(parsed) ? 20 : parsed;
   },
-  keyGenerator: (req) => {
-    const session = getSessionUser(req);
-    return session ? `user:${session.userId}` : `ip:${req.ip || '127.0.0.1'}`;
-  },
+  keyGenerator: (req) => getRateLimitKey(req, getSessionUser),
   standardHeaders: true,
   legacyHeaders: false,
-  validate: false,
   handler: (_req, res) => {
     res.status(429).json({
       success: false,
