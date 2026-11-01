@@ -14,6 +14,7 @@ import { getGrandTestWindow, getLeaderboardWindowStart, formatNepalTime } from '
 import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { normalizeExamCategories, questionMatchesExamCategory } from './src/utils/examCategories';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion, ALLOWED_QUESTION_STATUSES, QuestionStatus } from './src/types';
+import { resolveTrustProxy } from './src/server/trustProxy';
 import { getRateLimitKey } from './src/server/rateLimit';
 import { prepareExamQuestions } from './src/server/examAssembly';
 import {
@@ -88,22 +89,7 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
 // 1. Reverse proxy configuration & security headers
-const rawTrustProxy = process.env.TRUST_PROXY?.trim();
-let trustProxySetting: number | false = false;
-
-if (rawTrustProxy !== undefined && rawTrustProxy !== '') {
-  if (/^\d+$/.test(rawTrustProxy)) {
-    trustProxySetting = parseInt(rawTrustProxy, 10);
-  } else {
-    console.warn(
-      `[Security Warning] Invalid TRUST_PROXY value "${rawTrustProxy}". TRUST_PROXY must be a non-negative integer hop count (e.g., '1' for a single reverse proxy). Disabling proxy trust.`
-    );
-    trustProxySetting = false;
-  }
-} else if (process.env.NODE_ENV === 'production') {
-  trustProxySetting = 1;
-}
-
+const trustProxySetting = resolveTrustProxy(process.env.TRUST_PROXY, process.env.NODE_ENV);
 if (trustProxySetting !== false) {
   app.set('trust proxy', trustProxySetting);
 }
