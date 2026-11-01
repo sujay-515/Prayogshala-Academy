@@ -10,6 +10,7 @@ import { GoogleGenAI } from '@google/genai';
 import { parseRawMCQText, findDuplicateQuestion, validateExtractedQuestion } from './src/utils/mcqParser';
 import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
 import { calculateExamScore, normalizeAnswer, DEFAULT_PENALTY_PER_WRONG } from './src/utils/scoring';
+import { getGrandTestWindow, getLeaderboardWindowStart, formatNepalTime } from './src/utils/examWindow';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
 import { getRateLimitKey } from './src/server/rateLimit';
@@ -411,6 +412,18 @@ app.get('/api/bootstrap', (req, res) => {
           displayName: session.displayName,
         }
       : null,
+  });
+});
+
+// ==================== WEEKLY GRAND TEST WINDOW ====================
+app.get('/api/exam-window', (_req, res) => {
+  const window = getGrandTestWindow(new Date());
+  return res.json({
+    success: true,
+    isOpen: window.isOpen,
+    opensAt: window.opensAt.toISOString(),
+    closesAt: window.closesAt.toISOString(),
+    serverTime: new Date().toISOString(),
   });
 });
 
@@ -1327,6 +1340,19 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const rawDuration = parseInt(String(req.body?.durationMinutes), 10);
   const durationMinutes = Number.isNaN(rawDuration) ? 15 : Math.max(5, Math.min(300, rawDuration));
 
+  const isGrandTest = questionCount >= 200 && durationMinutes >= 180;
+  if (isGrandTest) {
+    const window = getGrandTestWindow(new Date());
+    if (!window.isOpen) {
+      return res.status(403).json({
+        success: false,
+        error: `Weekly Grand Tests are open Friday 11:00 to Tuesday 23:59 (Nepal time). Next window opens ${formatNepalTime(window.opensAt)}.`,
+        opensAt: window.opensAt.toISOString(),
+        closesAt: window.closesAt.toISOString(),
+      });
+    }
+  }
+
   const session = getSessionUser(req);
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
 
@@ -1377,7 +1403,6 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   });
 
   const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
-  const isGrandTest = questionCount >= 200 && durationMinutes >= 180;
   const title = isGrandTest
     ? `Grand Test · ${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine`
     : `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`;
@@ -1385,8 +1410,8 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const examUserId = session?.userId || 'usr-guest';
 
   db.prepare(
-    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes, negative_marking, penalty_per_wrong)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes, negative_marking, penalty_per_wrong, is_grand_test)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     examId,
     examUserId,
@@ -1395,7 +1420,8 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     startedAt,
     durationMinutes,
     useNegativeMarking ? 1 : 0,
-    DEFAULT_PENALTY_PER_WRONG
+    DEFAULT_PENALTY_PER_WRONG,
+    isGrandTest ? 1 : 0
   );
 
   syncInsertActiveExam({
@@ -1460,6 +1486,33 @@ app.post('/api/exams/:id/submit', (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to score exam.' });
   }
 
+  // Persist the attempt for the leaderboard (authenticated candidates only)
+  if (session?.userId) {
+    try {
+      db.prepare(
+        `INSERT INTO exam_attempts
+         (id, user_id, display_name, title, total, correct_count, score, percentage, passed, time_spent_seconds, negative_marking, is_grand_test, completed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        `attempt-${crypto.randomBytes(12).toString('hex')}`,
+        session.userId,
+        session.displayName || session.username,
+        row.title,
+        scoreResult.total,
+        scoreResult.correctCount,
+        scoreResult.score,
+        scoreResult.percentage,
+        scoreResult.passed ? 1 : 0,
+        scoreResult.timeSpentSeconds,
+        scoreResult.negativeMarking ? 1 : 0,
+        row.is_grand_test ? 1 : 0,
+        new Date().toISOString()
+      );
+    } catch (err) {
+      console.warn('[Leaderboard] Failed to record attempt', err);
+    }
+  }
+
   // Clean up active session only after grading succeeds
   db.prepare('DELETE FROM active_exams WHERE id = ?').run(req.params.id);
   syncDeleteActiveExam(req.params.id);
@@ -1469,6 +1522,77 @@ app.post('/api/exams/:id/submit', (req, res) => {
     result: scoreResult,
     gradedQuestions: fullQuestions.map(toGradedExamQuestion), // Strips admin metadata, safe to reveal answers & explanations
     late: isLate,
+  });
+});
+
+// ==================== WEEKLY GRAND TEST LEADERBOARD ====================
+app.get('/api/leaderboard', (req, res) => {
+  const rawLimit = parseInt(String(req.query.limit ?? '25'), 10);
+  const limit = Number.isNaN(rawLimit) ? 25 : Math.max(1, Math.min(100, rawLimit));
+
+  const now = new Date();
+  const window = getGrandTestWindow(now);
+  const windowStart = getLeaderboardWindowStart(now);
+  const session = getSessionUser(req);
+
+  let bestRows: any[] = [];
+  try {
+    bestRows = db
+      .prepare(
+        `WITH ranked AS (
+           SELECT *,
+             ROW_NUMBER() OVER (
+               PARTITION BY user_id
+               ORDER BY percentage DESC, correct_count DESC, time_spent_seconds ASC, completed_at ASC
+             ) AS rn
+           FROM exam_attempts
+           WHERE is_grand_test = 1 AND completed_at >= ?
+         )
+         SELECT * FROM ranked WHERE rn = 1
+         ORDER BY percentage DESC, correct_count DESC, time_spent_seconds ASC, completed_at ASC`
+      )
+      .all(windowStart.toISOString()) as any[];
+  } catch (err) {
+    console.error('[Leaderboard] Query failed', err);
+  }
+
+  const mapRow = (row: any, rank: number) => ({
+    rank,
+    displayName: row.display_name,
+    percentage: row.percentage,
+    correctCount: row.correct_count,
+    total: row.total,
+    timeSpentSeconds: row.time_spent_seconds,
+    negativeMarking: Boolean(row.negative_marking),
+    completedAt: row.completed_at,
+    isCurrentUser: Boolean(session && row.user_id === session.userId),
+  });
+
+  const totalParticipants = bestRows.length;
+  const entries = bestRows.slice(0, limit).map((row, index) => mapRow(row, index + 1));
+
+  let me = null;
+  if (session) {
+    const index = bestRows.findIndex((row) => row.user_id === session.userId);
+    if (index >= 0) {
+      me = {
+        ...mapRow(bestRows[index], index + 1),
+        percentile: Math.max(1, Math.round(((totalParticipants - index) / totalParticipants) * 100)),
+      };
+    }
+  }
+
+  return res.json({
+    success: true,
+    window: {
+      isOpen: window.isOpen,
+      opensAt: window.opensAt.toISOString(),
+      closesAt: window.closesAt.toISOString(),
+    },
+    windowStart: windowStart.toISOString(),
+    totalParticipants,
+    entries,
+    me,
   });
 });
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Clock,
   Flag,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { ExamScoreResult, DEFAULT_PENALTY_PER_WRONG } from '../../utils/scoring';
+import { formatCountdown, formatNepalTime } from '../../utils/examWindow';
 
 const DEFAULT_PENALTY_DISPLAY = String(DEFAULT_PENALTY_PER_WRONG);
 import { getSafeImageUrl } from '../../utils/urlSecurity';
@@ -54,6 +56,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const [durationMinutes, setDurationMinutes] = useState<number>(15);
   const [shuffleOptions, setShuffleOptions] = useState<boolean>(true);
   const [negativeMarking, setNegativeMarking] = useState<boolean>(false);
+  const [examWindow, setExamWindow] = useState<{
+    isOpen: boolean;
+    opensAt: string;
+    closesAt: string;
+  } | null>(null);
+  const [clockTick, setClockTick] = useState<number>(() => Date.now());
 
   const [isExamRunning, setIsExamRunning] = useState<boolean>(false);
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
@@ -95,6 +103,37 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     }
   }, [initialExamCategory]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadWindow = () => {
+      fetch('/api/exam-window')
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled || !data?.success) return;
+          setExamWindow({
+            isOpen: Boolean(data.isOpen),
+            opensAt: data.opensAt,
+            closesAt: data.closesAt,
+          });
+        })
+        .catch(() => {
+          // Window status is advisory; the server still enforces it at start.
+        });
+    };
+    loadWindow();
+    // Refresh periodically so a closed page picks up the next opening without a reload.
+    const refresh = setInterval(loadWindow, 5 * 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClockTick(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   // SEC-05: Warn user before accidental page refresh or tab closure during an active examination
   useEffect(() => {
     if (!isExamRunning) return;
@@ -129,6 +168,19 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
   const isGrandTestConfig = questionCount >= 200 && durationMinutes >= 180 && negativeMarking;
   const servedCount = Math.min(questionCount, filteredPool.length);
+
+  const windowOpensAt = examWindow ? Date.parse(examWindow.opensAt) : 0;
+  const windowClosesAt = examWindow ? Date.parse(examWindow.closesAt) : 0;
+  // Until the status loads we defer to the server, which rejects out-of-window starts.
+  const isWindowOpen = examWindow
+    ? clockTick >= windowOpensAt && clockTick <= windowClosesAt
+    : true;
+  const windowStatusLabel = !examWindow
+    ? 'Checking weekly window...'
+    : isWindowOpen
+      ? `Open now · closes in ${formatCountdown(windowClosesAt - clockTick)}`
+      : `Closed · opens ${formatNepalTime(new Date(windowOpensAt))} (in ${formatCountdown(windowOpensAt - clockTick)})`;
+  const grandTestBlocked = isGrandTestConfig && !isWindowOpen;
 
   const applyGrandTestPreset = () => {
     setExamCategory('All');
@@ -382,6 +434,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               <Printer className="w-3.5 h-3.5" />
               <span>Print / Save Scorecard</span>
             </button>
+            <Link
+              to="/leaderboard"
+              className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium text-xs rounded transition-colors"
+            >
+              View Leaderboard
+            </Link>
           </div>
         </div>
 
@@ -529,9 +587,17 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/exam`} />
 
         <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
-            Laboratory Medicine Mock Examination
-          </h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
+              Laboratory Medicine Mock Examination
+            </h1>
+            <Link
+              to="/leaderboard"
+              className="text-xs font-medium text-cyan-800 hover:text-cyan-950 hover:underline shrink-0"
+            >
+              Grand Test leaderboard →
+            </Link>
+          </div>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
             Timed mock examination with server-side answer key protection, question review grid, and subject telemetry.
           </p>
@@ -552,6 +618,9 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               </span>
               <p className="text-xs text-cyan-900 mt-0.5">
                 200 questions · 180 minutes · −{DEFAULT_PENALTY_DISPLAY} per wrong answer · all syllabi
+              </p>
+              <p className={`text-[11px] mt-1 font-medium ${isWindowOpen ? 'text-emerald-700' : 'text-amber-700'}`}>
+                Weekly window: {windowStatusLabel}
               </p>
             </div>
             <button
@@ -713,6 +782,16 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </div>
           )}
 
+          {grandTestBlocked && (
+            <div role="alert" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>
+                Grand Tests only run inside the weekly window (Friday 11:00 → Tuesday 23:59 Nepal time).
+                {examWindow && ` Next opening: ${formatNepalTime(new Date(windowOpensAt))}.`}
+              </span>
+            </div>
+          )}
+
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">
               Available pool: <strong className="text-slate-900">{filteredPool.length}</strong> questions ·{' '}
@@ -728,7 +807,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               )}
             </span>
             <button
-              disabled={filteredPool.length === 0 || isStarting}
+              disabled={filteredPool.length === 0 || isStarting || grandTestBlocked}
               onClick={startExam}
               className="px-5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
             >

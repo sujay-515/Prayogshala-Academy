@@ -481,8 +481,9 @@ html.dark {
   color: #fde68a;
 }
 
-.dark .app-shell [class~="bg-amber-50"] {
-  background-color: rgba(245, 158, 11, 0.1);
+.dark .app-shell [class~="bg-amber-50"],
+.dark .app-shell [class~="bg-amber-100"] {
+  background-color: rgba(245, 158, 11, 0.12);
 }
 
 .dark .app-shell [class~="hover:bg-amber-100"]:hover {

@@ -35,6 +35,9 @@ const AdminPortal = lazy(() => import('./components/admin/AdminPortal').then((m)
 const MistakesRecovery = lazy(() =>
   import('./components/mistakes/MistakesRecovery').then((m) => ({ default: m.MistakesRecovery }))
 );
+const LeaderboardPage = lazy(() =>
+  import('./components/leaderboard/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage }))
+);
 
 function RouteLoadingFallback({ label = 'Loading application component...' }: { label?: string }) {
   return (
@@ -1035,6 +1038,7 @@ export default function App() {
               />
             }
           />
+          <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route
             path="/mistakes"
             element={

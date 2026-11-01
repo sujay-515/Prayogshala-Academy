@@ -120,6 +120,25 @@ db.exec(`
     expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS exam_attempts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    total INTEGER NOT NULL,
+    correct_count INTEGER NOT NULL,
+    score REAL NOT NULL,
+    percentage INTEGER NOT NULL,
+    passed INTEGER NOT NULL,
+    time_spent_seconds INTEGER NOT NULL,
+    negative_marking INTEGER NOT NULL DEFAULT 0,
+    is_grand_test INTEGER NOT NULL DEFAULT 0,
+    completed_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_exam_attempts_window
+    ON exam_attempts(is_grand_test, completed_at);
 `);
 
 // Safe migrations for email support & password resets
@@ -142,6 +161,10 @@ try {
 
 try {
   db.prepare('ALTER TABLE active_exams ADD COLUMN penalty_per_wrong REAL NOT NULL DEFAULT 0.25').run();
+} catch {}
+
+try {
+  db.prepare('ALTER TABLE active_exams ADD COLUMN is_grand_test INTEGER NOT NULL DEFAULT 0').run();
 } catch {}
 
 const scryptAsync = promisify(crypto.scrypt);
