@@ -13,7 +13,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
-import { ExamScoreResult } from '../../utils/scoring';
+import { ExamScoreResult, DEFAULT_PENALTY_PER_WRONG } from '../../utils/scoring';
+
+const DEFAULT_PENALTY_DISPLAY = String(DEFAULT_PENALTY_PER_WRONG);
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
@@ -25,6 +27,7 @@ interface ExamModeProps {
     result: {
       title: string;
       score: number;
+      correctCount: number;
       total: number;
       timeSpentSeconds: number;
       passed: boolean;
@@ -50,9 +53,11 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const [questionCount, setQuestionCount] = useState<number>(10);
   const [durationMinutes, setDurationMinutes] = useState<number>(15);
   const [shuffleOptions, setShuffleOptions] = useState<boolean>(true);
+  const [negativeMarking, setNegativeMarking] = useState<boolean>(false);
 
   const [isExamRunning, setIsExamRunning] = useState<boolean>(false);
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
+  const [examTitle, setExamTitle] = useState<string>('');
   const [examQuestions, setExamQuestions] = useState<MCQQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({});
@@ -122,6 +127,23 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     });
   }, [publishedQuestions, examCategory, selectedUnit, selectedDifficulty]);
 
+  const isGrandTestConfig = questionCount >= 200 && durationMinutes >= 180 && negativeMarking;
+  const servedCount = Math.min(questionCount, filteredPool.length);
+
+  const applyGrandTestPreset = () => {
+    setExamCategory('All');
+    setSelectedUnit('All');
+    setSelectedDifficulty('All');
+    setQuestionCount(200);
+    setDurationMinutes(180);
+    setShuffleOptions(true);
+    setNegativeMarking(true);
+    setStartError(null);
+  };
+
+  const formatScore = (value: number) =>
+    Number.isInteger(value) ? String(value) : value.toFixed(2);
+
   const startExam = async () => {
     setStartError(null);
     setIsStarting(true);
@@ -140,6 +162,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
           questionCount,
           durationMinutes,
           shuffleOptions,
+          negativeMarking,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -152,7 +175,9 @@ export const ExamMode: React.FC<ExamModeProps> = ({
       }
       if (res.ok && data?.success && Array.isArray(data.questions) && data.questions.length > 0) {
         setActiveExamId(data.examId);
+        setExamTitle(data.title || '');
         setExamQuestions(data.questions);
+        if (typeof data.negativeMarking === 'boolean') setNegativeMarking(data.negativeMarking);
         setCurrentIndex(0);
         setUserAnswers({});
         setFlaggedIds(new Set());
@@ -240,8 +265,9 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
         onCompleteExam(
           {
-            title: `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`,
+            title: data.title || `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`,
             score: data.result.score,
+            correctCount: data.result.correctCount ?? data.result.score,
             total: data.result.total,
             timeSpentSeconds: timeSpent,
             passed: data.result.passed,
@@ -261,9 +287,11 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   };
 
   const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+    const hours = Math.floor(secs / 3600);
+    const minutes = Math.floor((secs % 3600) / 60);
+    const seconds = secs % 60;
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
   };
 
   // Screen 1: Scorecard / Results
@@ -283,10 +311,17 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto pt-2">
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <span className="text-xs text-slate-500 block">Score</span>
-              <span className="text-lg font-bold text-slate-900">
-                {examResult.score} / {examResult.total}
+              <span className="text-xs text-slate-500 block">
+                {examResult.negativeMarking ? 'Net score' : 'Score'}
               </span>
+              <span className="text-lg font-bold text-slate-900">
+                {formatScore(examResult.score)} / {examResult.total}
+              </span>
+              {examResult.negativeMarking && (
+                <span className="text-[10px] text-rose-700 block">
+                  {examResult.correctCount} correct − {formatScore(examResult.penaltyPoints)} penalty
+                </span>
+              )}
             </div>
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
               <span className="text-xs text-slate-500 block">Percentage</span>
@@ -308,6 +343,19 @@ export const ExamMode: React.FC<ExamModeProps> = ({
                 {examResult.passed ? 'PASS' : 'FAIL'}
               </span>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+            <span className="px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium">
+              Correct {examResult.correctCount}
+            </span>
+            <span className="px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-800 font-medium">
+              Incorrect {examResult.incorrectCount}
+              {examResult.negativeMarking && ` (−${formatScore(examResult.incorrectCount * examResult.penaltyPerWrong)})`}
+            </span>
+            <span className="px-2 py-1 rounded-md bg-slate-50 border border-slate-200 text-slate-700 font-medium">
+              Unanswered {examResult.unansweredCount}
+            </span>
           </div>
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
@@ -408,7 +456,14 @@ export const ExamMode: React.FC<ExamModeProps> = ({
                           isCorrect ? 'text-emerald-700' : 'text-rose-700'
                         }`}
                       >
-                        {isCorrect ? 'Correct' : `Incorrect (Your pick: ${userPick || 'None'})`}
+                        {isCorrect
+                          ? 'Correct'
+                          : `Incorrect (Your pick: ${userPick || 'None'})`}
+                        {!isCorrect && userPick && examResult.negativeMarking && (
+                          <span className="ml-1.5 text-rose-600 font-medium">
+                            −{formatScore(examResult.penaltyPerWrong)}
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -485,6 +540,29 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-5">
           <h2 className="text-sm font-semibold text-slate-900">Exam Parameters</h2>
 
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-semibold text-cyan-950 flex items-center gap-1.5">
+                Grand Test simulation
+                {isGrandTestConfig && (
+                  <span className="px-1.5 py-0.5 rounded bg-cyan-700 text-white text-[10px] font-bold uppercase tracking-wide">
+                    Active
+                  </span>
+                )}
+              </span>
+              <p className="text-xs text-cyan-900 mt-0.5">
+                200 questions · 180 minutes · −{DEFAULT_PENALTY_DISPLAY} per wrong answer · all syllabi
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={applyGrandTestPreset}
+              className="px-3 py-1.5 rounded-md bg-cyan-700 hover:bg-cyan-800 text-white text-xs font-medium cursor-pointer shrink-0"
+            >
+              {isGrandTestConfig ? 'Reset to Grand Test rules' : 'Load Grand Test preset'}
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -541,12 +619,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Question Count
               </label>
-              <div className="flex items-center gap-2">
-                {[10, 25, 50].map((cnt) => (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[10, 25, 50, 100, 200].map((cnt) => (
                   <button
                     key={cnt}
                     onClick={() => setQuestionCount(cnt)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
+                    className={`flex-1 min-w-[58px] py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
                       questionCount === cnt
                         ? 'bg-cyan-700 text-white border-cyan-700 font-semibold'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-cyan-50/40'
@@ -562,12 +640,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Time Limit
               </label>
-              <div className="flex items-center gap-2">
-                {[15, 30, 60].map((mins) => (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[15, 30, 60, 120, 180].map((mins) => (
                   <button
                     key={mins}
                     onClick={() => setDurationMinutes(mins)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
+                    className={`flex-1 min-w-[62px] py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
                       durationMinutes === mins
                         ? 'bg-cyan-700 text-white border-cyan-700 font-semibold'
                         : 'bg-white text-slate-700 border-slate-300 hover:bg-cyan-50/40'
@@ -597,6 +675,28 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             />
           </div>
 
+          <div
+            className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+              negativeMarking ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'
+            }`}
+          >
+            <div>
+              <span className="text-xs font-semibold text-slate-800 block">
+                Negative marking (−{DEFAULT_PENALTY_DISPLAY} per wrong answer)
+              </span>
+              <span className="text-xs text-slate-500">
+                Incorrect answers lose marks; unanswered questions are not penalised
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              aria-label="Negative marking"
+              checked={negativeMarking}
+              onChange={(e) => setNegativeMarking(e.target.checked)}
+              className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
+            />
+          </div>
+
           {startError && (
             <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">
               <div className="flex items-center gap-2">
@@ -615,7 +715,17 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
             <span className="text-xs text-slate-500">
-              Available pool: <strong className="text-slate-900">{filteredPool.length}</strong> questions
+              Available pool: <strong className="text-slate-900">{filteredPool.length}</strong> questions ·{' '}
+              <strong className="text-slate-900">{servedCount}</strong> served · {durationMinutes} min
+              {negativeMarking && (
+                <span className="text-rose-700 font-medium"> · −{DEFAULT_PENALTY_DISPLAY} per wrong</span>
+              )}
+              {questionCount > filteredPool.length && (
+                <span className="block text-amber-700 mt-0.5">
+                  Only {filteredPool.length} question{filteredPool.length === 1 ? '' : 's'} match these
+                  filters; the paper will use all of them.
+                </span>
+              )}
             </span>
             <button
               disabled={filteredPool.length === 0 || isStarting}
@@ -629,7 +739,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
                 </>
               ) : (
                 <>
-                  <span>Start Examination</span>
+                  <span>{isGrandTestConfig ? 'Start Grand Test' : 'Start Examination'}</span>
                   <ArrowRight className="w-4 h-4 text-cyan-400" />
                 </>
               )}
@@ -664,7 +774,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             {timeAnnouncement}
           </div>
           <span className="text-xs text-slate-500 hidden sm:inline">
-            {examCategory === 'All' ? 'Comprehensive' : examCategory} Exam
+            {examTitle || `${examCategory === 'All' ? 'Comprehensive' : examCategory} Exam`}
           </span>
           {activeExamId && (
             <span className="text-xs text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200 hidden md:inline-flex items-center gap-1">

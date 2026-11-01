@@ -657,6 +657,7 @@ export default function App() {
     result: {
       title: string;
       score: number;
+      correctCount: number;
       total: number;
       timeSpentSeconds: number;
       passed: boolean;
@@ -695,7 +696,7 @@ export default function App() {
       const next: UserStats = {
         ...prev,
         totalAnswered: prev.totalAnswered + result.total,
-        totalCorrect: prev.totalCorrect + result.score,
+        totalCorrect: prev.totalCorrect + (result.correctCount ?? result.score),
         streakDays: streakInfo.streakDays,
         lastActiveDate: streakInfo.lastActiveDate,
         subjectPerformance: updatedSubjectPerformance,
@@ -705,7 +706,11 @@ export default function App() {
           {
             id: `exam-${Date.now()}`,
             date: new Date().toISOString(),
-            ...result,
+            title: result.title,
+            score: result.score,
+            total: result.total,
+            timeSpentSeconds: result.timeSpentSeconds,
+            passed: result.passed,
           },
           ...prev.examRecords,
         ],

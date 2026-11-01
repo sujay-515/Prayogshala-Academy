@@ -135,6 +135,15 @@ try {
   db.prepare('ALTER TABLE reports ADD COLUMN user_id TEXT').run();
 } catch {}
 
+// Exam policy is fixed at session start so grading cannot be altered by the client
+try {
+  db.prepare('ALTER TABLE active_exams ADD COLUMN negative_marking INTEGER NOT NULL DEFAULT 0').run();
+} catch {}
+
+try {
+  db.prepare('ALTER TABLE active_exams ADD COLUMN penalty_per_wrong REAL NOT NULL DEFAULT 0.25').run();
+} catch {}
+
 const scryptAsync = promisify(crypto.scrypt);
 
 export async function hashPassword(password: string, customSalt?: string): Promise<string> {

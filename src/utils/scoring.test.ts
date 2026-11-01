@@ -108,3 +108,76 @@ test('calculateExamScore normalizes answer whitespace and case', () => {
   assert.equal(result.score, 1);
   assert.equal(result.percentage, 100);
 });
+
+function makeQuestion(id: string, correctAnswer: 'A' | 'B' | 'C' | 'D'): MCQQuestion {
+  return {
+    id,
+    code: `LAB-${id}`,
+    questionText: `Question ${id}`,
+    options: [
+      { id: 'A', text: 'Ans A' },
+      { id: 'B', text: 'Ans B' },
+      { id: 'C', text: 'Ans C' },
+      { id: 'D', text: 'Ans D' },
+    ],
+    correctAnswer,
+    explanation: 'Exp',
+    reference: 'Ref',
+    unit: 'Clinical Chemistry',
+    subject: 'Enzymology',
+    topic: 'Liver enzymes',
+    difficulty: 'Memory-based',
+    examCategories: ['ASCP'],
+    status: 'Published',
+    createdAt: '',
+    updatedAt: '',
+    versionHistory: [],
+  };
+}
+
+test('negative marking penalises wrong answers but never unanswered ones', () => {
+  const questions = [makeQuestion('q1', 'A'), makeQuestion('q2', 'B'), makeQuestion('q3', 'C')];
+  const result = calculateExamScore(
+    questions,
+    { q1: 'A', q2: 'D' }, // q3 left blank
+    60,
+    70,
+    { negativeMarking: true, penaltyPerWrong: 0.25 }
+  );
+
+  assert.equal(result.correctCount, 1);
+  assert.equal(result.incorrectCount, 1);
+  assert.equal(result.unansweredCount, 1);
+  assert.equal(result.penaltyPoints, 0.25);
+  assert.equal(result.score, 0.75);
+  assert.equal(result.percentage, 25);
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.incorrectQuestionIds, ['q2', 'q3']);
+});
+
+test('negative marking can drive the net score below zero', () => {
+  const questions = [makeQuestion('q1', 'A'), makeQuestion('q2', 'B')];
+  const result = calculateExamScore(
+    questions,
+    { q1: 'C', q2: 'D' },
+    30,
+    70,
+    { negativeMarking: true, penaltyPerWrong: 0.25 }
+  );
+
+  assert.equal(result.score, -0.5);
+  assert.equal(result.percentage, -25);
+  assert.equal(result.passed, false);
+  assert.equal(result.penaltyPoints, 0.5);
+});
+
+test('negative marking disabled keeps the raw correct count as the score', () => {
+  const questions = [makeQuestion('q1', 'A'), makeQuestion('q2', 'B')];
+  const result = calculateExamScore(questions, { q1: 'A', q2: 'D' }, 30, 70, {
+    negativeMarking: false,
+  });
+
+  assert.equal(result.score, 1);
+  assert.equal(result.penaltyPoints, 0);
+  assert.equal(result.percentage, 50);
+});

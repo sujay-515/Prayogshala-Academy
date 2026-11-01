@@ -525,7 +525,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                       </td>
                       <td className="px-3 py-2 font-medium text-slate-900">{rec.title}</td>
                       <td className="px-3 py-2">
-                        {rec.score}/{rec.total} ({pct}%)
+                        {Number.isInteger(rec.score) ? rec.score : rec.score.toFixed(2)}/{rec.total} ({pct}%)
                       </td>
                       <td className="px-3 py-2 font-semibold">
                         <span className={rec.passed ? 'text-emerald-700' : 'text-rose-700'}>

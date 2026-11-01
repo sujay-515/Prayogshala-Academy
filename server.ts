@@ -9,7 +9,7 @@ import rateLimit from 'express-rate-limit';
 import { GoogleGenAI } from '@google/genai';
 import { parseRawMCQText, findDuplicateQuestion, validateExtractedQuestion } from './src/utils/mcqParser';
 import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
-import { calculateExamScore, normalizeAnswer } from './src/utils/scoring';
+import { calculateExamScore, normalizeAnswer, DEFAULT_PENALTY_PER_WRONG } from './src/utils/scoring';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
 import { getRateLimitKey } from './src/server/rateLimit';
@@ -1207,9 +1207,13 @@ function validateUserStats(stats: any): string | null {
     if (typeof rec.title !== 'string' || rec.title.length > 200) return 'Invalid exam record title';
     if (
       typeof rec.score !== 'number' ||
+      !Number.isFinite(rec.score) ||
       typeof rec.total !== 'number' ||
-      rec.score < 0 ||
-      rec.score > rec.total
+      !Number.isFinite(rec.total) ||
+      rec.total < 0 ||
+      rec.total > 10_000 ||
+      rec.score > rec.total ||
+      rec.score < -rec.total
     ) {
       return 'Invalid exam record score/total';
     }
@@ -1312,7 +1316,10 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     unit = 'All',
     difficulty = 'All',
     shuffleOptions = false,
+    negativeMarking = false,
   } = req.body || {};
+
+  const useNegativeMarking = negativeMarking === true;
 
   const rawCount = parseInt(String(req.body?.questionCount), 10);
   const questionCount = Number.isNaN(rawCount) ? 10 : Math.max(1, Math.min(200, rawCount));
@@ -1370,20 +1377,25 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   });
 
   const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
-  const title = `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`;
+  const isGrandTest = questionCount >= 200 && durationMinutes >= 180;
+  const title = isGrandTest
+    ? `Grand Test · ${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine`
+    : `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`;
   const startedAt = new Date().toISOString();
   const examUserId = session?.userId || 'usr-guest';
 
   db.prepare(
-    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes, negative_marking, penalty_per_wrong)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     examId,
     examUserId,
     title,
     JSON.stringify(preparedQuestions),
     startedAt,
-    durationMinutes
+    durationMinutes,
+    useNegativeMarking ? 1 : 0,
+    DEFAULT_PENALTY_PER_WRONG
   );
 
   syncInsertActiveExam({
@@ -1403,6 +1415,8 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     examId,
     title,
     durationMinutes,
+    negativeMarking: useNegativeMarking,
+    penaltyPerWrong: DEFAULT_PENALTY_PER_WRONG,
     questions: sanitizedQuestions,
   });
 });
@@ -1436,7 +1450,11 @@ app.post('/api/exams/:id/submit', (req, res) => {
   let scoreResult;
   try {
     fullQuestions = JSON.parse(row.questions_json);
-    scoreResult = calculateExamScore(fullQuestions, userAnswers, cappedTimeSpentSeconds, 70);
+    scoreResult = calculateExamScore(fullQuestions, userAnswers, cappedTimeSpentSeconds, 70, {
+      negativeMarking: Boolean(row.negative_marking),
+      penaltyPerWrong:
+        typeof row.penalty_per_wrong === 'number' ? row.penalty_per_wrong : DEFAULT_PENALTY_PER_WRONG,
+    });
   } catch (err) {
     console.error('[Exam Scoring Error]', err);
     return res.status(500).json({ success: false, error: 'Failed to score exam.' });
