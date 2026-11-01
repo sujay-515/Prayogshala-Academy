@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
+import { EmailVerificationBanner } from './components/EmailVerificationBanner';
 import { HomeView } from './components/home/HomeView';
 import { BrowseQuestionBank } from './components/browse/BrowseQuestionBank';
 import { UserDashboard } from './components/dashboard/UserDashboard';
@@ -12,6 +13,7 @@ import { TermsPage } from './pages/TermsPage';
 import { DisclaimerPage } from './pages/DisclaimerPage';
 import { ContactPage } from './pages/ContactPage';
 import { CookiesPage } from './pages/CookiesPage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
@@ -993,6 +995,10 @@ export default function App() {
         mistakeCount={stats.revisionQueueIds.length}
       />
 
+      {currentUser?.email && currentUser.emailVerified === false && (
+        <EmailVerificationBanner authToken={authToken} email={currentUser.email} />
+      )}
+
       {/* Main Content Area with React Router */}
       <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 focus:outline-none">
         <ErrorBoundary>
@@ -1124,6 +1130,7 @@ export default function App() {
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/cookies" element={<CookiesPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

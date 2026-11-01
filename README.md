@@ -219,7 +219,7 @@ BASE_URL=https://qbank.example.com npm run smoke
 - **Supabase Cloud Sync is Bidirectional (Opt-In)**: The optional Supabase synchronization layer is bidirectional (hydrates from remote on boot, and pushes local mutations). It operates on a fire-and-forget basis without distributed transactions. To enable, set `SUPABASE_SYNC_ENABLED=true` and provide `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. For standalone installations, leave Supabase disabled; SQLite on persistent disk is the authoritative datastore.
 - **Session Tokens in `localStorage`**: Client session tokens are stored in browser `localStorage`. This architectural choice is mitigated by a strict Content Security Policy (`CSP_MODE=enforce`), absence of `dangerouslySetInnerHTML`, and strict sanitization of URLs and images.
 - **Signup Email Enumeration**: Registration indicates whether a username or email is already registered (`409 Conflict`), allowing callers to determine if an email is registered.
-- **No Email Ownership Verification**: New user accounts are activated immediately upon registration without requiring email ownership confirmation.
+- **Email Verification Is Soft-Gated**: Accounts stay usable immediately, but unverified email addresses are excluded from the Grand Test leaderboard and a banner prompts verification. Delivery requires `RESEND_API_KEY` and a correct `APP_URL`.
 - **No Exam Resume After Refresh**: Active exam timer and in-progress answers are tracked in client component state; hard-refreshing or navigating away mid-exam forfeits the active attempt.
 - **Answer Protection Limitations**: Server-side answer verification and allowlist serializers prevent trivial source inspection and throttle bulk extraction. However, because students must legitimately see explanations and answers to learn, slow distributed extraction cannot be completely eliminated.
 
@@ -228,7 +228,8 @@ BASE_URL=https://qbank.example.com npm run smoke
 Automated password reset emails require an external transactional email provider:
 - Set `RESEND_API_KEY` in your production environment variables.
 - Ensure your sending domain is verified in your Resend account dashboard and set `EMAIL_FROM` (e.g., `noreply@yourdomain.com`).
-- Without a valid API key and a verified domain, password reset emails cannot be delivered.
+- Without a valid API key and a verified domain, password reset and email verification messages cannot be delivered.
+- Verification links are built from `APP_URL` (defaults to `http://localhost:3000`), so set it to the deployed origin.
 
 ### Releasing
 

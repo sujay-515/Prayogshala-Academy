@@ -48,6 +48,8 @@ import {
   createPasswordReset,
   verifyAndConsumeResetToken,
   hashToken,
+  createEmailVerification,
+  verifyEmailToken,
   restoreBackup,
 } from './src/server/db';
 import { bootstrapSuperAdmin } from './src/server/bootstrap';
@@ -66,6 +68,7 @@ import {
   sendWelcomeEmail,
   sendStaffInviteEmail,
   sendPasswordResetEmail,
+  sendVerificationEmail,
 } from './src/server/emailService';
 import { startBackupScheduler, stopBackupScheduler } from './src/server/backup';
 
@@ -173,6 +176,12 @@ const resetPasswordLimiter = createLimiter(
   'Too many password reset attempts. Please wait before trying again.'
 );
 
+const emailVerificationLimiter = createLimiter(
+  15 * 60 * 1000,
+  10,
+  'Too many email verification requests. Please wait before trying again.'
+);
+
 const changePasswordLimiter = createLimiter(
   15 * 60 * 1000,
   10,
@@ -205,7 +214,7 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_ACTIVE_SESSIONS = 5;
 
 // Helper to resolve session from Authorization header (with 7-day TTL expiration check)
-function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string } | null {
+function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string; emailVerified: boolean } | null {
   if ((req as any)._sessionUser !== undefined) {
     return (req as any)._sessionUser;
   }
@@ -218,7 +227,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
   const tokenHash = hashToken(rawToken);
   const row = db
     .prepare(
-      `SELECT s.user_id, u.role, s.created_at, u.username, u.email, u.display_name
+      `SELECT s.user_id, u.role, s.created_at, u.username, u.email, u.display_name, u.email_verified
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.token = ?`
@@ -240,6 +249,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
     role: row.role,
     username: row.username,
     email: row.email || undefined,
+    emailVerified: row.email_verified !== 0,
     displayName: row.display_name,
   };
   (req as any)._sessionUser = user;
@@ -411,6 +421,7 @@ app.get('/api/bootstrap', (req, res) => {
           email: session.email,
           role: session.role,
           displayName: session.displayName,
+          emailVerified: session.emailVerified,
         }
       : null,
   });
@@ -533,6 +544,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       email: userRow.email || undefined,
       role: activeRole,
       displayName: userRow.display_name,
+      emailVerified: userRow.email_verified !== 0,
     },
     stats: JSON.parse(userRow.stats_json),
   });
@@ -569,6 +581,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   // Public self-registration always creates 'student' role.
   // Administrative promotions can only be granted by an existing Head Administrator.
   const role: 'student' = 'student';
+  const emailVerified = cleanEmail ? 0 : 1;
 
   const id = `usr-${Date.now()}`;
   const now = new Date().toISOString();
@@ -589,8 +602,8 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   const statsJson = JSON.stringify(initialStats);
 
   db.prepare(
-    `INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at, email_verified)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     cleanUsername,
@@ -599,7 +612,8 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     role,
     finalDisplayName,
     statsJson,
-    now
+    now,
+    emailVerified
   );
 
   syncUpsertUser({
@@ -617,10 +631,14 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   const tokenHash = hashToken(rawToken);
   recordSession(req, tokenHash, id, role, now);
 
-  // Send asynchronous welcome email via Resend if email was provided
+  // Send asynchronous welcome + verification emails if an address was provided
   if (cleanEmail) {
     void sendWelcomeEmail(cleanEmail, finalDisplayName).catch((err) => {
       console.warn('[Welcome Email Failed]', err);
+    });
+    const verifyToken = createEmailVerification(id);
+    void sendVerificationEmail(cleanEmail, finalDisplayName, verifyToken).catch((err) => {
+      console.warn('[Verification Email Failed]', err);
     });
   }
 
@@ -633,6 +651,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
       email: cleanEmail || undefined,
       role,
       displayName: finalDisplayName,
+      emailVerified: Boolean(emailVerified),
     },
     stats: initialStats,
   });
@@ -677,6 +696,54 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
   }
 
   return res.json({ success: true, message: 'Password has been reset successfully. You may now sign in.' });
+});
+
+app.post('/api/auth/verify-email', emailVerificationLimiter, (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  if (!token || token.length > 200) {
+    return res.status(400).json({ success: false, error: 'A valid verification token is required.' });
+  }
+
+  const result = verifyEmailToken(token);
+  if (!result.success) {
+    return res.status(400).json({ success: false, error: result.error });
+  }
+
+  return res.json({ success: true, message: 'Email verified successfully. Thank you.' });
+});
+
+app.post('/api/auth/resend-verification', emailVerificationLimiter, async (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+
+  const row = db
+    .prepare('SELECT email, email_verified, display_name FROM users WHERE id = ?')
+    .get(session.userId) as { email: string | null; email_verified: number; display_name: string } | undefined;
+
+  if (!row) {
+    return res.status(404).json({ success: false, error: 'Account not found.' });
+  }
+  if (!row.email) {
+    return res.status(400).json({ success: false, error: 'This account has no email address to verify.' });
+  }
+  if (row.email_verified) {
+    return res.json({ success: true, alreadyVerified: true, message: 'Email is already verified.' });
+  }
+
+  const token = createEmailVerification(session.userId);
+  try {
+    await sendVerificationEmail(row.email, row.display_name || session.displayName, token);
+  } catch (err) {
+    console.error('[Verification Email Error]', err);
+    return res.status(502).json({
+      success: false,
+      error: 'Could not send the verification email. Please try again shortly.',
+    });
+  }
+
+  return res.json({ success: true, message: 'Verification email sent. Check your inbox.' });
 });
 
 app.post('/api/auth/change-password', changePasswordLimiter, async (req, res) => {
@@ -787,6 +854,7 @@ app.get('/api/auth/me', (req, res) => {
       email: session.email,
       role: session.role,
       displayName: session.displayName,
+      emailVerified: session.emailVerified,
     },
     stats,
   });
@@ -1614,8 +1682,8 @@ app.post('/api/exams/:id/submit', (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to score exam.' });
   }
 
-  // Persist the attempt for the leaderboard (authenticated candidates only)
-  if (session?.userId) {
+  // Persist the attempt for the leaderboard (authenticated, email-verified candidates only)
+  if (session?.userId && session.emailVerified !== false) {
     try {
       db.prepare(
         `INSERT INTO exam_attempts

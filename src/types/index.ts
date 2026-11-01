@@ -230,6 +230,7 @@ export interface UserAccount {
   displayName: string;
   token?: string;
   createdAt?: string;
+  emailVerified?: boolean;
 }
 
 export interface QuestionReport {

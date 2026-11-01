@@ -176,6 +176,20 @@ try {
   db.prepare('ALTER TABLE sessions ADD COLUMN ip TEXT').run();
 } catch {}
 
+// Email ownership verification (existing accounts default to verified so the
+// migration cannot lock anyone out).
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1').run();
+} catch {}
+
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN email_verify_token_hash TEXT').run();
+} catch {}
+
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN email_verify_expires TEXT').run();
+} catch {}
+
 const scryptAsync = promisify(crypto.scrypt);
 
 export async function hashPassword(password: string, customSalt?: string): Promise<string> {
@@ -310,6 +324,38 @@ export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+export function createEmailVerification(userId: string): string {
+  const rawToken = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  db.prepare(
+    'UPDATE users SET email_verify_token_hash = ?, email_verify_expires = ? WHERE id = ?'
+  ).run(hashToken(rawToken), expiresAt, userId);
+  return rawToken;
+}
+
+export function verifyEmailToken(rawToken: string): { success: boolean; error?: string } {
+  const hash = hashToken(rawToken);
+  const row = db
+    .prepare('SELECT id, email_verify_expires FROM users WHERE email_verify_token_hash = ?')
+    .get(hash) as { id: string; email_verify_expires: string | null } | undefined;
+
+  if (!row) {
+    return { success: false, error: 'Invalid or already used verification link.' };
+  }
+
+  if (!row.email_verify_expires || new Date(row.email_verify_expires).getTime() < Date.now()) {
+    db.prepare(
+      'UPDATE users SET email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
+    ).run(row.id);
+    return { success: false, error: 'Verification link has expired. Request a new one.' };
+  }
+
+  db.prepare(
+    'UPDATE users SET email_verified = 1, email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
+  ).run(row.id);
+  return { success: true };
+}
+
 export function createPasswordReset(userId: string): string {
   db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(userId);
   const rawToken = crypto.randomBytes(32).toString('hex');
@@ -342,6 +388,10 @@ export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: st
   db.exec('BEGIN IMMEDIATE');
   try {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newPasswordHash, row.user_id);
+    // Completing a reset proves control of the mailbox.
+    db.prepare(
+      'UPDATE users SET email_verified = 1, email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
+    ).run(row.user_id);
     db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
     db.exec('COMMIT');

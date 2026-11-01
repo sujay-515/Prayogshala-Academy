@@ -172,7 +172,58 @@ export async function sendStaffInviteEmail(
 }
 
 /**
- * 3. Password Reset email
+ * 3. Email ownership verification
+ */
+export async function sendVerificationEmail(to: string, displayName: string, verifyToken: string) {
+  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const verifyLink = `${appUrl}/verify-email?token=${encodeURIComponent(verifyToken)}`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 24px; }
+          .card { max-width: 560px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+          .header { border-bottom: 2px solid #0891b2; padding-bottom: 16px; margin-bottom: 24px; }
+          .title { font-size: 20px; font-weight: 700; color: #0f172a; margin: 0; }
+          .content { font-size: 14px; line-height: 1.6; color: #334155; }
+          .button { display: inline-block; background: #0891b2; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; margin-top: 20px; }
+          .footer { font-size: 12px; color: #94a3b8; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="header">
+            <h1 class="title">MedLab QBank</h1>
+          </div>
+          <div class="content">
+            <p>Hello ${escapeHtml(displayName || 'there')},</p>
+            <p>Confirm the email address for your MedLab QBank account so it can be used for password recovery and Grand Test leaderboard ranking.</p>
+            <p>This link is valid for 24 hours.</p>
+            <a href="${escapeHtml(verifyLink)}" class="button" style="color: #ffffff;">Verify Email</a>
+            <p style="margin-top: 24px; font-size: 12px; color: #64748b;">
+              If the button does not work, copy and paste this URL into your browser:<br>
+              <a href="${escapeHtml(verifyLink)}" style="color: #0891b2;">${escapeHtml(verifyLink)}</a>
+            </p>
+          </div>
+          <div class="footer">
+            If you did not create this account, you can safely ignore this email.
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: 'Verify your MedLab QBank email address',
+    html,
+  });
+}
+
+/**
+ * 4. Password Reset email
  */
 export async function sendPasswordResetEmail(to: string, resetToken: string) {
   const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
