@@ -17,6 +17,8 @@ import { getDailyQuestion } from './utils/dailyQuestion';
 import { useTheme } from './utils/theme';
 import { normalizeMistakes, recordMistakeAnswer } from './utils/mistakes';
 import type { PacingSummary } from './utils/pacing';
+import type { BookmarkMeta } from './types';
+import { normalizeBookmarkMeta, updateBookmarkMeta } from './utils/bookmarks';
 import {
   MCQQuestion,
   UnitCategory,
@@ -38,6 +40,9 @@ const MistakesRecovery = lazy(() =>
 );
 const LeaderboardPage = lazy(() =>
   import('./components/leaderboard/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage }))
+);
+const BookmarksLibrary = lazy(() =>
+  import('./components/bookmarks/BookmarksLibrary').then((m) => ({ default: m.BookmarksLibrary }))
 );
 
 function RouteLoadingFallback({ label = 'Loading application component...' }: { label?: string }) {
@@ -184,7 +189,13 @@ try {
 
 function normalizeStats(stats: UserStats): UserStats {
   if (!stats || typeof stats !== 'object') return stats;
-  return { ...stats, ...normalizeMistakes(stats.revisionQueueIds, stats.mistakeStreaks) };
+  const bookmarkedIds = Array.isArray(stats.bookmarkedIds) ? stats.bookmarkedIds : [];
+  return {
+    ...stats,
+    bookmarkedIds,
+    bookmarkMeta: normalizeBookmarkMeta(bookmarkedIds, stats.bookmarkMeta),
+    ...normalizeMistakes(stats.revisionQueueIds, stats.mistakeStreaks),
+  };
 }
 
 export default function App() {
@@ -301,6 +312,7 @@ export default function App() {
       streakDays: 0,
       lastActiveDate: new Date().toISOString().slice(0, 10),
       bookmarkedIds: [],
+      bookmarkMeta: {},
       revisionQueueIds: [],
       mistakeStreaks: {},
       subjectPerformance: {},
@@ -519,6 +531,7 @@ export default function App() {
             streakDays: 0,
             lastActiveDate: new Date().toISOString().slice(0, 10),
             bookmarkedIds: [],
+            bookmarkMeta: {},
             revisionQueueIds: [],
             mistakeStreaks: {},
             subjectPerformance: {},
@@ -568,6 +581,7 @@ export default function App() {
       streakDays: 0,
       lastActiveDate: new Date().toISOString().slice(0, 10),
       bookmarkedIds: [],
+      bookmarkMeta: {},
       revisionQueueIds: [],
       mistakeStreaks: {},
       subjectPerformance: {},
@@ -585,11 +599,27 @@ export default function App() {
   const handleToggleBookmark = (id: string) => {
     setStats((prev) => {
       const exists = prev.bookmarkedIds.includes(id);
+      const bookmarkMeta = { ...(prev.bookmarkMeta || {}) };
+      if (exists) {
+        delete bookmarkMeta[id];
+      }
       const next: UserStats = {
         ...prev,
         bookmarkedIds: exists
           ? prev.bookmarkedIds.filter((bId) => bId !== id)
           : [...prev.bookmarkedIds, id],
+        bookmarkMeta,
+      };
+      persistStatsToServer(next);
+      return next;
+    });
+  };
+
+  const handleUpdateBookmarkMeta = (id: string, patch: Partial<BookmarkMeta>) => {
+    setStats((prev) => {
+      const next: UserStats = {
+        ...prev,
+        bookmarkMeta: updateBookmarkMeta(prev.bookmarkMeta, id, patch),
       };
       persistStatsToServer(next);
       return next;
@@ -1042,6 +1072,21 @@ export default function App() {
             }
           />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route
+            path="/bookmarks"
+            element={
+              <BookmarksLibrary
+                stats={stats}
+                questions={questions}
+                onUpdateBookmarkMeta={handleUpdateBookmarkMeta}
+                onToggleBookmark={handleToggleBookmark}
+                onStartPracticeWithQuestions={(subset) => {
+                  setCustomPracticeSubset(subset);
+                  navigate('/practice');
+                }}
+              />
+            }
+          />
           <Route
             path="/mistakes"
             element={

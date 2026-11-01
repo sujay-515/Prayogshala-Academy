@@ -45,6 +45,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
   const [selectedExam, setSelectedExam] = useState<string>('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
   const [highYieldOnly, setHighYieldOnly] = useState<boolean>(false);
+  const [bookmarksOnly, setBookmarksOnly] = useState<boolean>(false);
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(15);
@@ -183,6 +184,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
       if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       if (highYieldOnly && !q.isHighYield) return false;
+      if (bookmarksOnly && !bookmarkedIds.includes(q.id)) return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -197,7 +199,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
       }
       return true;
     });
-  }, [publishedOnly, selectedUnit, selectedSubject, selectedTopic, selectedSubtopic, selectedExam, selectedDifficulty, searchQuery]);
+  }, [publishedOnly, selectedUnit, selectedSubject, selectedTopic, selectedSubtopic, selectedExam, selectedDifficulty, searchQuery, highYieldOnly, bookmarksOnly, bookmarkedIds]);
 
   return (
     <div className="max-w-5xl mx-auto py-6 space-y-6">
@@ -377,6 +379,25 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
               <span className="text-xs font-semibold whitespace-nowrap">High-Yield only</span>
             </label>
           </div>
+
+          <div className="flex items-end">
+            <label
+              className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors ${
+                bookmarksOnly
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-white/70 border-slate-200/90 text-slate-700'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={bookmarksOnly}
+                onChange={(e) => setBookmarksOnly(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+              />
+              <Bookmark className={`w-3.5 h-3.5 ${bookmarksOnly ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+              <span className="text-xs font-semibold whitespace-nowrap">Bookmarked only</span>
+            </label>
+          </div>
         </div>
 
         {/* Clear filters action */}
@@ -387,6 +408,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
           selectedExam !== 'All' ||
           selectedDifficulty !== 'All' ||
           highYieldOnly ||
+          bookmarksOnly ||
           searchQuery) && (
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <span>Showing {filteredQuestions.length} matching questions</span>
@@ -399,6 +421,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 setSelectedExam('All');
                 setSelectedDifficulty('All');
                 setHighYieldOnly(false);
+                setBookmarksOnly(false);
                 setSearchQuery('');
               }}
               className="text-slate-800 hover:underline font-medium cursor-pointer"

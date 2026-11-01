@@ -197,6 +197,7 @@ export const DEFAULT_USER_STATS: UserStats = {
   streakDays: 0,
   lastActiveDate: new Date().toISOString().slice(0, 10),
   bookmarkedIds: [],
+  bookmarkMeta: {},
   revisionQueueIds: [],
   mistakeStreaks: {},
   subjectPerformance: {},

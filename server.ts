@@ -520,6 +520,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     ...DEFAULT_USER_STATS,
     lastActiveDate: now.slice(0, 10),
     bookmarkedIds: [],
+    bookmarkMeta: {},
     revisionQueueIds: [],
     mistakeStreaks: {},
     subjectPerformance: {},
@@ -1080,6 +1081,7 @@ function validateUserStats(stats: any): string | null {
     'streakDays',
     'lastActiveDate',
     'bookmarkedIds',
+    'bookmarkMeta',
     'revisionQueueIds',
     'mistakeStreaks',
     'subjectPerformance',
@@ -1136,6 +1138,40 @@ function validateUserStats(stats: any): string | null {
   for (const id of stats.revisionQueueIds) {
     if (typeof id !== 'string' || id.length > 100) {
       return 'Invalid revision ID in revisionQueueIds';
+    }
+  }
+
+  if (stats.bookmarkMeta !== undefined) {
+    const meta = stats.bookmarkMeta;
+    if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
+      return 'bookmarkMeta must be an object keyed by question ID';
+    }
+    const metaKeys = Object.keys(meta);
+    if (metaKeys.length > 5000) {
+      return 'bookmarkMeta must contain at most 5,000 entries';
+    }
+    for (const key of metaKeys) {
+      if (key.length === 0 || key.length > 100) {
+        return 'Invalid question ID in bookmarkMeta';
+      }
+      const entry = meta[key];
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return 'Invalid bookmarkMeta entry';
+      }
+      if (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 2000)) {
+        return 'Bookmark notes must be strings of up to 2,000 characters';
+      }
+      if (entry.folder !== undefined && (typeof entry.folder !== 'string' || entry.folder.length > 60)) {
+        return 'Bookmark folders must be strings of up to 60 characters';
+      }
+      if (entry.updatedAt !== undefined && (typeof entry.updatedAt !== 'string' || entry.updatedAt.length > 40)) {
+        return 'Invalid bookmark updatedAt timestamp';
+      }
+      for (const field of Object.keys(entry)) {
+        if (!['note', 'folder', 'updatedAt'].includes(field)) {
+          return `Unknown field in bookmarkMeta entry: ${field}`;
+        }
+      }
     }
   }
 

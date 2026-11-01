@@ -191,6 +191,8 @@ export interface UserStats {
   streakDays: number;
   lastActiveDate: string;
   bookmarkedIds: string[];
+  /** Optional note/folder metadata keyed by bookmarked question ID. */
+  bookmarkMeta?: Record<string, BookmarkMeta>;
   revisionQueueIds: string[];
   /** Consecutive-correct progress for each queued mistake (0 or 1; 2 clears). */
   mistakeStreaks?: Record<string, number>;
@@ -207,6 +209,12 @@ export interface UserStats {
     /** Optional pacing analytics captured for timed mock attempts. */
     pacing?: PacingSummary;
   }[];
+}
+
+export interface BookmarkMeta {
+  note?: string;
+  folder?: string;
+  updatedAt?: string;
 }
 
 export interface UserAccount {

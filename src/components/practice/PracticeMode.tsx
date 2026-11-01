@@ -47,6 +47,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [questionCountLimit, setQuestionCountLimit] = useState<number>(10);
   const [isRandomized, setIsRandomized] = useState<boolean>(true);
   const [highYieldOnly, setHighYieldOnly] = useState<boolean>(false);
+  const [bookmarksOnly, setBookmarksOnly] = useState<boolean>(false);
 
   // Active Session State
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
@@ -104,9 +105,10 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
       if (highYieldOnly && !q.isHighYield) return false;
+      if (bookmarksOnly && !bookmarkedIds.includes(q.id)) return false;
       return true;
     });
-  }, [questions, selectedUnit, selectedSubject, selectedDifficulty, selectedExam]);
+  }, [questions, selectedUnit, selectedSubject, selectedDifficulty, selectedExam, highYieldOnly, bookmarksOnly, bookmarkedIds]);
 
   const startSession = () => {
     onClearCustomSubset?.();
@@ -352,6 +354,35 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                 aria-label="High-Yield Mode"
                 checked={highYieldOnly}
                 onChange={(e) => setHighYieldOnly(e.target.checked)}
+                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+              />
+            </div>
+
+            <div
+              className={`sm:col-span-2 flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                bookmarksOnly
+                  ? 'bg-amber-50 border-amber-300'
+                  : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <Bookmark
+                  className={`w-4 h-4 mt-0.5 shrink-0 ${
+                    bookmarksOnly ? 'fill-amber-500 text-amber-500' : 'text-slate-400'
+                  }`}
+                />
+                <div>
+                  <span className="text-xs font-semibold text-slate-800 block">Bookmarks only</span>
+                  <span className="text-xs text-slate-500">
+                    Practise only questions you have saved to your bookmark library
+                  </span>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                aria-label="Bookmarks only"
+                checked={bookmarksOnly}
+                onChange={(e) => setBookmarksOnly(e.target.checked)}
                 className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
               />
             </div>

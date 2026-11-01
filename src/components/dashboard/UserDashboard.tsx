@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Target,
   Gauge,
+  Folder,
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
@@ -20,6 +21,7 @@ import { isVisibleQuestion } from '../../utils/questionVisibility';
 import { remainingHits } from '../../utils/mistakes';
 import { predictPerformance } from '../../utils/prediction';
 import { formatPacingTime } from '../../utils/pacing';
+import { folderFor } from '../../utils/bookmarks';
 
 interface UserDashboardProps {
   stats: UserStats;
@@ -598,14 +600,12 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
               Saved bookmarks ({bookmarkedQuestions.length})
             </h3>
-            {bookmarkedQuestions.length > 0 && (
-              <button
-                onClick={() => onStartPracticeWithQuestions(bookmarkedQuestions)}
-                className="text-xs text-cyan-800 hover:text-cyan-950 font-medium cursor-pointer"
-              >
-                Practice bookmarked items
-              </button>
-            )}
+            <Link
+              to="/bookmarks"
+              className="text-xs text-cyan-800 hover:text-cyan-950 font-medium cursor-pointer"
+            >
+              Open library →
+            </Link>
           </div>
 
           {bookmarkedQuestions.length === 0 ? (
@@ -619,13 +619,24 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   key={q.id}
                   className="glass-card p-3 rounded-xl flex items-start justify-between gap-2 shadow-2xs"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <span className="font-semibold text-slate-800 block">{q.code} · {q.subject}</span>
                     <p className="text-slate-600 line-clamp-1">{q.questionText}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[10px]">
+                        <Folder className="w-2.5 h-2.5" />
+                        {folderFor(stats.bookmarkMeta, q.id)}
+                      </span>
+                      {stats.bookmarkMeta?.[q.id]?.note && (
+                        <span className="text-[10px] text-slate-500 italic line-clamp-1">
+                          “{stats.bookmarkMeta[q.id]?.note}”
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={() => onRemoveBookmark(q.id)}
-                    className="p-1 text-slate-400 hover:text-amber-600 cursor-pointer"
+                    className="p-1 text-slate-400 hover:text-amber-600 cursor-pointer shrink-0"
                     title="Remove bookmark"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -633,6 +644,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </div>
               ))}
             </div>
+          )}
+
+          {bookmarkedQuestions.length > 0 && (
+            <button
+              onClick={() => onStartPracticeWithQuestions(bookmarkedQuestions)}
+              className="w-full py-1.5 rounded-md border border-cyan-200 bg-cyan-50 text-cyan-900 text-xs font-medium hover:bg-cyan-100 transition-colors cursor-pointer"
+            >
+              Practice all {bookmarkedQuestions.length} bookmarks
+            </button>
           )}
         </div>
       </div>
