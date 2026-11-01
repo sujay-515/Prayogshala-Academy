@@ -229,7 +229,9 @@ Automated password reset emails require an external transactional email provider
 - Set `RESEND_API_KEY` in your production environment variables.
 - Ensure your sending domain is verified in your Resend account dashboard and set `EMAIL_FROM` (e.g., `noreply@yourdomain.com`).
 - Without a valid API key and a verified domain, password reset and email verification messages cannot be delivered.
-- Verification links are built from `APP_URL` (defaults to `http://localhost:3000`), so set it to the deployed origin.
+- Verification and reset links are built from `APP_URL`, then `SITE_URL`, then `http://localhost:${PORT}`. Set `APP_URL` explicitly in production.
+- Resend test mode (`onboarding@resend.dev`) only delivers to the Resend account owner's address. To email anyone else, verify a domain at resend.com/domains and set `EMAIL_FROM` to an address on that domain.
+- In development, verification links are always printed to the server terminal as `[Email Dev] Verification link for ...`, so temp-mail testing does not depend on delivery.
 
 ### Releasing
 

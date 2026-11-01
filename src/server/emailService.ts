@@ -2,6 +2,19 @@
 // MedLab QBank — Transactional Email Service via Resend
 // ============================================================================
 
+function getAppUrl(): string {
+  const raw = (
+    process.env.APP_URL ||
+    process.env.SITE_URL ||
+    `http://localhost:${process.env.PORT || 3001}`
+  ).trim();
+  return raw.replace(/\/+$/, '');
+}
+
+export function buildVerificationLink(token: string): string {
+  return `${getAppUrl()}/verify-email?token=${encodeURIComponent(token)}`;
+}
+
 export function escapeHtml(str: string): string {
   if (!str || typeof str !== 'string') return '';
   return str
@@ -61,7 +74,7 @@ export async function sendEmail({
  * 1. Welcome email for new candidates upon registration
  */
 export async function sendWelcomeEmail(to: string, displayName: string) {
-  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const html = `
     <!DOCTYPE html>
     <html>
@@ -115,7 +128,7 @@ export async function sendStaffInviteEmail(
   role: 'superadmin' | 'admin',
   tempPassword?: string
 ) {
-  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const roleLabel = role === 'superadmin' ? 'Head Administrator (Lead Staff)' : 'Pathology Staff Administrator';
   const html = `
     <!DOCTYPE html>
@@ -175,8 +188,14 @@ export async function sendStaffInviteEmail(
  * 3. Email ownership verification
  */
 export async function sendVerificationEmail(to: string, displayName: string, verifyToken: string) {
-  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
-  const verifyLink = `${appUrl}/verify-email?token=${encodeURIComponent(verifyToken)}`;
+  const verifyLink = buildVerificationLink(verifyToken);
+
+  // In development the terminal is the mail catcher: Resend test mode only
+  // delivers to the account owner's address, so print the link for testers.
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[Email Dev] Verification link for ${to}: ${verifyLink}`);
+  }
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -226,7 +245,7 @@ export async function sendVerificationEmail(to: string, displayName: string, ver
  * 4. Password Reset email
  */
 export async function sendPasswordResetEmail(to: string, resetToken: string) {
-  const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const appUrl = getAppUrl();
   const resetLink = `${appUrl}?reset_token=${encodeURIComponent(resetToken)}#reset-password`;
   const html = `
     <!DOCTYPE html>

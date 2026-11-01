@@ -20,7 +20,10 @@ export const EmailVerificationBanner: React.FC<EmailVerificationBannerProps> = (
         headers: { Authorization: `Bearer ${authToken}` },
       });
       const data = await res.json().catch(() => null);
-      if (res.ok && data?.success) {
+      if (res.ok && data?.success && data?.delivered === false) {
+        setStatus('error');
+        setMessage(data.message || 'Email delivery failed in this environment.');
+      } else if (res.ok && data?.success) {
         setStatus('sent');
         setMessage(data.message || 'Verification email sent. Check your inbox.');
       } else {

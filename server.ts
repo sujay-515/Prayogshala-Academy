@@ -637,9 +637,11 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
       console.warn('[Welcome Email Failed]', err);
     });
     const verifyToken = createEmailVerification(id);
-    void sendVerificationEmail(cleanEmail, finalDisplayName, verifyToken).catch((err) => {
-      console.warn('[Verification Email Failed]', err);
-    });
+    void sendVerificationEmail(cleanEmail, finalDisplayName, verifyToken)
+      .then((delivery) => {
+        if (!delivery.success) console.warn('[Verification Email Failed]', delivery.error);
+      })
+      .catch((err) => console.warn('[Verification Email Failed]', err));
   }
 
   return res.json({
@@ -668,9 +670,11 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, (req, res) => {
 
   if (user) {
     const token = createPasswordReset(user.id);
-    void sendPasswordResetEmail(user.email, token).catch((err) => {
-      console.warn('[Reset Email Failed]', err);
-    });
+    void sendPasswordResetEmail(user.email, token)
+      .then((delivery) => {
+        if (!delivery.success) console.warn('[Reset Email Failed]', delivery.error);
+      })
+      .catch((err) => console.warn('[Reset Email Failed]', err));
   }
 
   // Always return success to protect privacy
@@ -733,10 +737,23 @@ app.post('/api/auth/resend-verification', emailVerificationLimiter, async (req, 
   }
 
   const token = createEmailVerification(session.userId);
+  let delivery: { success: boolean; error?: string };
   try {
-    await sendVerificationEmail(row.email, row.display_name || session.displayName, token);
-  } catch (err) {
-    console.error('[Verification Email Error]', err);
+    delivery = await sendVerificationEmail(row.email, row.display_name || session.displayName, token);
+  } catch (err: any) {
+    delivery = { success: false, error: err?.message || 'Network error reaching the email provider' };
+  }
+
+  if (!delivery.success) {
+    console.warn('[Verification Email Failed]', delivery.error);
+    if (process.env.NODE_ENV !== 'production') {
+      return res.json({
+        success: true,
+        delivered: false,
+        message:
+          'Email delivery failed in this environment. The verification link was printed to the server terminal.',
+      });
+    }
     return res.status(502).json({
       success: false,
       error: 'Could not send the verification email. Please try again shortly.',
