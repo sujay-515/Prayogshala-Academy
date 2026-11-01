@@ -13,7 +13,7 @@ import { calculateExamScore, normalizeAnswer, DEFAULT_PENALTY_PER_WRONG } from '
 import { getGrandTestWindow, getLeaderboardWindowStart, formatNepalTime } from './src/utils/examWindow';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { normalizeExamCategories, questionMatchesExamCategory } from './src/utils/examCategories';
-import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
+import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion, ALLOWED_QUESTION_STATUSES, QuestionStatus } from './src/types';
 import { getRateLimitKey } from './src/server/rateLimit';
 import { prepareExamQuestions } from './src/server/examAssembly';
 import {
@@ -924,7 +924,7 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
     ? (db.prepare('SELECT id, title, started_at, duration_minutes FROM active_exams WHERE user_id = ?').all(session.userId) as any[])
     : [];
   const examAttempts = isStudent
-    ? (db.prepare('SELECT id, exam_type, score, total_questions, correct_count, incorrect_count, time_spent_seconds, completed_at, is_grand_test FROM exam_attempts WHERE user_id = ? ORDER BY completed_at DESC').all(session.userId) as any[])
+    ? (db.prepare('SELECT id, title, total, correct_count, score, percentage, passed, time_spent_seconds, completed_at, is_grand_test FROM exam_attempts WHERE user_id = ? ORDER BY completed_at DESC').all(session.userId) as any[])
     : [];
   const submittedReports = db.prepare('SELECT id, question_id, question_code, reason, details, submitted_at, status FROM reports WHERE user_id = ? ORDER BY submitted_at DESC').all(session.userId) as any[];
 
@@ -983,7 +983,6 @@ app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
     db.exec('BEGIN');
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(session.userId);
-    db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM exam_attempts WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(session.userId);
     db.prepare('UPDATE reports SET user_id = NULL WHERE user_id = ?').run(session.userId);
@@ -1282,6 +1281,9 @@ function validateQuestionPayload(q: any): string | null {
   if (q.pastPaper !== undefined && (typeof q.pastPaper !== 'string' || q.pastPaper.length > 120)) {
     return `Question ${q.id}: pastPaper must be a string of up to 120 characters`;
   }
+  if (q.status !== undefined && !ALLOWED_QUESTION_STATUSES.includes(q.status)) {
+    return `Question ${q.id}: status must be one of: ${ALLOWED_QUESTION_STATUSES.join(', ')}`;
+  }
   // Exam categories are optional metadata. Normalise unknown/missing values to [] so an
   // uploaded question is never forced into a board, and every stored record has an array.
   q.examCategories = normalizeExamCategories(q.examCategories);
@@ -1513,13 +1515,13 @@ const handleBulkQuestionStatus = (req: express.Request, res: express.Response) =
   if (!Array.isArray(ids) || !status) {
     return res.status(400).json({ success: false, error: 'ids array and status required' });
   }
-  if (!['Published', 'Draft', 'Archived'].includes(status)) {
+  if (!ALLOWED_QUESTION_STATUSES.includes(status as QuestionStatus)) {
     return res.status(400).json({
       success: false,
-      error: "Status must be one of: 'Published', 'Draft', 'Archived'.",
+      error: `Status must be one of: ${ALLOWED_QUESTION_STATUSES.map((s) => `'${s}'`).join(', ')}.`,
     });
   }
-  const updated = bulkUpdateQuestionStatus(ids, status);
+  const updated = bulkUpdateQuestionStatus(ids, status as QuestionStatus);
   return res.json({ success: true, questions: updated });
 };
 

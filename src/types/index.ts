@@ -9,6 +9,14 @@ export type ExamCategory = 'NHPC' | 'PSC' | 'ASCP' | 'DHA' | 'AIMS' | 'CEE-UG';
 
 export type QuestionStatus = 'Draft' | 'Under-Review' | 'Approved' | 'Published' | 'Archived';
 
+export const ALLOWED_QUESTION_STATUSES: readonly QuestionStatus[] = [
+  'Draft',
+  'Under-Review',
+  'Approved',
+  'Published',
+  'Archived',
+] as const;
+
 export interface MCQOption {
   id: 'A' | 'B' | 'C' | 'D' | 'E';
   text: string;

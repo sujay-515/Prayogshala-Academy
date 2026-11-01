@@ -1800,28 +1800,39 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(invalidQRes.body.success, false);
     assert.ok(invalidQRes.body.error);
 
-    // 3. bulk-status rejects invalid status
+    // 3. bulk-status accepts all allowed QuestionStatus values and rejects unknown ones
+    const allowedStatuses = ['Draft', 'Under-Review', 'Approved', 'Published', 'Archived'] as const;
+    for (const st of allowedStatuses) {
+      const resPost = await request('POST', '/api/questions/bulk-status', {
+        token: adminToken,
+        body: { ids: [], status: st },
+      });
+      assert.equal(resPost.status, 200, `POST bulk-status should accept ${st}`);
+      assert.equal(resPost.body.success, true);
+
+      const resPut = await request('PUT', '/api/questions/bulk-status', {
+        token: adminToken,
+        body: { ids: [], status: st },
+      });
+      assert.equal(resPut.status, 200, `PUT bulk-status should accept ${st}`);
+      assert.equal(resPut.body.success, true);
+    }
+
     const invalidStatusPost = await request('POST', '/api/questions/bulk-status', {
       token: adminToken,
       body: { ids: ['q1'], status: 'InvalidStatus' },
     });
     assert.equal(invalidStatusPost.status, 400);
-    assert.ok(invalidStatusPost.body.error?.includes('Published'));
+    assert.equal(invalidStatusPost.body.success, false);
+    assert.ok(invalidStatusPost.body.error?.includes('Status must be one of:'));
 
     const invalidStatusPut = await request('PUT', '/api/questions/bulk-status', {
       token: adminToken,
-      body: { ids: ['q1'], status: 'Approved' },
+      body: { ids: ['q1'], status: 'BogusStatus' },
     });
     assert.equal(invalidStatusPut.status, 400);
-    assert.ok(invalidStatusPut.body.error?.includes('Published'));
-
-    // Valid bulk-status succeeds
-    const validStatusPut = await request('PUT', '/api/questions/bulk-status', {
-      token: adminToken,
-      body: { ids: [], status: 'Draft' },
-    });
-    assert.equal(validStatusPut.status, 200);
-    assert.equal(validStatusPut.body.success, true);
+    assert.equal(invalidStatusPut.body.success, false);
+    assert.ok(invalidStatusPut.body.error?.includes('Status must be one of:'));
 
     // 4. Negative page and limit clamped
     const negRes = await request('GET', '/api/questions?page=-5&limit=-20');
