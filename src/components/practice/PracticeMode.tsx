@@ -44,6 +44,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [selectedSubject, setSelectedSubject] = useState<string>('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
   const [selectedExam, setSelectedExam] = useState<string>(initialExam || 'All');
+  const [selectedPastPaper, setSelectedPastPaper] = useState<string>('All');
   const [questionCountLimit, setQuestionCountLimit] = useState<number>(10);
   const [isRandomized, setIsRandomized] = useState<boolean>(true);
   const [highYieldOnly, setHighYieldOnly] = useState<boolean>(false);
@@ -95,6 +96,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   }, [questions, selectedUnit]);
 
   const exams: ('All' | ExamCategory)[] = ['All', 'ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'];
+  const pastPapers = useMemo(() => {
+    const set = new Set(
+      questions.filter((q) => isVisibleQuestion(q) && q.pastPaper).map((q) => q.pastPaper as string)
+    );
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [questions]);
   const difficulties = ['All', 'Memory-based', 'Conceptual', 'Advanced'];
 
   const filteredPool = useMemo(() => {
@@ -104,11 +111,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
+      if (selectedPastPaper !== 'All' && q.pastPaper !== selectedPastPaper) return false;
       if (highYieldOnly && !q.isHighYield) return false;
       if (bookmarksOnly && !bookmarkedIds.includes(q.id)) return false;
       return true;
     });
-  }, [questions, selectedUnit, selectedSubject, selectedDifficulty, selectedExam, highYieldOnly, bookmarksOnly, bookmarkedIds]);
+  }, [questions, selectedUnit, selectedSubject, selectedDifficulty, selectedExam, selectedPastPaper, highYieldOnly, bookmarksOnly, bookmarkedIds]);
 
   const startSession = () => {
     onClearCustomSubset?.();
@@ -297,6 +305,29 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Past Paper
+              </label>
+              <select
+                value={selectedPastPaper}
+                onChange={(e) => setSelectedPastPaper(e.target.value)}
+                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500"
+              >
+                <option value="All">All Past Papers</option>
+                {pastPapers.map((paper) => (
+                  <option key={paper} value={paper}>
+                    {paper}
+                  </option>
+                ))}
+              </select>
+              {pastPapers.length === 0 && (
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  No questions are tagged to a past paper yet.
+                </span>
+              )}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Question Count
               </label>
               <div className="flex items-center gap-2">
@@ -444,6 +475,11 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               <span className="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold align-middle">
                 <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                 High-Yield
+              </span>
+            )}
+            {currentQ.pastPaper && (
+              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 font-medium align-middle">
+                {currentQ.pastPaper}
               </span>
             )}
           </div>

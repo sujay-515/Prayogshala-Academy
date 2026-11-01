@@ -1067,6 +1067,9 @@ function validateQuestionPayload(q: any): string | null {
   if (q.imageUrl && !isSafeImageUrl(q.imageUrl)) {
     return `Question ${q.id}: unsafe or invalid imageUrl provided`;
   }
+  if (q.pastPaper !== undefined && (typeof q.pastPaper !== 'string' || q.pastPaper.length > 120)) {
+    return `Question ${q.id}: pastPaper must be a string of up to 120 characters`;
+  }
   return null;
 }
 

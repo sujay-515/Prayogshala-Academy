@@ -92,6 +92,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         difficulty: 'Conceptual',
         examCategories: ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'],
         isHighYield: true,
+        pastPaper: 'ASCP 2024',
       },
     ];
     const blob = new Blob([JSON.stringify(jsonTemplate, null, 2)], { type: 'application/json' });
@@ -206,6 +207,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
                 difficulty: item.difficulty || 'Conceptual',
                 examCategories: item.examCategories || ['ASCP', 'NHPC'],
                 isHighYield: Boolean(item.isHighYield),
+                pastPaper: typeof item.pastPaper === 'string' ? item.pastPaper : undefined,
                 sourceDocument: file.name,
                 confidenceScore: 1.0,
                 validationErrors: [],
@@ -305,6 +307,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         difficulty: d.difficulty || 'Conceptual',
         examCategories: d.examCategories.length > 0 ? d.examCategories : ['ASCP', 'NHPC'],
         isHighYield: Boolean(d.isHighYield),
+        pastPaper: d.pastPaper,
         status: 'Draft',
         sourceDocument: d.sourceDocument,
         createdAt: timestamp,

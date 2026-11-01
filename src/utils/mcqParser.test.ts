@@ -159,3 +159,15 @@ test('parseCSVToMCQ reads the trailing HighYield column and defaults to false wh
   assert.equal(drafts[0].isHighYield, true);
   assert.equal(drafts[1].isHighYield, false);
 });
+
+test('parseCSVToMCQ reads an optional trailing PastPaper column', () => {
+  const header =
+    'QuestionStem,OptionA,OptionB,OptionC,OptionD,CorrectAnswer,Explanation,Reference,Unit,Subject,Topic,Difficulty,ExamCategories,HighYield,PastPaper';
+  const withPaper =
+    'Which analyte is the gold standard for myocardial infarction?,Troponin,Myoglobin,CK-MB,LDH,A,Rationale,Tietz,Clinical Chemistry,Cardiac Markers,Troponin,Conceptual,ASCP,Yes,ASCP 2024';
+  const withoutPaper =
+    'Which anticoagulant is used for coagulation studies?,EDTA,Citrate,Heparin,Oxalate,B,Rationale,CLSI,Hematology,Coagulation,PT,Conceptual,NHPC,,';
+  const drafts = parseCSVToMCQ([header, withPaper, withoutPaper].join('\n'));
+  assert.equal(drafts[0].pastPaper, 'ASCP 2024');
+  assert.equal(drafts[1].pastPaper, undefined);
+});

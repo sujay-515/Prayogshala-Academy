@@ -35,6 +35,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
   const [correctAnswer, setCorrectAnswer] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
   const [explanation, setExplanation] = useState('');
   const [reference, setReference] = useState('');
+  const [pastPaper, setPastPaper] = useState('');
   const [unit, setUnit] = useState(categories[0]?.name || 'Clinical Chemistry');
   const [subject, setSubject] = useState(categories[0]?.subjects[0]?.name || 'Clinical Enzymology & Hepatic Function');
   const [topic, setTopic] = useState('Transaminases (ALT/AST)');
@@ -80,6 +81,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setCorrectAnswer(editingQuestion.correctAnswer || 'A');
       setExplanation(editingQuestion.explanation);
       setReference(editingQuestion.reference);
+      setPastPaper(editingQuestion.pastPaper || '');
       setUnit(editingQuestion.unit);
       setSubject(editingQuestion.subject);
       setTopic(editingQuestion.topic);
@@ -108,6 +110,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setCorrectAnswer('A');
       setExplanation('');
       setReference('CLSI Guidelines & Medical Pathology Standards');
+      setPastPaper('');
       setUnit(categories[0]?.name || 'Clinical Chemistry');
       setSubject(categories[0]?.subjects[0]?.name || 'Clinical Enzymology & Hepatic Function');
       setTopic(categories[0]?.subjects[0]?.topics[0] || 'Transaminases (ALT/AST)');
@@ -262,6 +265,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       difficulty,
       examCategories: selectedExams.length > 0 ? selectedExams : ['ASCP'],
       isHighYield,
+      pastPaper: pastPaper.trim() || undefined,
       status,
       sourceDocument: editingQuestion?.sourceDocument || 'Direct Manual Entry',
       createdAt: editingQuestion ? editingQuestion.createdAt : timestamp,
@@ -280,6 +284,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
         clinicalCase !== (editingQuestion.clinicalCase || '') ||
         explanation !== editingQuestion.explanation ||
         reference !== (editingQuestion.reference || '') ||
+        pastPaper !== (editingQuestion.pastPaper || '') ||
         imageUrl !== (editingQuestion.imageUrl || '') ||
         correctAnswer !== editingQuestion.correctAnswer ||
         unit !== editingQuestion.unit ||
@@ -903,6 +908,24 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                     placeholder="e.g. Tietz Textbook of Clinical Chemistry, 6th Ed., Ch. 44"
                     className="w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                   />
+                </div>
+
+                <div>
+                  <label htmlFor="qform-past-paper" className="block text-slate-700 font-semibold mb-1.5">
+                    Past Paper (Optional)
+                  </label>
+                  <input
+                    id="qform-past-paper"
+                    type="text"
+                    maxLength={120}
+                    value={pastPaper}
+                    onChange={(e) => setPastPaper(e.target.value)}
+                    placeholder="e.g. ASCP 2024 or MECEE-PG 2081"
+                    className="w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
+                  />
+                  <span className="text-[11px] text-slate-500 mt-1 block">
+                    Links this question to a past paper so candidates can filter by paper.
+                  </span>
                 </div>
               </div>
 

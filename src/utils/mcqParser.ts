@@ -972,6 +972,7 @@ export function generateCSVTemplate(): string {
     'Difficulty',
     'ExamCategories',
     'HighYield',
+    'PastPaper',
   ];
 
   const exampleRow = [
@@ -989,6 +990,7 @@ export function generateCSVTemplate(): string {
     '"Conceptual"',
     '"ASCP;NHPC;PSC"',
     '"Yes"',
+    '"ASCP 2024"',
   ];
 
   return `${headers.join(',')}\n${exampleRow.join(',')}`;
@@ -1062,6 +1064,7 @@ export function parseCSVToMCQ(
       difficulty = 'Conceptual',
       examCategoriesStr = 'ASCP;NHPC',
       highYieldStr = '',
+      pastPaper = '',
     ] = row;
 
     const options: MCQOption[] = [
@@ -1095,6 +1098,7 @@ export function parseCSVToMCQ(
       difficulty: validDifficulty,
       examCategories: examCategories.length > 0 ? examCategories : ['ASCP', 'NHPC'],
       isHighYield: /^(yes|true|1|y)$/i.test(highYieldStr.trim()),
+      pastPaper: pastPaper.trim() || undefined,
       sourceDocument,
       confidenceScore: 0.98,
       validationErrors: [],

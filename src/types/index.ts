@@ -46,6 +46,8 @@ export interface MCQQuestion {
   examCategories: ExamCategory[];
   /** Editorially flagged as high-yield for the High-Yield practice mode. */
   isHighYield?: boolean;
+  /** Source past paper label, e.g. "ASCP 2024" or "MECEE-PG 2081". */
+  pastPaper?: string;
   status: QuestionStatus;
   sourceDocument?: string;
   pageNumber?: number;
@@ -70,6 +72,7 @@ export interface PublicMCQQuestion {
   difficulty: DifficultyLevel;
   examCategories: ExamCategory[];
   isHighYield?: boolean;
+  pastPaper?: string;
 }
 
 /**
@@ -103,6 +106,7 @@ export function toPublicQuestion(q: MCQQuestion): PublicMCQQuestion {
   if (q.imageUrl) pub.imageUrl = q.imageUrl;
   if (q.subtopic) pub.subtopic = q.subtopic;
   if (q.isHighYield) pub.isHighYield = true;
+  if (q.pastPaper) pub.pastPaper = q.pastPaper;
 
   return pub;
 }
@@ -146,6 +150,7 @@ export interface ExtractedMCQDraft {
   difficulty: DifficultyLevel;
   examCategories: ExamCategory[];
   isHighYield?: boolean;
+  pastPaper?: string;
   sourceDocument: string;
   pageNumber?: number;
   confidenceScore: number; // 0 to 1

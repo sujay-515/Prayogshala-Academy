@@ -713,6 +713,11 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                               High-Yield
                             </span>
                           )}
+                          {q.pastPaper && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 font-medium">
+                              {q.pastPaper}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
