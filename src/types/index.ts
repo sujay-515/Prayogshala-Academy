@@ -1,6 +1,7 @@
 /**
  * Laboratory Medicine Question Bank Types & Data Models
  */
+import type { PacingSummary } from '../utils/pacing';
 
 export type DifficultyLevel = 'Memory-based' | 'Conceptual' | 'Advanced';
 
@@ -203,6 +204,8 @@ export interface UserStats {
     total: number;
     timeSpentSeconds: number;
     passed: boolean;
+    /** Optional pacing analytics captured for timed mock attempts. */
+    pacing?: PacingSummary;
   }[];
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Clock,
@@ -16,6 +16,7 @@ import {
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { ExamScoreResult, DEFAULT_PENALTY_PER_WRONG } from '../../utils/scoring';
 import { formatCountdown, formatNepalTime } from '../../utils/examWindow';
+import { computePacing, formatPacingTime, PacingSummary } from '../../utils/pacing';
 
 const DEFAULT_PENALTY_DISPLAY = String(DEFAULT_PENALTY_PER_WRONG);
 import { getSafeImageUrl } from '../../utils/urlSecurity';
@@ -33,6 +34,7 @@ interface ExamModeProps {
       total: number;
       timeSpentSeconds: number;
       passed: boolean;
+      pacing?: PacingSummary;
     },
     gradedQuestions?: MCQQuestion[],
     userAnswers?: Record<string, string>
@@ -74,7 +76,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const [timeAnnouncement, setTimeAnnouncement] = useState<string>('');
   const [isReviewScreenOpen, setIsReviewScreenOpen] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
-  const [examResult, setExamResult] = useState<ExamScoreResult | null>(null);
+  const [examResult, setExamResult] = useState<(ExamScoreResult & { pacing?: PacingSummary }) | null>(null);
+  const [questionTimings, setQuestionTimings] = useState<Record<string, number>>({});
+  const currentQuestionIdRef = useRef<string>('');
+  const reviewOpenRef = useRef<boolean>(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -149,6 +154,14 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     };
   }, [isExamRunning]);
 
+  const currentQuestionId = examQuestions[currentIndex]?.id || '';
+  useEffect(() => {
+    currentQuestionIdRef.current = currentQuestionId;
+  }, [currentQuestionId]);
+  useEffect(() => {
+    reviewOpenRef.current = isReviewScreenOpen;
+  }, [isReviewScreenOpen]);
+
   const publishedQuestions = useMemo(() => {
     return questions.filter((q) => isVisibleQuestion(q));
   }, [questions]);
@@ -193,6 +206,19 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     setStartError(null);
   };
 
+  // Restores the quick-mock defaults, so the control always does something visible
+  // even when the Grand Test rules are already applied.
+  const resetExamDefaults = () => {
+    setExamCategory(initialExamCategory || 'ASCP');
+    setSelectedUnit('All');
+    setSelectedDifficulty('All');
+    setQuestionCount(10);
+    setDurationMinutes(15);
+    setShuffleOptions(true);
+    setNegativeMarking(false);
+    setStartError(null);
+  };
+
   const formatScore = (value: number) =>
     Number.isInteger(value) ? String(value) : value.toFixed(2);
 
@@ -232,6 +258,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         if (typeof data.negativeMarking === 'boolean') setNegativeMarking(data.negativeMarking);
         setCurrentIndex(0);
         setUserAnswers({});
+        setQuestionTimings({});
         setFlaggedIds(new Set());
         setSecondsRemaining(durationMinutes * 60);
         setIsReviewScreenOpen(false);
@@ -254,6 +281,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
     const timer = setInterval(() => {
       setSecondsRemaining((prev) => (prev <= 1 ? 0 : prev - 1));
+      const activeId = currentQuestionIdRef.current;
+      if (activeId && !reviewOpenRef.current) {
+        setQuestionTimings((prev) => ({ ...prev, [activeId]: (prev[activeId] || 0) + 1 }));
+      }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -309,8 +340,15 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         const finalGraded: MCQQuestion[] = Array.isArray(data.gradedQuestions)
           ? data.gradedQuestions
           : examQuestions;
+        const pacing = computePacing(
+          finalGraded.map((q) => ({
+            seconds: questionTimings[q.id] || 0,
+            answered: Boolean(userAnswers[q.id]),
+            correct: Boolean(userAnswers[q.id] && userAnswers[q.id] === q.correctAnswer),
+          }))
+        );
         setExamQuestions(finalGraded);
-        setExamResult(data.result);
+        setExamResult({ ...data.result, pacing });
         setIsExamRunning(false);
         setShowConfirmModal(false);
         setIsReviewScreenOpen(false);
@@ -323,6 +361,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             total: data.result.total,
             timeSpentSeconds: timeSpent,
             passed: data.result.passed,
+            pacing,
           },
           finalGraded,
           userAnswers
@@ -467,6 +506,45 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             ))}
           </div>
         </div>
+
+        {/* Pacing & study habits */}
+        {examResult.pacing && (
+          <div className="bg-white border border-slate-200 rounded-md p-6 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-slate-900">Pacing &amp; study habits</h3>
+              <span className="text-xs font-medium text-cyan-800">{examResult.pacing.label}</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <span className="text-xs text-slate-500 block">Avg / question</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {formatPacingTime(examResult.pacing.avgSecondsPerQuestion)}
+                </span>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <span className="text-xs text-slate-500 block">Fastest</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {formatPacingTime(examResult.pacing.fastestSeconds)}
+                </span>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <span className="text-xs text-slate-500 block">Slowest</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {formatPacingTime(examResult.pacing.slowestSeconds)}
+                </span>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <span className="text-xs text-slate-500 block">Rushing / Overthinking</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {examResult.pacing.rushingCount} / {examResult.pacing.overthinkingCount}
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Rushing = under 20s on an incorrect answer · Overthinking = 90s or more on one question.
+            </p>
+          </div>
+        )}
 
         {/* Question by question review */}
         <div className="bg-white border border-slate-200 rounded-md p-6 space-y-5">
@@ -625,10 +703,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </div>
             <button
               type="button"
-              onClick={applyGrandTestPreset}
+              onClick={isGrandTestConfig ? resetExamDefaults : applyGrandTestPreset}
               className="px-3 py-1.5 rounded-md bg-cyan-700 hover:bg-cyan-800 text-white text-xs font-medium cursor-pointer shrink-0"
             >
-              {isGrandTestConfig ? 'Reset to Grand Test rules' : 'Load Grand Test preset'}
+              {isGrandTestConfig ? 'Reset to default settings' : 'Load Grand Test preset'}
             </button>
           </div>
 

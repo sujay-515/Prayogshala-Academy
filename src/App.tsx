@@ -16,6 +16,7 @@ import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
 import { useTheme } from './utils/theme';
 import { normalizeMistakes, recordMistakeAnswer } from './utils/mistakes';
+import type { PacingSummary } from './utils/pacing';
 import {
   MCQQuestion,
   UnitCategory,
@@ -664,6 +665,7 @@ export default function App() {
       total: number;
       timeSpentSeconds: number;
       passed: boolean;
+      pacing?: PacingSummary;
     },
     gradedQuestions?: MCQQuestion[],
     userAnswers?: Record<string, string>
@@ -714,6 +716,7 @@ export default function App() {
             total: result.total,
             timeSpentSeconds: result.timeSpentSeconds,
             passed: result.passed,
+            pacing: result.pacing,
           },
           ...prev.examRecords,
         ],

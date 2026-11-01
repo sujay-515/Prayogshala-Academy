@@ -8,6 +8,8 @@ import {
   Download,
   KeyRound,
   CheckCircle2,
+  Target,
+  Gauge,
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
@@ -16,6 +18,8 @@ import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
 import { remainingHits } from '../../utils/mistakes';
+import { predictPerformance } from '../../utils/prediction';
+import { formatPacingTime } from '../../utils/pacing';
 
 interface UserDashboardProps {
   stats: UserStats;
@@ -78,6 +82,25 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const weakAreas = useMemo(() => {
     return identifyWeakAreas(stats.subjectPerformance, 70);
   }, [stats.subjectPerformance]);
+
+  const prediction = useMemo(() => predictPerformance(stats), [stats]);
+
+  const pacingHistory = useMemo(() => {
+    const paced = stats.examRecords.filter((record) => Boolean(record.pacing));
+    if (paced.length === 0) return null;
+    const recent = paced.slice(0, 5);
+    const sum = (pick: (pacing: NonNullable<(typeof recent)[number]['pacing']>) => number) =>
+      recent.reduce((total, record) => total + pick(record.pacing!), 0);
+    return {
+      count: recent.length,
+      averageSeconds: Math.round(sum((p) => p.avgSecondsPerQuestion) / recent.length),
+      fastestSeconds: Math.min(...recent.map((record) => record.pacing!.fastestSeconds)),
+      slowestSeconds: Math.max(...recent.map((record) => record.pacing!.slowestSeconds)),
+      rushingCount: sum((p) => p.rushingCount),
+      overthinkingCount: sum((p) => p.overthinkingCount),
+      latestLabel: recent[0].pacing!.label,
+    };
+  }, [stats.examRecords]);
 
   const handleDownloadData = async () => {
     setIsExporting(true);
@@ -269,6 +292,126 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <span className="text-2xl font-bold text-slate-900 mt-1 block">{stats.streakDays} Days</span>
           <span className="text-xs text-slate-500">Consecutive days active</span>
         </div>
+      </div>
+
+      {/* Predicted performance */}
+      <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-3.5 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Target className="w-4 h-4 text-cyan-700" />
+            Predicted performance
+          </h3>
+          {prediction.available && (
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide border ${
+                prediction.confidence === 'high'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : prediction.confidence === 'medium'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}
+            >
+              {prediction.confidence} confidence
+            </span>
+          )}
+        </div>
+
+        {prediction.available ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <span className="text-xs text-slate-500 block">Projected score</span>
+                <span className="text-3xl font-bold text-slate-900 block mt-0.5">
+                  {prediction.predicted}%
+                </span>
+                <span className="text-xs text-slate-500">
+                  Likely range {prediction.low}–{prediction.high}%
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block">Projected percentile</span>
+                <span className="text-2xl font-bold text-cyan-800 block mt-0.5">
+                  {prediction.percentile}th
+                </span>
+                <span className="text-xs text-slate-500">
+                  Roughly top {Math.max(1, 100 - prediction.percentile)}% of candidates
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block">Basis</span>
+                <span className="text-sm font-semibold text-slate-800 block mt-0.5">
+                  {prediction.basis}
+                </span>
+                <span className="text-xs text-slate-500">
+                  Practice accuracy blended with recent mock scores
+                </span>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 border-t border-slate-100 pt-2.5">
+              Heuristic projection, not a guarantee. It is pulled toward the cohort average when your
+              sample is small, and it weights your five most recent mocks most heavily.
+            </p>
+          </>
+        ) : (
+          <div className="flex items-start gap-2 text-xs text-slate-600">
+            <Target className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <span>{prediction.reason}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Pacing & study habits */}
+      <div className="glass-panel rounded-2xl p-5 sm:p-6 space-y-3 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Gauge className="w-4 h-4 text-cyan-700" />
+            Pacing &amp; study habits
+          </h3>
+          {pacingHistory && (
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              Last {pacingHistory.count} timed mock{pacingHistory.count === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+
+        {pacingHistory ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <span className="text-xs text-slate-500 block">Average per question</span>
+                <span className="text-2xl font-bold text-slate-900 block mt-0.5">
+                  {formatPacingTime(pacingHistory.averageSeconds)}
+                </span>
+                <span className="text-xs text-slate-500">
+                  Fastest {formatPacingTime(pacingHistory.fastestSeconds)} · slowest{' '}
+                  {formatPacingTime(pacingHistory.slowestSeconds)}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block">Study habit</span>
+                <span className="text-sm font-semibold text-slate-800 block mt-1">
+                  {pacingHistory.latestLabel}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block">Rushing / Overthinking</span>
+                <span className="text-2xl font-bold text-slate-900 block mt-0.5">
+                  {pacingHistory.rushingCount} / {pacingHistory.overthinkingCount}
+                </span>
+                <span className="text-xs text-slate-500">Questions under 20s wrong · 90s+ each</span>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-500 border-t border-slate-100 pt-2.5">
+              Captured inside timed mock exams. Use it to decide whether to slow down on weak topics or
+              set a per-question time cap.
+            </p>
+          </>
+        ) : (
+          <div className="flex items-start gap-2 text-xs text-slate-600">
+            <Gauge className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+            <span>Complete a timed mock exam to unlock pacing analytics.</span>
+          </div>
+        )}
       </div>
 
       {/* Weak Areas Card */}
