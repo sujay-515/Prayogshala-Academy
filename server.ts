@@ -202,6 +202,7 @@ const apiKey = process.env.GEMINI_API_KEY;
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MAX_ACTIVE_SESSIONS = 5;
 
 // Helper to resolve session from Authorization header (with 7-day TTL expiration check)
 function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string } | null {
@@ -428,6 +429,66 @@ app.get('/api/exam-window', (_req, res) => {
 });
 
 // ==================== AUTHENTICATION APIs ====================
+function describeUserAgent(userAgent: string | null | undefined): string {
+  if (!userAgent) return 'Unknown device';
+  const ua = userAgent;
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+      ? 'Opera'
+      : /Chrome\//.test(ua)
+        ? 'Chrome'
+        : /Firefox\//.test(ua)
+          ? 'Firefox'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : 'Browser';
+  const os = /Windows/.test(ua)
+    ? 'Windows'
+    : /Android/.test(ua)
+      ? 'Android'
+      : /iPhone|iPad|iPod/.test(ua)
+        ? 'iOS'
+        : /Mac OS X/.test(ua)
+          ? 'macOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : 'Unknown OS';
+  return `${browser} on ${os}`;
+}
+
+/**
+ * Creates a session and keeps the newest MAX_ACTIVE_SESSIONS for the account.
+ * The token itself is only ever returned to its own client.
+ */
+function recordSession(
+  req: express.Request,
+  tokenHash: string,
+  userId: string,
+  role: string,
+  createdAt: string
+): void {
+  const userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
+  const ip = String(req.ip || '').slice(0, 60);
+  db.prepare(
+    'INSERT INTO sessions (token, user_id, role, created_at, user_agent, ip) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(tokenHash, userId, role, createdAt, userAgent, ip);
+
+  const newer = db
+    .prepare(
+      'SELECT token FROM sessions WHERE user_id = ? AND token <> ? ORDER BY created_at DESC, rowid DESC'
+    )
+    .all(userId, tokenHash) as { token: string }[];
+  const excess = newer.slice(MAX_ACTIVE_SESSIONS - 1);
+  const remove = db.prepare('DELETE FROM sessions WHERE token = ?');
+  for (const row of excess) remove.run(row.token);
+}
+
+function currentTokenHash(req: express.Request): string {
+  const header = req.headers.authorization || '';
+  return header.startsWith('Bearer ') ? hashToken(header.slice(7)) : '';
+}
+
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const rawId = req.body?.identifier ?? req.body?.username;
   const rawPw = req.body?.password;
@@ -461,12 +522,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const rawToken = crypto.randomBytes(24).toString('hex');
   const tokenHash = hashToken(rawToken);
   const now = new Date().toISOString();
-  db.prepare('INSERT INTO sessions (token, user_id, role, created_at) VALUES (?, ?, ?, ?)').run(
-    tokenHash,
-    userRow.id,
-    activeRole,
-    now
-  );
+  recordSession(req, tokenHash, userRow.id, activeRole, now);
 
   return res.json({
     success: true,
@@ -559,12 +615,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
 
   const rawToken = crypto.randomBytes(24).toString('hex');
   const tokenHash = hashToken(rawToken);
-  db.prepare('INSERT INTO sessions (token, user_id, role, created_at) VALUES (?, ?, ?, ?)').run(
-    tokenHash,
-    id,
-    role,
-    now
-  );
+  recordSession(req, tokenHash, id, role, now);
 
   // Send asynchronous welcome email via Resend if email was provided
   if (cleanEmail) {
@@ -674,6 +725,44 @@ app.post('/api/auth/logout', (req, res) => {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
   }
   res.json({ success: true, message: 'Logged out successfully.' });
+});
+
+app.get('/api/auth/sessions', (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+  const current = currentTokenHash(req);
+  const rows = db
+    .prepare(
+      'SELECT token, created_at, user_agent FROM sessions WHERE user_id = ? ORDER BY created_at DESC, rowid DESC'
+    )
+    .all(session.userId) as { token: string; created_at: string; user_agent: string | null }[];
+
+  return res.json({
+    success: true,
+    maxSessions: MAX_ACTIVE_SESSIONS,
+    sessions: rows.map((row) => ({
+      createdAt: row.created_at,
+      device: describeUserAgent(row.user_agent),
+      current: row.token === current,
+    })),
+  });
+});
+
+app.post('/api/auth/sessions/revoke-others', (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+  const current = currentTokenHash(req);
+  if (!current) {
+    return res.status(400).json({ success: false, error: 'Missing session token.' });
+  }
+  const result = db
+    .prepare('DELETE FROM sessions WHERE user_id = ? AND token <> ?')
+    .run(session.userId, current);
+  return res.json({ success: true, revoked: Number(result.changes || 0) });
 });
 
 app.get('/api/auth/me', (req, res) => {
@@ -2026,6 +2115,7 @@ export const PUBLIC_SITEMAP_ROUTES = [
   '/privacy',
   '/terms',
   '/disclaimer',
+  '/cookies',
   '/contact',
 ];
 

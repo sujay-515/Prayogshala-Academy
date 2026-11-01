@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -11,6 +11,7 @@ import {
   Target,
   Gauge,
   Folder,
+  MonitorSmartphone,
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
@@ -49,6 +50,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwError, setPwError] = useState('');
+  const [sessions, setSessions] = useState<Array<{ device: string; createdAt: string; current: boolean }> | null>(null);
+  const [maxSessions, setMaxSessions] = useState(5);
+  const [sessionsError, setSessionsError] = useState('');
+  const [sessionsMessage, setSessionsMessage] = useState('');
+  const [isRevokingSessions, setIsRevokingSessions] = useState(false);
   const [pwSuccess, setPwSuccess] = useState('');
   const [isSubmittingPw, setIsSubmittingPw] = useState(false);
 
@@ -207,6 +213,55 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       setDeleteError(err.message || 'Error deleting account.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const loadSessions = () => {
+    if (!authToken) {
+      setSessions(null);
+      return;
+    }
+    fetch('/api/auth/sessions', { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success) {
+          setSessions(data.sessions);
+          setMaxSessions(data.maxSessions || 5);
+          setSessionsError('');
+        }
+      })
+      .catch(() => setSessionsError('Unable to load active devices.'));
+  };
+
+  useEffect(() => {
+    loadSessions();
+  }, [authToken]);
+
+  const handleRevokeOtherSessions = async () => {
+    if (!authToken) return;
+    setIsRevokingSessions(true);
+    setSessionsMessage('');
+    setSessionsError('');
+    try {
+      const res = await fetch('/api/auth/sessions/revoke-others', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setSessionsMessage(
+          data.revoked > 0
+            ? `Signed out ${data.revoked} other device${data.revoked === 1 ? '' : 's'}.`
+            : 'No other devices were signed in.'
+        );
+        loadSessions();
+      } else {
+        setSessionsError(data?.error || 'Could not revoke other sessions.');
+      }
+    } catch {
+      setSessionsError('Network error while revoking sessions.');
+    } finally {
+      setIsRevokingSessions(false);
     }
   };
 
@@ -830,6 +885,64 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 {isSubmittingPw ? 'Updating Password...' : 'Update Password'}
               </button>
             </form>
+          </div>
+
+          {/* Active devices */}
+          <div className="max-w-xl space-y-3 pt-5 border-t border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <MonitorSmartphone className="w-3.5 h-3.5 text-cyan-700" />
+                Active devices
+              </h4>
+              <span className="text-xs text-slate-500">
+                {sessions ? `${sessions.length} of ${maxSessions}` : '—'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              Up to {maxSessions} devices can stay signed in. Signing in elsewhere signs out the oldest session.
+            </p>
+
+            {sessionsError && (
+              <p role="alert" className="text-xs text-rose-700 font-medium">{sessionsError}</p>
+            )}
+
+            {sessions && sessions.length > 0 && (
+              <ul className="space-y-1.5">
+                {sessions.map((item, index) => (
+                  <li
+                    key={`${item.createdAt}-${index}`}
+                    className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-slate-50 border border-slate-200 text-xs"
+                  >
+                    <span className="text-slate-700 font-medium flex items-center gap-1.5">
+                      {item.device}
+                      {item.current && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          This device
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-slate-400">
+                      {new Date(item.createdAt).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {sessionsMessage && (
+              <p role="status" aria-live="polite" className="text-xs text-emerald-700 font-medium">
+                {sessionsMessage}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleRevokeOtherSessions}
+              disabled={isRevokingSessions || !sessions || sessions.length <= 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {isRevokingSessions ? 'Signing out...' : 'Sign out other devices'}
+            </button>
           </div>
         </section>
       ) : (

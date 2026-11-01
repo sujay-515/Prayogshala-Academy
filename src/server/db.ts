@@ -167,6 +167,15 @@ try {
   db.prepare('ALTER TABLE active_exams ADD COLUMN is_grand_test INTEGER NOT NULL DEFAULT 0').run();
 } catch {}
 
+// Session metadata for the device list
+try {
+  db.prepare('ALTER TABLE sessions ADD COLUMN user_agent TEXT').run();
+} catch {}
+
+try {
+  db.prepare('ALTER TABLE sessions ADD COLUMN ip TEXT').run();
+} catch {}
+
 const scryptAsync = promisify(crypto.scrypt);
 
 export async function hashPassword(password: string, customSalt?: string): Promise<string> {

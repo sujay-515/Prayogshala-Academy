@@ -11,6 +11,7 @@ import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { DisclaimerPage } from './pages/DisclaimerPage';
 import { ContactPage } from './pages/ContactPage';
+import { CookiesPage } from './pages/CookiesPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
@@ -1122,6 +1123,7 @@ export default function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/cookies" element={<CookiesPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
@@ -1428,6 +1430,7 @@ export default function App() {
             <Link to="/privacy" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Terms of Service</Link>
             <Link to="/disclaimer" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Disclaimer</Link>
+            <Link to="/cookies" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Cookie Policy</Link>
             <Link to="/contact" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Contact</Link>
           </div>
         </div>
