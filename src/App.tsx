@@ -14,6 +14,7 @@ import { DisclaimerPage } from './pages/DisclaimerPage';
 import { ContactPage } from './pages/ContactPage';
 import { CookiesPage } from './pages/CookiesPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
+import { HelpPage } from './pages/HelpPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
@@ -38,6 +39,7 @@ import { X, UserCheck } from 'lucide-react';
 const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
 const ExamMode = lazy(() => import('./components/exam/ExamMode').then((m) => ({ default: m.ExamMode })));
 const AdminPortal = lazy(() => import('./components/admin/AdminPortal').then((m) => ({ default: m.AdminPortal })));
+const CeeUgExamPage = lazy(() => import('./components/exam/CeeUgExamPage').then((m) => ({ default: m.CeeUgExamPage })));
 const MistakesRecovery = lazy(() =>
   import('./components/mistakes/MistakesRecovery').then((m) => ({ default: m.MistakesRecovery }))
 );
@@ -201,6 +203,40 @@ function normalizeStats(stats: UserStats): UserStats {
   };
 }
 
+/** Immutable blank study profile used for guests and staff accounts. */
+function createEmptyUserStats(): UserStats {
+  return {
+    totalAnswered: 0,
+    totalCorrect: 0,
+    streakDays: 0,
+    lastActiveDate: new Date().toISOString().slice(0, 10),
+    bookmarkedIds: [],
+    bookmarkMeta: {},
+    revisionQueueIds: [],
+    mistakeStreaks: {},
+    subjectPerformance: {},
+    topicPerformance: {},
+    examRecords: [],
+  };
+}
+
+/** True when a stats payload contains any candidate activity at all. */
+function hasRecordedStudyProgress(stats: UserStats): boolean {
+  return Boolean(
+    stats &&
+      (stats.totalAnswered > 0 ||
+        stats.totalCorrect > 0 ||
+        stats.streakDays > 0 ||
+        (stats.bookmarkedIds?.length ?? 0) > 0 ||
+        (stats.revisionQueueIds?.length ?? 0) > 0 ||
+        Object.keys(stats.bookmarkMeta || {}).length > 0 ||
+        Object.keys(stats.mistakeStreaks || {}).length > 0 ||
+        Object.keys(stats.subjectPerformance || {}).length > 0 ||
+        Object.keys(stats.topicPerformance || {}).length > 0 ||
+        (stats.examRecords?.length ?? 0) > 0)
+  );
+}
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -208,11 +244,12 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
 
   // Navigation & Role - Derived from URL route
-  const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'mistakes' | 'dashboard' | 'admin' => {
+  const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin' => {
     const path = location.pathname.toLowerCase();
     if (path.startsWith('/admin')) return 'admin';
     if (path.startsWith('/browse')) return 'browse';
     if (path.startsWith('/practice')) return 'practice';
+    if (path.startsWith('/cee-ug')) return 'cee-ug';
     if (path.startsWith('/exam')) return 'exam';
     if (path.startsWith('/mistakes')) return 'mistakes';
     if (path.startsWith('/dashboard')) return 'dashboard';
@@ -220,7 +257,7 @@ export default function App() {
   };
   const activeTab = getActiveTab();
 
-  const setActiveTab = (tab: 'home' | 'browse' | 'practice' | 'exam' | 'mistakes' | 'dashboard' | 'admin') => {
+  const setActiveTab = (tab: 'home' | 'browse' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin') => {
     if (tab === 'home') navigate('/');
     else if (tab === 'admin') {
       setIsViewingAsStudent(false);
@@ -248,6 +285,9 @@ export default function App() {
     } catch {}
     return false;
   });
+  const isStaffAccount = Boolean(
+    isAdmin || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
+  );
   const [isViewingAsStudent, setIsViewingAsStudent] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -303,25 +343,15 @@ export default function App() {
   });
 
   const [stats, setStats] = useState<UserStats>(() => {
+    // Staff accounts are operational only and must never hydrate candidate progress.
+    if (isStaffAccount) return createEmptyUserStats();
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STATS);
       if (saved) return normalizeStats(JSON.parse(saved));
     } catch (e) {
       console.warn('Failed to load stored user stats:', e);
     }
-    return {
-      totalAnswered: 0,
-      totalCorrect: 0,
-      streakDays: 0,
-      lastActiveDate: new Date().toISOString().slice(0, 10),
-      bookmarkedIds: [],
-      bookmarkMeta: {},
-      revisionQueueIds: [],
-      mistakeStreaks: {},
-      subjectPerformance: {},
-      topicPerformance: {},
-      examRecords: [],
-    };
+    return createEmptyUserStats();
   });
 
   const [reports, setReports] = useState<QuestionReport[]>(() => {
@@ -378,13 +408,21 @@ export default function App() {
           if (Array.isArray(data.questions)) setQuestions(data.questions);
           if (Array.isArray(data.categories)) setCategories(data.categories);
           if (Array.isArray(data.reports)) setReports(data.reports);
-          if (data.stats && authToken) setStats(normalizeStats(data.stats));
           if (data.user) {
             setCurrentUser(data.user);
             try {
               localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
             } catch {}
-            if (data.user.role === 'admin' || data.user.role === 'superadmin') setIsAdmin(true);
+            const staff = data.user.role === 'admin' || data.user.role === 'superadmin';
+            setIsAdmin(staff);
+            if (staff) {
+              setStats(createEmptyUserStats());
+              try {
+                localStorage.removeItem(STORAGE_KEY_STATS);
+              } catch {}
+            } else if (data.stats && authToken) {
+              setStats(normalizeStats(data.stats));
+            }
           } else if (authToken) {
             handleLogout();
           }
@@ -419,12 +457,27 @@ export default function App() {
   }, [categories]);
 
   useEffect(() => {
+    if (isStaffAccount) {
+      // Never cache candidate progress for staff accounts on this device.
+      try {
+        localStorage.removeItem(STORAGE_KEY_STATS);
+      } catch {
+        // Ignore storage access errors
+      }
+      return;
+    }
     try {
       localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(stats));
     } catch (e) {
       console.warn('Storage quota error:', e);
     }
-  }, [stats]);
+  }, [stats, isStaffAccount]);
+
+  // Clear any in-memory progress when an account is (or becomes) staff.
+  useEffect(() => {
+    if (!isStaffAccount) return;
+    setStats((prev) => (hasRecordedStudyProgress(prev) ? createEmptyUserStats() : prev));
+  }, [isStaffAccount]);
 
   useEffect(() => {
     try {
@@ -442,8 +495,10 @@ export default function App() {
     return headers;
   };
 
-  // Helper to persist stats to SQLite backend (authenticated users only; guests use localStorage)
+  // Helper to persist stats to SQLite backend (authenticated students only; guests use localStorage)
   const persistStatsToServer = (updatedStats: UserStats) => {
+    // Staff accounts have no candidate study progress to persist.
+    if (isStaffAccount) return;
     const token = authToken || localStorage.getItem(STORAGE_KEY_TOKEN);
     if (!token) return;
     fetch('/api/stats', {
@@ -527,23 +582,13 @@ export default function App() {
         } catch {}
         setAuthToken(data.token);
         setCurrentUser(data.user);
-        const resolvedStats: UserStats = normalizeStats(
-          data.stats || {
-            totalAnswered: 0,
-            totalCorrect: 0,
-            streakDays: 0,
-            lastActiveDate: new Date().toISOString().slice(0, 10),
-            bookmarkedIds: [],
-            bookmarkMeta: {},
-            revisionQueueIds: [],
-            mistakeStreaks: {},
-            subjectPerformance: {},
-            topicPerformance: {},
-            examRecords: [],
-          }
+        const staff = data.user.role === 'admin' || data.user.role === 'superadmin';
+        setStats(
+          staff
+            ? createEmptyUserStats()
+            : normalizeStats(data.stats || createEmptyUserStats())
         );
-        setStats(resolvedStats);
-        if (data.user.role === 'admin' || data.user.role === 'superadmin') {
+        if (staff) {
           setIsAdmin(true);
           setIsViewingAsStudent(false);
           setActiveTab('admin');
@@ -578,19 +623,7 @@ export default function App() {
     setCurrentUser(null);
     setIsAdmin(false);
     setIsViewingAsStudent(false);
-    setStats({
-      totalAnswered: 0,
-      totalCorrect: 0,
-      streakDays: 0,
-      lastActiveDate: new Date().toISOString().slice(0, 10),
-      bookmarkedIds: [],
-      bookmarkMeta: {},
-      revisionQueueIds: [],
-      mistakeStreaks: {},
-      subjectPerformance: {},
-      topicPerformance: {},
-      examRecords: [],
-    });
+    setStats(createEmptyUserStats());
     setReports([]);
     if (activeTab === 'admin') {
       window.history.replaceState(null, '', '/');
@@ -600,6 +633,7 @@ export default function App() {
 
   // Handler: Toggle Bookmark
   const handleToggleBookmark = (id: string) => {
+    if (isStaffAccount) return;
     setStats((prev) => {
       const exists = prev.bookmarkedIds.includes(id);
       const bookmarkMeta = { ...(prev.bookmarkMeta || {}) };
@@ -619,6 +653,7 @@ export default function App() {
   };
 
   const handleUpdateBookmarkMeta = (id: string, patch: Partial<BookmarkMeta>) => {
+    if (isStaffAccount) return;
     setStats((prev) => {
       const next: UserStats = {
         ...prev,
@@ -646,6 +681,8 @@ export default function App() {
 
   // Handler: Record practice question answer
   const handleRecordAnswer = (question: MCQQuestion, selected: string, isCorrect: boolean) => {
+    // Staff testing questions must not create candidate analytics.
+    if (isStaffAccount) return;
     setStats((prev) => {
       const prevSub = prev.subjectPerformance[question.subject] || { answered: 0, correct: 0 };
       const updatedSubjectPerformance = {
@@ -703,6 +740,8 @@ export default function App() {
     gradedQuestions?: MCQQuestion[],
     userAnswers?: Record<string, string>
   ) => {
+    // Staff-test exam sessions are not recorded as candidate attempts.
+    if (isStaffAccount) return;
     setStats((prev) => {
       const updatedSubjectPerformance = { ...prev.subjectPerformance };
       const updatedTopicPerformance = { ...(prev.topicPerformance || {}) };
@@ -939,6 +978,13 @@ export default function App() {
                     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
                   } catch {}
                   setCurrentUser(user);
+                  const isStaff = user.role === 'admin' || user.role === 'superadmin';
+                  if (isStaff) {
+                    setStats(createEmptyUserStats());
+                    try {
+                      localStorage.removeItem(STORAGE_KEY_STATS);
+                    } catch {}
+                  }
                 }
               } else if (!authenticated) {
                 handleLogout();
@@ -997,6 +1043,17 @@ export default function App() {
 
       {currentUser?.email && currentUser.emailVerified === false && (
         <EmailVerificationBanner authToken={authToken} email={currentUser.email} />
+      )}
+
+      {isStaffAccount && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 relative z-10">
+          <div
+            role="status"
+            className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-[11px] sm:text-xs font-medium text-amber-900"
+          >
+            Staff account preview — answers, bookmarks, exam history, and study analytics are not recorded.
+          </div>
+        </div>
       )}
 
       {/* Main Content Area with React Router */}
@@ -1078,6 +1135,17 @@ export default function App() {
               />
             }
           />
+          <Route
+            path="/cee-ug"
+            element={
+              <CeeUgExamPage
+                questions={questions}
+                onCompleteExam={handleCompleteExam}
+                onBookmarkQuestion={handleToggleBookmark}
+                bookmarkedIds={stats.bookmarkedIds}
+              />
+            }
+          />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route
             path="/bookmarks"
@@ -1130,6 +1198,7 @@ export default function App() {
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/cookies" element={<CookiesPage />} />
+          <Route path="/help" element={<HelpPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
@@ -1437,6 +1506,7 @@ export default function App() {
             <Link to="/privacy" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Terms of Service</Link>
             <Link to="/disclaimer" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Disclaimer</Link>
+            <Link to="/help" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Help Center</Link>
             <Link to="/cookies" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Cookie Policy</Link>
             <Link to="/contact" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Contact</Link>
           </div>

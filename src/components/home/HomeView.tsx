@@ -7,6 +7,7 @@ import {
 import { UnitCategory, ExamCategory, MCQQuestion } from '../../types';
 import { SITE_CONFIG } from '../../config/site';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
+import { questionMatchesExamCategory } from '../../utils/examCategories';
 
 interface HomeViewProps {
   categories: UnitCategory[];
@@ -34,6 +35,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     { code: 'PSC', title: 'PSC Medical Lab', subtitle: 'Public Service Commission Syllabus' },
     { code: 'DHA', title: 'DHA Technologist', subtitle: 'Dubai Health Authority Clinical Exam' },
     { code: 'AIMS', title: 'AIMS Professional', subtitle: 'Australian Institute of Medical Scientists' },
+    { code: 'CEE-UG', title: 'CEE-UG Entrance', subtitle: 'MECEE-BL Medical Entrance Mock' },
   ];
 
   const jsonLd = {
@@ -141,7 +143,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
               </div>
               <div className="flex justify-between items-center py-0.5">
                 <span>Supported examination boards:</span>
-                <span className="font-semibold text-slate-900">5 Syllabi</span>
+                <span className="font-semibold text-slate-900">6 Syllabi</span>
               </div>
             </div>
 
@@ -160,15 +162,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <section className="space-y-4">
         <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
           <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
-            Licensing Examination Syllabi
+            Licensing &amp; Entrance Syllabi
           </h2>
-          <span className="text-xs text-slate-500">Select a syllabus to begin filtered practice</span>
+          <span className="text-xs text-slate-500">Select a syllabus to begin practice or mock</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
           {exams.map((exam) => {
             const count = questions.filter(
-              (q) => isVisibleQuestion(q) && q.examCategories.includes(exam.code)
+              (q) => isVisibleQuestion(q) && questionMatchesExamCategory(q.examCategories, exam.code)
             ).length;
 
             return (

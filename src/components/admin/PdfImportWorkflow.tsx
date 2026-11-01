@@ -33,6 +33,7 @@ import {
   generateNextQuestionCode,
 } from '../../utils/mcqParser';
 import { SAMPLE_MEDICINE_PDF_TEXT } from '../../data/samplePdfs';
+import { formatExamCategories, GENERAL_EXAM_LABEL, normalizeExamCategories } from '../../utils/examCategories';
 import { Modal } from '../common/Modal';
 
 interface PdfImportWorkflowProps {
@@ -44,7 +45,7 @@ interface PdfImportWorkflowProps {
 }
 
 const STAGED_STORAGE_KEY = 'medlab_qbank_staged_drafts_v1';
-const ALL_EXAMS: ExamCategory[] = ['NHPC', 'PSC', 'ASCP', 'DHA', 'AIMS'];
+const ALL_EXAMS: ExamCategory[] = ['NHPC', 'PSC', 'ASCP', 'DHA', 'AIMS', 'CEE-UG'];
 
 export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
   existingQuestions,
@@ -97,6 +98,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
   const [bulkTopic, setBulkTopic] = useState<string>('');
   const [bulkDifficulty, setBulkDifficulty] = useState<string>('');
   const [bulkExams, setBulkExams] = useState<ExamCategory[]>([]);
+  const [bulkClearExams, setBulkClearExams] = useState<boolean>(false);
   const [isBulkExamDropdownOpen, setIsBulkExamDropdownOpen] = useState<boolean>(false);
   const bulkExamDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -436,8 +438,11 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
         if (bulkSubject) updated.subject = bulkSubject;
         if (bulkTopic.trim()) updated.topic = bulkTopic.trim();
         if (bulkDifficulty) updated.difficulty = bulkDifficulty as DifficultyLevel;
-        if (bulkExams.length > 0) {
-          const currentExams = new Set(updated.examCategories);
+        if (bulkClearExams) {
+          // Explicitly strip examination tags so the question becomes "General".
+          updated.examCategories = [];
+        } else if (bulkExams.length > 0) {
+          const currentExams = new Set(updated.examCategories || []);
           bulkExams.forEach((ex) => currentExams.add(ex));
           updated.examCategories = Array.from(currentExams);
         }
@@ -447,6 +452,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
       syncStagingToServer(next);
       return next;
     });
+    setBulkClearExams(false);
   };
 
   const displayedDrafts = stagedQuestions.filter((q) => {
@@ -567,7 +573,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
         topic: d.topic || defaultTopic,
         subtopic: d.subtopic,
         difficulty: d.difficulty || 'Conceptual',
-        examCategories: d.examCategories.length > 0 ? d.examCategories : ['ASCP', 'NHPC'],
+        examCategories: normalizeExamCategories(d.examCategories),
         status: 'Draft',
         sourceDocument: d.sourceDocument,
         pageNumber: d.pageNumber,
@@ -945,12 +951,15 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
           <button
             type="button"
             onClick={() => setIsBulkExamDropdownOpen((prev) => !prev)}
+            title="Examination categories are optional — leave empty for General questions"
             className={`bg-white border ${
-              bulkExams.length > 0 ? 'border-slate-400 bg-slate-50/50' : 'border-slate-300'
-            } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[155px]`}
+              bulkExams.length > 0 || bulkClearExams ? 'border-slate-400 bg-slate-50/50' : 'border-slate-300'
+            } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[170px]`}
           >
-            <span className="truncate max-w-[130px] text-left">
-              {bulkExams.length === 0 ? (
+            <span className="truncate max-w-[145px] text-left">
+              {bulkClearExams ? (
+                <span className="font-medium text-slate-900">General (no exam tag)</span>
+              ) : bulkExams.length === 0 ? (
                 <span className="text-slate-600">Add Exam Category...</span>
               ) : (
                 <span className="font-medium text-slate-900">
@@ -961,13 +970,14 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
               )}
             </span>
             <div className="flex items-center gap-1 shrink-0">
-              {bulkExams.length > 0 && (
+              {(bulkExams.length > 0 || bulkClearExams) && (
                 <span
                   role="button"
                   tabIndex={0}
                   onClick={(e) => {
                     e.stopPropagation();
                     setBulkExams([]);
+                    setBulkClearExams(false);
                   }}
                   className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
                   title="Clear selections"
@@ -984,13 +994,16 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
           </button>
 
           {isBulkExamDropdownOpen && (
-            <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
+            <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
               <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
-                <span className="font-semibold text-slate-700 text-[11px]">Select Categories</span>
+                <span className="font-semibold text-slate-700 text-[11px]">Select Categories (Optional)</span>
                 <div className="flex items-center gap-2 text-[11px]">
                   <button
                     type="button"
-                    onClick={() => setBulkExams([...ALL_EXAMS])}
+                    onClick={() => {
+                      setBulkExams([...ALL_EXAMS]);
+                      setBulkClearExams(false);
+                    }}
                     className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
                   >
                     All
@@ -998,13 +1011,43 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                   <span className="text-slate-300">|</span>
                   <button
                     type="button"
-                    onClick={() => setBulkExams([])}
+                    onClick={() => {
+                      setBulkExams([]);
+                      setBulkClearExams(false);
+                    }}
                     className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
                   >
                     Clear
                   </button>
                 </div>
               </div>
+
+              <label
+                className={`flex items-start justify-between px-2 py-1.5 mb-1 rounded cursor-pointer transition-colors ${
+                  bulkClearExams ? 'bg-slate-100 font-medium text-slate-900' : 'hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={bulkClearExams}
+                    onChange={(e) => {
+                      setBulkClearExams(e.target.checked);
+                      if (e.target.checked) setBulkExams([]);
+                    }}
+                    className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <span>
+                    <span className="block">No exam category</span>
+                    <span className="block text-[10px] text-slate-500 font-normal">
+                      General question — available for every exam
+                    </span>
+                  </span>
+                </div>
+                {bulkClearExams && <CheckCircle2 className="w-3.5 h-3.5 text-slate-800 mt-0.5" />}
+              </label>
+
+              <div className="border-t border-slate-100 mb-1" />
 
               <div className="space-y-0.5">
                 {ALL_EXAMS.map((ex) => {
@@ -1021,6 +1064,7 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                           type="checkbox"
                           checked={checked}
                           onChange={() => {
+                            setBulkClearExams(false);
                             if (checked) {
                               setBulkExams(bulkExams.filter((e) => e !== ex));
                             } else {
@@ -1043,7 +1087,12 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
         <button
           disabled={
             selectedCount === 0 ||
-            (!bulkUnit && !bulkSubject && !bulkTopic.trim() && !bulkDifficulty && bulkExams.length === 0)
+            (!bulkUnit &&
+              !bulkSubject &&
+              !bulkTopic.trim() &&
+              !bulkDifficulty &&
+              bulkExams.length === 0 &&
+              !bulkClearExams)
           }
           onClick={handleApplyBulkCategories}
           className="px-3 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded text-xs font-medium cursor-pointer"
@@ -1106,6 +1155,17 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                 <span className="text-slate-500">{draft.topic}</span>
                 <span className="text-slate-400">·</span>
                 <span className="text-slate-500">{draft.difficulty}</span>
+                <span className="text-slate-400">·</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded border font-medium text-[10px] ${
+                    normalizeExamCategories(draft.examCategories).length > 0
+                      ? 'bg-slate-50 text-slate-700 border-slate-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}
+                  title="Examination categories are optional"
+                >
+                  {formatExamCategories(draft.examCategories)}
+                </span>
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -1824,18 +1884,44 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Target Licensing Exams</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block font-semibold text-slate-700">
+                    Target Licensing Exams <span className="font-normal text-slate-500">(optional)</span>
+                  </label>
+                  {normalizeExamCategories(editingDraft.examCategories).length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingDraft({ ...editingDraft, examCategories: [] })}
+                      className="text-[11px] font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDraft({ ...editingDraft, examCategories: [] })}
+                    className={`px-2.5 py-1 rounded border text-xs font-medium cursor-pointer ${
+                      normalizeExamCategories(editingDraft.examCategories).length === 0
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    }`}
+                    title="No exam tag — this question is available for every exam"
+                  >
+                    {GENERAL_EXAM_LABEL}
+                  </button>
                   {ALL_EXAMS.map((exam) => {
-                    const active = editingDraft.examCategories.includes(exam);
+                    const activeExams = normalizeExamCategories(editingDraft.examCategories);
+                    const active = activeExams.includes(exam);
                     return (
                       <button
                         key={exam}
                         type="button"
                         onClick={() => {
                           const nextExams = active
-                            ? editingDraft.examCategories.filter((e) => e !== exam)
-                            : [...editingDraft.examCategories, exam];
+                            ? activeExams.filter((e) => e !== exam)
+                            : [...activeExams, exam];
                           setEditingDraft({ ...editingDraft, examCategories: nextExams });
                         }}
                         className={`px-2.5 py-1 rounded border text-xs font-medium cursor-pointer ${
@@ -1849,6 +1935,10 @@ export const PdfImportWorkflow: React.FC<PdfImportWorkflowProps> = ({
                     );
                   })}
                 </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Leave this empty to keep the question untagged (General). It will still be available in
+                  every exam filter.
+                </p>
               </div>
 
               <div>

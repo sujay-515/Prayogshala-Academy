@@ -12,17 +12,26 @@ import {
   Printer,
   AlertCircle,
   Loader2,
+  GraduationCap,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { ExamScoreResult, DEFAULT_PENALTY_PER_WRONG } from '../../utils/scoring';
 import { formatCountdown, formatNepalTime } from '../../utils/examWindow';
 import { computePacing, formatPacingTime, PacingSummary } from '../../utils/pacing';
+import {
+  CEE_UG_DURATION_MINUTES,
+  CEE_UG_PASSING_PERCENTAGE,
+  CEE_UG_PENALTY_PER_WRONG,
+  CEE_UG_TOTAL_QUESTIONS,
+  computeCeeUgAvailability,
+} from '../../config/ceeUg';
 
 const DEFAULT_PENALTY_DISPLAY = String(DEFAULT_PENALTY_PER_WRONG);
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
+import { questionMatchesExamCategory } from '../../utils/examCategories';
 
 interface ExamModeProps {
   questions: MCQQuestion[];
@@ -42,6 +51,14 @@ interface ExamModeProps {
   onBookmarkQuestion: (id: string) => void;
   bookmarkedIds: string[];
   initialExamCategory?: ExamCategory;
+  /**
+   * Renders a fixed-paper briefing (blueprint, availability, start) instead of the
+   * free-form exam builder. Currently used by the standalone CEE-UG entrance mock.
+   */
+  preset?: 'cee-ug';
+  /** Pass mark shown on the scorecard. Defaults to 70 (licensing boards). */
+  passingPercentage?: number;
+  onPhaseChange?: (phase: 'idle' | 'running' | 'completed') => void;
 }
 
 export const ExamMode: React.FC<ExamModeProps> = ({
@@ -50,14 +67,21 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   onBookmarkQuestion,
   bookmarkedIds,
   initialExamCategory,
+  preset,
+  passingPercentage,
+  onPhaseChange,
 }) => {
-  const [examCategory, setExamCategory] = useState<ExamCategory | 'All'>(initialExamCategory || 'ASCP');
+  const isCeeUg = preset === 'cee-ug';
+  const passMark = typeof passingPercentage === 'number' ? passingPercentage : 70;
+  const [examCategory, setExamCategory] = useState<ExamCategory | 'All'>(
+    isCeeUg ? 'CEE-UG' : initialExamCategory || 'All'
+  );
   const [selectedUnit, setSelectedUnit] = useState<string>('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel | 'All'>('All');
-  const [questionCount, setQuestionCount] = useState<number>(10);
-  const [durationMinutes, setDurationMinutes] = useState<number>(15);
+  const [questionCount, setQuestionCount] = useState<number>(isCeeUg ? CEE_UG_TOTAL_QUESTIONS : 10);
+  const [durationMinutes, setDurationMinutes] = useState<number>(isCeeUg ? CEE_UG_DURATION_MINUTES : 15);
   const [shuffleOptions, setShuffleOptions] = useState<boolean>(true);
-  const [negativeMarking, setNegativeMarking] = useState<boolean>(false);
+  const [negativeMarking, setNegativeMarking] = useState<boolean>(isCeeUg);
   const [examWindow, setExamWindow] = useState<{
     isOpen: boolean;
     opensAt: string;
@@ -103,10 +127,10 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   }, [secondsRemaining, isExamRunning, examResult]);
 
   useEffect(() => {
-    if (initialExamCategory) {
+    if (!isCeeUg && initialExamCategory) {
       setExamCategory(initialExamCategory);
     }
-  }, [initialExamCategory]);
+  }, [initialExamCategory, isCeeUg]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +186,15 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     reviewOpenRef.current = isReviewScreenOpen;
   }, [isReviewScreenOpen]);
 
+  // Report the current phase so a host page can hide its own chrome during the exam
+  const onPhaseChangeRef = useRef(onPhaseChange);
+  useEffect(() => {
+    onPhaseChangeRef.current = onPhaseChange;
+  });
+  useEffect(() => {
+    onPhaseChangeRef.current?.(examResult ? 'completed' : isExamRunning ? 'running' : 'idle');
+  }, [isExamRunning, examResult]);
+
   const publishedQuestions = useMemo(() => {
     return questions.filter((q) => isVisibleQuestion(q));
   }, [questions]);
@@ -172,14 +205,14 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
   const filteredPool = useMemo(() => {
     return publishedQuestions.filter((q) => {
-      if (examCategory !== 'All' && !q.examCategories.includes(examCategory)) return false;
+      if (examCategory !== 'All' && !questionMatchesExamCategory(q.examCategories, examCategory)) return false;
       if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       return true;
     });
   }, [publishedQuestions, examCategory, selectedUnit, selectedDifficulty]);
 
-  const isGrandTestConfig = questionCount >= 200 && durationMinutes >= 180 && negativeMarking;
+  const isGrandTestConfig = !isCeeUg && questionCount >= 200 && durationMinutes >= 180 && negativeMarking;
   const servedCount = Math.min(questionCount, filteredPool.length);
 
   const windowOpensAt = examWindow ? Date.parse(examWindow.opensAt) : 0;
@@ -209,7 +242,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   // Restores the quick-mock defaults, so the control always does something visible
   // even when the Grand Test rules are already applied.
   const resetExamDefaults = () => {
-    setExamCategory(initialExamCategory || 'ASCP');
+    setExamCategory(initialExamCategory || 'All');
     setSelectedUnit('All');
     setSelectedDifficulty('All');
     setQuestionCount(10);
@@ -230,18 +263,22 @@ export const ExamMode: React.FC<ExamModeProps> = ({
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch('/api/exams/start', {
+      const res = await fetch(isCeeUg ? '/api/cee-ug/exams/start' : '/api/exams/start', {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          examCategory,
-          unit: selectedUnit,
-          difficulty: selectedDifficulty,
-          questionCount,
-          durationMinutes,
-          shuffleOptions,
-          negativeMarking,
-        }),
+        body: JSON.stringify(
+          isCeeUg
+            ? { shuffleOptions }
+            : {
+                examCategory,
+                unit: selectedUnit,
+                difficulty: selectedDifficulty,
+                questionCount,
+                durationMinutes,
+                shuffleOptions,
+                negativeMarking,
+              }
+        ),
       });
       const data = await res.json().catch(() => null);
       if (res.status === 429) {
@@ -260,7 +297,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         setUserAnswers({});
         setQuestionTimings({});
         setFlaggedIds(new Set());
-        setSecondsRemaining(durationMinutes * 60);
+        setSecondsRemaining((typeof data.durationMinutes === 'number' ? data.durationMinutes : durationMinutes) * 60);
         setIsReviewScreenOpen(false);
         setShowConfirmModal(false);
         setExamResult(null);
@@ -397,7 +434,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             {examResult.passed ? 'Benchmark Achieved (Passed)' : 'Review Required (Benchmark Not Met)'}
           </h2>
           <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
-            Standard passing threshold is 70%. Review your topic performance below.
+            Standard passing threshold is {passMark}%. Review your topic performance below.
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto pt-2">
@@ -647,6 +684,122 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     );
   }
 
+  // Screen 2a: CEE-UG fixed-paper briefing (blueprint, bank readiness, start)
+  if (!isExamRunning && isCeeUg) {
+    const availability = computeCeeUgAvailability(publishedQuestions, () => true);
+    const canStart = availability.totalAvailable > 0 && !isStarting;
+
+    return (
+      <div className="max-w-3xl mx-auto py-6 space-y-4">
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-4 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Sit the CEE-UG mock</h2>
+              <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                {CEE_UG_TOTAL_QUESTIONS} questions · {CEE_UG_DURATION_MINUTES} minutes · −
+                {CEE_UG_PENALTY_PER_WRONG} per wrong answer · {CEE_UG_PASSING_PERCENTAGE}% pass mark
+              </p>
+            </div>
+            <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800">
+              Available anytime
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-500 block">Total Questions</span>
+              <span className="text-lg font-bold text-slate-900">{CEE_UG_TOTAL_QUESTIONS} Qs</span>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-500 block">Available in Bank</span>
+              <span className={`text-lg font-bold ${availability.isShort ? 'text-amber-700' : 'text-emerald-700'}`}>
+                {availability.totalAvailable}
+              </span>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-500 block">Time Duration</span>
+              <span className="text-lg font-bold text-slate-900">{CEE_UG_DURATION_MINUTES} min</span>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-500 block">Negative Marking</span>
+              <span className="text-lg font-bold text-rose-700">−{CEE_UG_PENALTY_PER_WRONG}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-slate-700">Question Bank Readiness</span>
+              <span className="font-semibold text-slate-900">
+                {availability.totalAvailable} / {availability.totalRequired} Questions
+              </span>
+            </div>
+            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  availability.totalAvailable >= availability.totalRequired ? 'bg-emerald-600' : 'bg-amber-500'
+                }`}
+                style={{
+                  width: `${Math.min(100, Math.round((availability.totalAvailable / availability.totalRequired) * 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {availability.totalAvailable === 0 ? (
+            <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
+              No CEE-UG questions are published yet. An administrator can bulk upload the 200 questions from the admin console.
+            </div>
+          ) : (
+            availability.isShort && (
+              <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
+                {availability.totalAvailable} of {availability.totalRequired} questions are available in the bank. You can start this mock now with the available questions, or bulk upload the remaining questions to reach the full 200-question paper.
+              </div>
+            )
+          )}
+
+          {startError && (
+            <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{startError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={startExam}
+                className="px-3.5 py-1.5 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded font-medium text-xs transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-slate-500">
+              Randomised paper · one sitting = one server session · answers revealed after submission.
+            </p>
+            <button
+              disabled={!canStart}
+              onClick={startExam}
+              className="px-5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
+            >
+              {isStarting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Preparing Examination...</span>
+                </>
+              ) : (
+                <>
+                  <span>Start CEE-UG Mock</span>
+                  <ArrowRight className="w-4 h-4 text-cyan-400" />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Screen 2: Configuration / Start
   if (!isExamRunning) {
     return (
@@ -682,7 +835,16 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         </div>
 
         <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-5">
-          <h2 className="text-sm font-semibold text-slate-900">Exam Parameters</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-3">
+            <h2 className="text-sm font-semibold text-slate-900">Exam Parameters</h2>
+            <Link
+              to="/cee-ug"
+              className="text-xs font-medium text-cyan-800 hover:text-cyan-950 hover:underline flex items-center gap-1"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-cyan-700" />
+              <span>Sit CEE-UG entrance mock (200 Qs · 3 hr) →</span>
+            </Link>
+          </div>
 
           <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -710,6 +872,27 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </button>
           </div>
 
+          {examCategory === 'CEE-UG' && (
+            <div className="rounded-xl border border-cyan-200 bg-cyan-50/90 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-semibold text-cyan-950 flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4 text-cyan-700" />
+                  CEE-UG Entrance Examination (200 Questions · 3 Hours · −0.25 Negative Marking)
+                </span>
+                <p className="text-xs text-cyan-900 mt-1">
+                  CEE-UG entrance mock paper consists of 200 questions with 3 hours duration and −0.25 negative marking.
+                </p>
+              </div>
+              <Link
+                to="/cee-ug"
+                className="px-3.5 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium cursor-pointer shrink-0 inline-flex items-center gap-1.5 shadow-xs"
+              >
+                <span>Open CEE-UG Mock Exam</span>
+                <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+              </Link>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -726,6 +909,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
                 <option value="PSC">PSC Medical Lab</option>
                 <option value="DHA">DHA Technologist</option>
                 <option value="AIMS">AIMS Professional</option>
+                <option value="CEE-UG">CEE-UG Entrance (200 Qs · 3 hr)</option>
               </select>
             </div>
 

@@ -12,8 +12,16 @@ import { extractTextFromPdfBuffer } from './src/utils/pdfTextExtractor';
 import { calculateExamScore, normalizeAnswer, DEFAULT_PENALTY_PER_WRONG } from './src/utils/scoring';
 import { getGrandTestWindow, getLeaderboardWindowStart, formatNepalTime } from './src/utils/examWindow';
 import { isSafeImageUrl } from './src/utils/urlSecurity';
+import { normalizeExamCategories, questionMatchesExamCategory } from './src/utils/examCategories';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion } from './src/types';
 import { getRateLimitKey } from './src/server/rateLimit';
+import { prepareExamQuestions } from './src/server/examAssembly';
+import {
+  CEE_UG_DURATION_MINUTES,
+  CEE_UG_PASSING_PERCENTAGE,
+  CEE_UG_PENALTY_PER_WRONG,
+  CEE_UG_TOTAL_QUESTIONS,
+} from './src/config/ceeUg';
 import {
   db,
   hashPassword,
@@ -34,6 +42,7 @@ import {
   updateReportStatus,
   getUserStats,
   saveUserStats,
+  purgeStaffStudyData,
   saveSourcePdf,
   getSourcePdf,
   listSourcePdfs,
@@ -51,6 +60,7 @@ import {
   createEmailVerification,
   verifyEmailToken,
   restoreBackup,
+  ensureCeeUgTaxonomy,
 } from './src/server/db';
 import { bootstrapSuperAdmin } from './src/server/bootstrap';
 import {
@@ -355,6 +365,15 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
   return next();
 }
 
+/**
+ * Staff (admin/superadmin) accounts are operational accounts only. Candidate
+ * study progress, bookmarks, analytics, and leaderboard attempts belong to
+ * student accounts exclusively.
+ */
+function isStaffRole(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'superadmin';
+}
+
 // Middleware to enforce Head Administrator (Super Admin) permissions
 function requireSuperAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const session = getSessionUser(req);
@@ -404,6 +423,7 @@ if (process.env.NODE_ENV === 'test') {
 app.get('/api/bootstrap', (req, res) => {
   const session = getSessionUser(req);
   const isAdmin = session?.role === 'admin' || session?.role === 'superadmin';
+  const isStaff = isStaffRole(session?.role);
   const allQuestions = getAllQuestions(isAdmin);
   const questionsToSend = isAdmin ? allQuestions : allQuestions.map(toPublicQuestion);
   const userId = session ? session.userId : 'usr-guest';
@@ -412,7 +432,7 @@ app.get('/api/bootstrap', (req, res) => {
     questions: questionsToSend,
     categories: getAllCategories(),
     reports: isAdmin ? getAllReports() : [],
-    stats: session ? getUserStats(userId) : null,
+    stats: session && !isStaff ? getUserStats(userId) : null,
     sourcePdfs: isAdmin ? listSourcePdfs() : [],
     user: session
       ? {
@@ -546,7 +566,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       displayName: userRow.display_name,
       emailVerified: userRow.email_verified !== 0,
     },
-    stats: JSON.parse(userRow.stats_json),
+    // Staff accounts never receive candidate study progress.
+    stats: isStaffRole(activeRole) ? null : JSON.parse(userRow.stats_json),
   });
 });
 
@@ -855,7 +876,10 @@ app.get('/api/auth/me', (req, res) => {
     return res.status(401).json({ success: false, error: 'Unauthenticated or session expired.' });
   }
 
-  const userRow = db.prepare('SELECT stats_json FROM users WHERE id = ?').get(session.userId) as any;
+  const userRow =
+    session.role === 'student'
+      ? (db.prepare('SELECT stats_json FROM users WHERE id = ?').get(session.userId) as any)
+      : null;
   let stats = null;
   if (userRow?.stats_json) {
     try {
@@ -888,14 +912,17 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
     return res.status(404).json({ success: false, error: 'User record not found.' });
   }
 
+  const isStudent = userRow.role === 'student';
   let stats = null;
-  if (userRow.stats_json) {
+  if (isStudent && userRow.stats_json) {
     try {
       stats = JSON.parse(userRow.stats_json);
     } catch {}
   }
 
-  const activeExams = db.prepare('SELECT id, title, started_at, duration_minutes FROM active_exams WHERE user_id = ?').all(session.userId) as any[];
+  const activeExams = isStudent
+    ? (db.prepare('SELECT id, title, started_at, duration_minutes FROM active_exams WHERE user_id = ?').all(session.userId) as any[])
+    : [];
   const submittedReports = db.prepare('SELECT id, question_id, question_code, reason, details, submitted_at, status FROM reports WHERE user_id = ? ORDER BY submitted_at DESC').all(session.userId) as any[];
 
   const exportPayload = {
@@ -986,6 +1013,11 @@ app.patch('/api/admin/users/:id/role', requireSuperAdmin, (req, res) => {
   const result = updateUserRole(targetId, role);
   if (!result.success) {
     return res.status(400).json(result);
+  }
+
+  // A promoted staff member must start with no candidate study data.
+  if (role === 'admin') {
+    purgeStaffStudyData();
   }
 
   // Immediately revoke all active sessions for the user whose role changed
@@ -1133,7 +1165,7 @@ app.post(
     }
 
     // Deny check attempts if student is currently taking an active exam containing this question
-    if (session?.userId) {
+    if (session?.userId && !isAdmin) {
       const activeExams = db
         .prepare('SELECT id, questions_json, started_at, duration_minutes FROM active_exams WHERE user_id = ?')
         .all(session.userId) as any[];
@@ -1244,6 +1276,9 @@ function validateQuestionPayload(q: any): string | null {
   if (q.pastPaper !== undefined && (typeof q.pastPaper !== 'string' || q.pastPaper.length > 120)) {
     return `Question ${q.id}: pastPaper must be a string of up to 120 characters`;
   }
+  // Exam categories are optional metadata. Normalise unknown/missing values to [] so an
+  // uploaded question is never forced into a board, and every stored record has an array.
+  q.examCategories = normalizeExamCategories(q.examCategories);
   return null;
 }
 
@@ -1517,6 +1552,14 @@ app.put('/api/stats', (req, res) => {
     return res.status(401).json({ success: false, error: 'Authentication required to save statistics.' });
   }
 
+  // Candidate study progress is only valid for student accounts.
+  if (isStaffRole(session.role)) {
+    return res.status(403).json({
+      success: false,
+      error: 'Staff accounts do not have candidate study progress.',
+    });
+  }
+
   const { stats, ...rest } = req.body || {};
   if (Object.keys(rest).length > 0) {
     return res.status(400).json({ success: false, error: 'Unknown top-level fields in request body.' });
@@ -1570,50 +1613,13 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
 
   const pool = allPublished.filter((q) => {
-    if (examCategory !== 'All' && !q.examCategories.includes(examCategory)) return false;
+    if (examCategory !== 'All' && !questionMatchesExamCategory(q.examCategories, examCategory)) return false;
     if (unit !== 'All' && q.unit !== unit) return false;
     if (difficulty !== 'All' && q.difficulty !== difficulty) return false;
     return true;
   });
 
-  // Fisher-Yates shuffle on candidate question pool
-  const poolCopy = [...pool];
-  for (let i = poolCopy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
-  }
-  const shuffled = poolCopy.slice(0, questionCount);
-
-  // Optionally shuffle option texts while keeping option IDs A, B, C, D consistent
-  // Track original option identity directly so duplicate option texts never corrupt the answer key
-  const preparedQuestions: MCQQuestion[] = shuffled.map((q) => {
-    if (!shuffleOptions || q.options.length <= 1) return q;
-    const taggedOptions = q.options.map((o) => ({
-      text: o.text,
-      wasCorrect: o.id === q.correctAnswer,
-    }));
-    for (let i = taggedOptions.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [taggedOptions[i], taggedOptions[j]] = [taggedOptions[j], taggedOptions[i]];
-    }
-    const optionIds: ('A' | 'B' | 'C' | 'D' | 'E')[] = ['A', 'B', 'C', 'D', 'E'];
-    let newCorrect: 'A' | 'B' | 'C' | 'D' | 'E' = q.correctAnswer;
-    const newOptions = taggedOptions.map((item, idx) => {
-      const assignedId = q.options[idx]?.id || optionIds[idx] || 'A';
-      if (item.wasCorrect) {
-        newCorrect = assignedId;
-      }
-      return {
-        id: assignedId,
-        text: item.text,
-      };
-    });
-    return {
-      ...q,
-      options: newOptions,
-      correctAnswer: newCorrect,
-    };
-  });
+  const preparedQuestions: MCQQuestion[] = prepareExamQuestions(pool, questionCount, shuffleOptions);
 
   const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
   const title = isGrandTest
@@ -1656,7 +1662,78 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     durationMinutes,
     negativeMarking: useNegativeMarking,
     penaltyPerWrong: DEFAULT_PENALTY_PER_WRONG,
+    passingPercentage: 70,
     questions: sanitizedQuestions,
+  });
+});
+
+// ==================== CEE-UG (MECEE-BL) ENTRANCE MOCK ====================
+// A standalone 200-question / 3-hour / −0.25 paper assembled from the CEE-UG pool.
+// Uploaded in bulk and drawn directly without requiring subject-by-subject partitioning.
+// Deliberately independent of the weekly Grand Test window and leaderboard:
+// this is a practice mock a candidate can sit at any time.
+app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
+  const shuffleOptions = req.body?.shuffleOptions !== false;
+  const session = getSessionUser(req);
+  const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
+
+  // Pull all published questions matching CEE-UG category (or bank questions)
+  const pool = allPublished.filter((q) => questionMatchesExamCategory(q.examCategories, 'CEE-UG'));
+  const selected = prepareExamQuestions(pool, CEE_UG_TOTAL_QUESTIONS, shuffleOptions);
+
+  if (selected.length === 0) {
+    return res.status(409).json({
+      success: false,
+      error:
+        'The CEE-UG question bank is empty. Please upload CEE-UG questions before starting this mock.',
+      availableCount: 0,
+      requiredCount: CEE_UG_TOTAL_QUESTIONS,
+    });
+  }
+
+  const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
+  const title = `CEE-UG Entrance Mock · ${selected.length} Questions`;
+  const startedAt = new Date().toISOString();
+  const examUserId = session?.userId || 'usr-guest';
+
+  db.prepare(
+    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes, negative_marking, penalty_per_wrong, is_grand_test, passing_percentage)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    examId,
+    examUserId,
+    title,
+    JSON.stringify(selected),
+    startedAt,
+    CEE_UG_DURATION_MINUTES,
+    1,
+    CEE_UG_PENALTY_PER_WRONG,
+    0,
+    CEE_UG_PASSING_PERCENTAGE
+  );
+
+  syncInsertActiveExam({
+    id: examId,
+    userId: examUserId,
+    title,
+    questions: selected,
+    startedAt,
+    durationMinutes: CEE_UG_DURATION_MINUTES,
+  });
+
+  return res.json({
+    success: true,
+    examId,
+    title,
+    examType: 'CEE-UG',
+    durationMinutes: CEE_UG_DURATION_MINUTES,
+    negativeMarking: true,
+    penaltyPerWrong: CEE_UG_PENALTY_PER_WRONG,
+    passingPercentage: CEE_UG_PASSING_PERCENTAGE,
+    requestedCount: CEE_UG_TOTAL_QUESTIONS,
+    servedCount: selected.length,
+    availableCount: pool.length,
+    questions: selected.map(toPublicQuestion),
   });
 });
 
@@ -1689,7 +1766,11 @@ app.post('/api/exams/:id/submit', (req, res) => {
   let scoreResult;
   try {
     fullQuestions = JSON.parse(row.questions_json);
-    scoreResult = calculateExamScore(fullQuestions, userAnswers, cappedTimeSpentSeconds, 70, {
+    const passingPercentage =
+      typeof row.passing_percentage === 'number' && row.passing_percentage > 0
+        ? row.passing_percentage
+        : 70;
+    scoreResult = calculateExamScore(fullQuestions, userAnswers, cappedTimeSpentSeconds, passingPercentage, {
       negativeMarking: Boolean(row.negative_marking),
       penaltyPerWrong:
         typeof row.penalty_per_wrong === 'number' ? row.penalty_per_wrong : DEFAULT_PENALTY_PER_WRONG,
@@ -1700,7 +1781,7 @@ app.post('/api/exams/:id/submit', (req, res) => {
   }
 
   // Persist the attempt for the leaderboard (authenticated, email-verified candidates only)
-  if (session?.userId && session.emailVerified !== false) {
+  if (session?.role === 'student' && session.userId && session.emailVerified !== false) {
     try {
       db.prepare(
         `INSERT INTO exam_attempts
@@ -1760,6 +1841,9 @@ app.get('/api/leaderboard', (req, res) => {
              ) AS rn
            FROM exam_attempts
            WHERE is_grand_test = 1 AND completed_at >= ?
+             AND user_id NOT IN (
+               SELECT id FROM users WHERE role IN ('admin', 'superadmin')
+             )
          )
          SELECT * FROM ranked WHERE rn = 1
          ORDER BY percentage DESC, correct_count DESC, time_spent_seconds ASC, completed_at ASC`
@@ -1951,13 +2035,14 @@ Each question MUST have this JSON structure:
   "explanation": "Detailed scientific and clinical explanation explaining why the answer is correct",
   "reference": "Authoritative medical textbook or CLSI reference citation",
   "clinicalCase": "Patient case presentation if present, or null",
-  "unit": "One of: Clinical Chemistry, Hematology & Hemostasis, Clinical Microbiology & Parasitology, Immunology & Serology, Immunohematology (Blood Banking), Urinalysis & Body Fluids, Molecular Diagnostics, Laboratory Operations & QA",
+  "unit": "One of: Clinical Chemistry, Hematology & Hemostasis, Clinical Microbiology & Parasitology, Immunology & Serology, Immunohematology (Blood Banking), Urinalysis & Body Fluids, Molecular Diagnostics, Laboratory Operations & QA. For CEE-UG entrance content use one of: Physics, Chemistry, Biology, Mental Ability",
   "subject": "Medical subject name",
   "topic": "Specific diagnostic topic",
   "subtopic": "Specific subtopic if applicable",
   "difficulty": "One of: Memory-based, Conceptual, Advanced",
-  "examCategories": ["ASCP", "NHPC", "PSC", "DHA", "AIMS"]
+  "examCategories": []
 }
+"examCategories" is optional metadata: return [] for General questions. Only list boards (e.g. ["ASCP", "NHPC"]) when the source document explicitly identifies them.
 Return ONLY valid raw JSON with NO markdown backticks or commentary.`;
 
         let contents: any[] = [];
@@ -2025,7 +2110,7 @@ Return ONLY valid raw JSON with NO markdown backticks or commentary.`;
               topic: item.topic || 'Transaminases (ALT/AST)',
               subtopic: item.subtopic || undefined,
               difficulty: item.difficulty || 'Conceptual',
-              examCategories: item.examCategories || ['ASCP', 'NHPC'],
+              examCategories: normalizeExamCategories(item.examCategories),
               sourceDocument: filename,
               confidenceScore: rawExplanation ? 0.96 : 0.8,
               validationErrors: [],
@@ -2197,10 +2282,12 @@ export const PUBLIC_SITEMAP_ROUTES = [
   '/browse',
   '/practice',
   '/exam',
+  '/cee-ug',
   '/privacy',
   '/terms',
   '/disclaimer',
   '/cookies',
+  '/help',
   '/contact',
 ];
 
@@ -2311,7 +2398,14 @@ export const KNOWN_CLIENT_ROUTES = [
   '/browse',
   '/practice',
   '/exam',
+  '/cee-ug',
+  '/mistakes',
+  '/leaderboard',
+  '/bookmarks',
   '/dashboard',
+  '/help',
+  '/cookies',
+  '/verify-email',
   '/privacy',
   '/terms',
   '/disclaimer',
@@ -2329,7 +2423,13 @@ export function isKnownClientRoute(pathname: string): boolean {
 
 async function startServer() {
   await hydrateFromSupabase();
+  // Merge the CEE-UG entrance subjects after hydration so a synced taxonomy
+  // cannot overwrite the migration.
+  ensureCeeUgTaxonomy();
   await bootstrapSuperAdmin();
+  // Enforce the invariant that staff/superadmin accounts never retain candidate
+  // study progress, bookmarks, analytics, or leaderboard attempts.
+  purgeStaffStudyData();
 
   // Keep Supabase Free Tier active & automatically purge expired temporary rows every 6 hours
   setInterval(() => {

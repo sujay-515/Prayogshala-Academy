@@ -20,6 +20,7 @@ import {
   findDuplicateQuestion,
   generateNextQuestionCode,
 } from '../../utils/mcqParser';
+import { normalizeExamCategories } from '../../utils/examCategories';
 import { Modal } from '../common/Modal';
 
 interface BulkImportExportProps {
@@ -205,7 +206,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
                 topic: item.topic || 'Transaminases (ALT/AST)',
                 subtopic: item.subtopic,
                 difficulty: item.difficulty || 'Conceptual',
-                examCategories: item.examCategories || ['ASCP', 'NHPC'],
+                examCategories: normalizeExamCategories(item.examCategories),
                 isHighYield: Boolean(item.isHighYield),
                 pastPaper: typeof item.pastPaper === 'string' ? item.pastPaper : undefined,
                 sourceDocument: file.name,
@@ -305,7 +306,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         topic: d.topic || 'General Diagnostic Parameters',
         subtopic: d.subtopic,
         difficulty: d.difficulty || 'Conceptual',
-        examCategories: d.examCategories.length > 0 ? d.examCategories : ['ASCP', 'NHPC'],
+        examCategories: normalizeExamCategories(d.examCategories),
         isHighYield: Boolean(d.isHighYield),
         pastPaper: d.pastPaper,
         status: 'Draft',
@@ -358,6 +359,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         <h2 className="text-base font-semibold text-slate-900">Bulk Upload & Database Archival</h2>
         <p className="text-xs text-slate-500">
           Download standardized import spreadsheets, backup current records, or review and stage bulk questions before saving.
+          Exam categories (ASCP, NHPC, PSC, DHA, AIMS) are optional — leave them blank to import General questions.
         </p>
       </div>
 
@@ -383,7 +385,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
           <div className="space-y-1">
             <h4 className="font-semibold text-slate-900 text-xs">JSON Import Template</h4>
             <p className="text-xs text-slate-500">
-              Structured JSON supporting vignettes, tables, and multiple exam tags.
+              Structured JSON supporting vignettes, tables, and optional exam tags.
             </p>
           </div>
           <button

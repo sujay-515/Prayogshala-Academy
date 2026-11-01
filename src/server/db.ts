@@ -4,7 +4,9 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'node:util';
 import { INITIAL_CATEGORIES } from '../data/categories';
+import { CEE_UG_CATEGORY_UNITS } from '../config/ceeUg';
 import { MCQQuestion, UnitCategory, UserStats, QuestionReport, QuestionStatus } from '../types';
+import { questionMatchesExamCategory } from '../utils/examCategories';
 import {
   isSupabaseConfigured,
   supabaseRequest,
@@ -167,6 +169,11 @@ try {
   db.prepare('ALTER TABLE active_exams ADD COLUMN is_grand_test INTEGER NOT NULL DEFAULT 0').run();
 } catch {}
 
+// Pass mark is fixed at session start too (CEE-UG uses 50%, licensing boards 70%)
+try {
+  db.prepare('ALTER TABLE active_exams ADD COLUMN passing_percentage INTEGER NOT NULL DEFAULT 70').run();
+} catch {}
+
 // Session metadata for the device list
 try {
   db.prepare('ALTER TABLE sessions ADD COLUMN user_agent TEXT').run();
@@ -267,6 +274,38 @@ function seedDatabaseIfNeeded() {
 
 seedDatabaseIfNeeded();
 
+/**
+ * Adds the CEE-UG (MECEE-BL) entrance subjects to installations that predate
+ * them, so administrators can author Physics/Chemistry/Biology/MAT questions.
+ * Guarded by SQLite's user_version so a unit an administrator later renames or
+ * removes is not resurrected on every restart.
+ *
+ * Must run after any cloud hydration, otherwise the synced taxonomy would
+ * overwrite the merge performed here.
+ */
+const CEE_UG_TAXONOMY_VERSION = 1;
+
+export function ensureCeeUgTaxonomy(): void {
+  try {
+    const versionRow = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
+    if ((versionRow?.user_version ?? 0) >= CEE_UG_TAXONOMY_VERSION) return;
+
+    const existing = getAllCategories();
+    const missing = CEE_UG_CATEGORY_UNITS.filter(
+      (unit) => !existing.some((cat) => cat.name.trim().toLowerCase() === unit.name.trim().toLowerCase())
+    );
+
+    if (missing.length > 0) {
+      saveAllCategories([...existing, ...missing]);
+      console.log(`[Taxonomy] Added CEE-UG entrance subjects: ${missing.map((unit) => unit.name).join(', ')}`);
+    }
+
+    db.exec(`PRAGMA user_version = ${CEE_UG_TAXONOMY_VERSION}`);
+  } catch (err) {
+    console.warn('[Taxonomy] Could not add CEE-UG entrance subjects:', err);
+  }
+}
+
 export function getUserByEmailOrUsername(identifier: string) {
   const clean = identifier.trim().toLowerCase();
   return db
@@ -288,10 +327,15 @@ export function listAllUsers() {
   `).all() as any[];
 
   return rows.map((r) => {
+    // Study progress is a student-only concept. Staff and superadmin accounts
+    // must never expose (or retain) candidate analytics.
+    const isStudent = r.role === 'student';
     let parsedStats: any = null;
-    try {
-      parsedStats = JSON.parse(r.stats_json);
-    } catch {}
+    if (isStudent) {
+      try {
+        parsedStats = JSON.parse(r.stats_json);
+      } catch {}
+    }
     return {
       id: r.id,
       username: r.username,
@@ -299,10 +343,78 @@ export function listAllUsers() {
       role: r.role,
       displayName: r.display_name,
       createdAt: r.created_at,
-      totalAnswered: parsedStats?.totalAnswered || 0,
-      totalCorrect: parsedStats?.totalCorrect || 0,
+      totalAnswered: isStudent ? parsedStats?.totalAnswered || 0 : 0,
+      totalCorrect: isStudent ? parsedStats?.totalCorrect || 0 : 0,
     };
   });
+}
+
+/**
+ * Staff accounts must never accumulate candidate study data. This purges any
+ * study progress, bookmarks, analytics, and leaderboard attempts that were
+ * recorded before the role restriction existed (or by legacy clients).
+ *
+ * Safe to call at boot and after a role promotion: it is idempotent and only
+ * writes to accounts whose stored stats still contain student activity.
+ */
+export function purgeStaffStudyData(): void {
+  const staffRows = db
+    .prepare(
+      `SELECT id, username, email, password_hash, role, display_name, created_at, stats_json
+       FROM users
+       WHERE role IN ('admin', 'superadmin')`
+    )
+    .all() as any[];
+
+  const emptyStatsJson = JSON.stringify(DEFAULT_USER_STATS);
+  const resetStats = db.prepare('UPDATE users SET stats_json = ? WHERE id = ?');
+
+  for (const row of staffRows) {
+    let hasProgress = false;
+    try {
+      const stats = JSON.parse(row.stats_json);
+      hasProgress = Boolean(
+        stats &&
+          ((typeof stats.totalAnswered === 'number' && stats.totalAnswered > 0) ||
+            (typeof stats.totalCorrect === 'number' && stats.totalCorrect > 0) ||
+            (typeof stats.streakDays === 'number' && stats.streakDays > 0) ||
+            (Array.isArray(stats.bookmarkedIds) && stats.bookmarkedIds.length > 0) ||
+            (Array.isArray(stats.revisionQueueIds) && stats.revisionQueueIds.length > 0) ||
+            (stats.bookmarkMeta && Object.keys(stats.bookmarkMeta).length > 0) ||
+            (stats.mistakeStreaks && Object.keys(stats.mistakeStreaks).length > 0) ||
+            (stats.subjectPerformance && Object.keys(stats.subjectPerformance).length > 0) ||
+            (stats.topicPerformance && Object.keys(stats.topicPerformance).length > 0) ||
+            (Array.isArray(stats.examRecords) && stats.examRecords.length > 0))
+      );
+    } catch {
+      // Corrupt/legacy stats payloads are reset as well.
+      hasProgress = true;
+    }
+
+    if (hasProgress) {
+      resetStats.run(emptyStatsJson, row.id);
+      syncUpsertUser({
+        id: row.id,
+        username: row.username,
+        email: row.email || undefined,
+        password_hash: row.password_hash,
+        role: row.role,
+        display_name: row.display_name,
+        stats_json: emptyStatsJson,
+        created_at: row.created_at,
+      });
+    }
+  }
+
+  // Candidate-only activity tables must not retain staff rows either.
+  db.prepare(
+    `DELETE FROM exam_attempts
+     WHERE user_id IN (SELECT id FROM users WHERE role IN ('admin', 'superadmin'))`
+  ).run();
+  db.prepare(
+    `DELETE FROM active_exams
+     WHERE user_id IN (SELECT id FROM users WHERE role IN ('admin', 'superadmin'))`
+  ).run();
 }
 
 export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
@@ -316,6 +428,12 @@ export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
 
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, userId);
   db.prepare('UPDATE sessions SET role = ? WHERE user_id = ?').run(newRole, userId);
+
+  if (newRole === 'admin') {
+    db.prepare('UPDATE users SET stats_json = ? WHERE id = ?').run(JSON.stringify(DEFAULT_USER_STATS), userId);
+    db.prepare('DELETE FROM exam_attempts WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(userId);
+  }
 
   return { success: true };
 }
@@ -467,7 +585,7 @@ export function queryQuestions(params: QuestionQueryParams = {}): {
   let filtered: MCQQuestion[] = rows.map((r) => JSON.parse(r.data_json));
 
   if (params.exam && params.exam !== 'All') {
-    filtered = filtered.filter((q) => q.examCategories.includes(params.exam as any));
+    filtered = filtered.filter((q) => questionMatchesExamCategory(q.examCategories, params.exam as any));
   }
 
   if (params.search && params.search.trim()) {
@@ -715,12 +833,16 @@ export function updateReportStatus(id: string, status: 'Pending' | 'Investigatin
 }
 
 export function getUserStats(userId = 'usr-guest'): UserStats {
-  const row = db.prepare('SELECT stats_json FROM users WHERE id = ?').get(userId) as { stats_json: string } | undefined;
-  if (!row) return DEFAULT_USER_STATS;
+  const row = db.prepare('SELECT role, stats_json FROM users WHERE id = ?').get(userId) as { role?: string; stats_json: string } | undefined;
+  if (!row || row.role === 'admin' || row.role === 'superadmin') return DEFAULT_USER_STATS;
   return JSON.parse(row.stats_json);
 }
 
 export function saveUserStats(userId: string, stats: UserStats): void {
+  const user = db.prepare('SELECT role FROM users WHERE id = ?').get(userId) as { role?: string } | undefined;
+  if (user && (user.role === 'admin' || user.role === 'superadmin')) {
+    return;
+  }
   db.prepare('UPDATE users SET stats_json = ? WHERE id = ?').run(JSON.stringify(stats), userId);
   syncUpdateUserStats(userId, stats);
 }
@@ -871,8 +993,12 @@ export async function hydrateFromSupabase(): Promise<void> {
           stats_json = excluded.stats_json
       `);
       for (const u of cloudUsers) {
-        const statsStr =
-          typeof u.stats_json === 'string' ? u.stats_json : JSON.stringify(u.stats_json || DEFAULT_USER_STATS);
+        const isStaff = u.role === 'admin' || u.role === 'superadmin';
+        const statsStr = isStaff
+          ? JSON.stringify(DEFAULT_USER_STATS)
+          : typeof u.stats_json === 'string'
+          ? u.stats_json
+          : JSON.stringify(u.stats_json || DEFAULT_USER_STATS);
         upsertU.run(u.id, u.username, u.password_hash, u.role, u.display_name, statsStr, u.created_at);
       }
     } else {

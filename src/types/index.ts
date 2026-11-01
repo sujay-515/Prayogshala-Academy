@@ -5,7 +5,7 @@ import type { PacingSummary } from '../utils/pacing';
 
 export type DifficultyLevel = 'Memory-based' | 'Conceptual' | 'Advanced';
 
-export type ExamCategory = 'NHPC' | 'PSC' | 'ASCP' | 'DHA' | 'AIMS';
+export type ExamCategory = 'NHPC' | 'PSC' | 'ASCP' | 'DHA' | 'AIMS' | 'CEE-UG';
 
 export type QuestionStatus = 'Draft' | 'Under-Review' | 'Approved' | 'Published' | 'Archived';
 

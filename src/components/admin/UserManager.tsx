@@ -37,7 +37,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'staff' | 'student'>('all');
+  const [roleFilter, setRoleFilter] = useState<'staff' | 'student'>('staff');
   const [isInviteModalOpen, setIsInviteModalOpen] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -92,7 +92,15 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
 
       if (res.ok && data.success) {
         setUsers((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+          prev.map((u) =>
+            u.id === userId
+              ? {
+                  ...u,
+                  role: newRole,
+                  ...(newRole === 'admin' ? { totalAnswered: 0, totalCorrect: 0 } : {}),
+                }
+              : u
+          )
         );
         setActionMessage({
           text: `Account role updated to ${newRole === 'admin' ? 'Staff Administrator' : 'Student Candidate'}.`,
@@ -164,7 +172,6 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
       (u.email && u.email.toLowerCase().includes(q));
 
     const matchesRole =
-      roleFilter === 'all' ||
       (roleFilter === 'staff' && (u.role === 'admin' || u.role === 'superadmin')) ||
       (roleFilter === 'student' && u.role === 'student');
 
@@ -275,15 +282,8 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
 
         <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs self-start sm:self-auto">
           <button
-            onClick={() => setRoleFilter('all')}
-            className={`px-3 py-1 rounded-md font-medium cursor-pointer transition-all ${
-              roleFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            All ({users.length})
-          </button>
-          <button
             onClick={() => setRoleFilter('staff')}
+            aria-pressed={roleFilter === 'staff'}
             className={`px-3 py-1 rounded-md font-medium cursor-pointer transition-all ${
               roleFilter === 'staff' ? 'bg-white text-cyan-950 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -292,6 +292,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
           </button>
           <button
             onClick={() => setRoleFilter('student')}
+            aria-pressed={roleFilter === 'student'}
             className={`px-3 py-1 rounded-md font-medium cursor-pointer transition-all ${
               roleFilter === 'student' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -310,7 +311,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                 <th className="px-4 py-3">Account Holder</th>
                 <th className="px-4 py-3">Email Address</th>
                 <th className="px-4 py-3">Current Role</th>
-                <th className="px-4 py-3">Study Progress</th>
+                {roleFilter === 'student' && <th className="px-4 py-3">Study Progress</th>}
                 <th className="px-4 py-3">Joined Date</th>
                 <th className="px-4 py-3 text-right">Privilege Controls</th>
               </tr>
@@ -318,7 +319,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={roleFilter === 'student' ? 6 : 5} className="px-4 py-8 text-center text-slate-400">
                     No users matching criteria.
                   </td>
                 </tr>
@@ -376,15 +377,17 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                         )}
                       </td>
 
-                      <td className="px-4 py-3 text-slate-600">
-                        {u.totalAnswered > 0 ? (
-                          <span>
-                            {u.totalAnswered} MCQs ({Math.round((u.totalCorrect / u.totalAnswered) * 100)}% accuracy)
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
+                      {roleFilter === 'student' && (
+                        <td className="px-4 py-3 text-slate-600">
+                          {u.totalAnswered > 0 ? (
+                            <span>
+                              {u.totalAnswered} MCQs ({Math.round((u.totalCorrect / u.totalAnswered) * 100)}% accuracy)
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      )}
 
                       <td className="px-4 py-3 text-slate-500 text-[11px]">
                         <span className="flex items-center gap-1">

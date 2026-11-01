@@ -15,6 +15,7 @@ import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
+import { questionMatchesExamCategory } from '../../utils/examCategories';
 
 interface PracticeModeProps {
   questions: MCQQuestion[];
@@ -95,7 +96,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     return ['All', ...Array.from(set)];
   }, [questions, selectedUnit]);
 
-  const exams: ('All' | ExamCategory)[] = ['All', 'ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'];
+  const exams: ('All' | ExamCategory)[] = ['All', 'ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS', 'CEE-UG'];
   const pastPapers = useMemo(() => {
     const set = new Set(
       questions.filter((q) => isVisibleQuestion(q) && q.pastPaper).map((q) => q.pastPaper as string)
@@ -110,7 +111,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
       if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
       if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
-      if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
+      if (selectedExam !== 'All' && !questionMatchesExamCategory(q.examCategories, selectedExam as ExamCategory)) return false;
       if (selectedPastPaper !== 'All' && q.pastPaper !== selectedPastPaper) return false;
       if (highYieldOnly && !q.isHighYield) return false;
       if (bookmarksOnly && !bookmarkedIds.includes(q.id)) return false;

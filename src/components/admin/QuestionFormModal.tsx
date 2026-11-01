@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Eye, Save, Plus, Trash2, Image as ImageIcon, Table as TableIcon } from 'lucide-react';
 import { MCQQuestion, UnitCategory, ExamCategory, DifficultyLevel, QuestionStatus, TableData } from '../../types';
 import { generateNextQuestionCode } from '../../utils/mcqParser';
+import { GENERAL_EXAM_LABEL, normalizeExamCategories } from '../../utils/examCategories';
 import { isSafeImageUrl, getSafeImageUrl } from '../../utils/urlSecurity';
 import { Modal } from '../common/Modal';
 
@@ -42,7 +43,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
   const [subtopic, setSubtopic] = useState('');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('Conceptual');
   const [isHighYield, setIsHighYield] = useState(false);
-  const [selectedExams, setSelectedExams] = useState<ExamCategory[]>(['ASCP', 'NHPC']);
+  const [selectedExams, setSelectedExams] = useState<ExamCategory[]>([]);
   const [status, setStatus] = useState<QuestionStatus>('Published');
   const [auditNote, setAuditNote] = useState('');
 
@@ -88,7 +89,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setSubtopic(editingQuestion.subtopic || '');
       setDifficulty(editingQuestion.difficulty);
       setIsHighYield(Boolean(editingQuestion.isHighYield));
-      setSelectedExams(editingQuestion.examCategories);
+      setSelectedExams(normalizeExamCategories(editingQuestion.examCategories));
       setStatus(editingQuestion.status);
       setImageUrl(editingQuestion.imageUrl || '');
       if (editingQuestion.tableData) {
@@ -117,7 +118,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setSubtopic('');
       setDifficulty('Conceptual');
       setIsHighYield(false);
-      setSelectedExams(['ASCP', 'NHPC']);
+      setSelectedExams([]);
       setStatus('Published');
       setImageUrl('');
       setHasTable(false);
@@ -263,7 +264,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       topic,
       subtopic: subtopic.trim() ? subtopic.trim() : undefined,
       difficulty,
-      examCategories: selectedExams.length > 0 ? selectedExams : ['ASCP'],
+      examCategories: normalizeExamCategories(selectedExams),
       isHighYield,
       pastPaper: pastPaper.trim() || undefined,
       status,
@@ -785,11 +786,35 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
 
               {/* Exam Category Checkboxes */}
               <div>
-                <label className="block text-slate-700 font-semibold mb-1.5">
-                  Relevant Examination Categories (Multi-select)
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label className="block text-slate-700 font-semibold">
+                    Relevant Examination Categories{' '}
+                    <span className="font-normal text-slate-500">(optional, multi-select)</span>
+                  </label>
+                  {selectedExams.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExams([])}
+                      className="text-[11px] font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+                    >
+                      Clear (make General)
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  {(['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'] as ExamCategory[]).map((cat) => (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedExams([])}
+                    className={`px-2 py-0.5 rounded border text-xs font-medium cursor-pointer ${
+                      selectedExams.length === 0
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    }`}
+                    title="No exam tag — available for every exam"
+                  >
+                    {GENERAL_EXAM_LABEL}
+                  </button>
+                  {(['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS', 'CEE-UG'] as ExamCategory[]).map((cat) => (
                     <label key={cat} className="flex items-center gap-1.5 text-slate-700 cursor-pointer">
                       <input
                         type="checkbox"
@@ -801,6 +826,10 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                     </label>
                   ))}
                 </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  No category selected means this is a General question — it stays available in every exam
+                  filter.
+                </p>
               </div>
 
               {/* Options & Answer Key */}

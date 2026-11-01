@@ -16,6 +16,7 @@ import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
+import { formatExamCategories, questionMatchesExamCategory } from '../../utils/examCategories';
 
 interface BrowseQuestionBankProps {
   questions: MCQQuestion[];
@@ -166,15 +167,14 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
 
   const examCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const q of publishedOnly) {
-      for (const e of q.examCategories) {
-        counts[e] = (counts[e] || 0) + 1;
-      }
+    for (const exam of ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS', 'CEE-UG'] as ExamCategory[]) {
+      // General (untagged) questions are applicable to every board.
+      counts[exam] = publishedOnly.filter((q) => questionMatchesExamCategory(q.examCategories, exam)).length;
     }
     return counts;
   }, [publishedOnly]);
 
-  const examsList: ('All' | ExamCategory)[] = ['All', 'ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'];
+  const examsList: ('All' | ExamCategory)[] = ['All', 'ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS', 'CEE-UG'];
 
   const pastPapers = useMemo(() => {
     return Array.from(
@@ -188,7 +188,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
       if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
       if (selectedTopic !== 'All' && q.topic !== selectedTopic) return false;
       if (selectedSubtopic !== 'All' && q.subtopic !== selectedSubtopic) return false;
-      if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
+      if (selectedExam !== 'All' && !questionMatchesExamCategory(q.examCategories, selectedExam as ExamCategory)) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       if (selectedPastPaper !== 'All' && q.pastPaper !== selectedPastPaper) return false;
       if (highYieldOnly && !q.isHighYield) return false;
@@ -681,7 +681,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                   )}
 
                   <div className="text-xs text-slate-400">
-                    {q.examCategories.join(' · ')}
+                    {formatExamCategories(q.examCategories)}
                   </div>
                 </div>
 

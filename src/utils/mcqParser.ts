@@ -2,6 +2,11 @@
  * Pure parsing, validation, duplicate detection, and import/export utilities
  */
 import { ExtractedMCQDraft, MCQOption, MCQQuestion, DifficultyLevel, ExamCategory, TableData } from '../types';
+import {
+  detectExamCategoriesFromTitle,
+  detectExplicitExamCategoryLine,
+  normalizeExamCategories,
+} from './examCategories';
 
 /**
  * Calculates string similarity using word-level Jaccard index
@@ -562,6 +567,37 @@ export function parseRawMCQText(
   // 1. Extract End-of-Document Answer Key if present
   const { cleanedText, answerKeyMap } = extractEndOfDocAnswerKey(rawText);
 
+  // Conservative detection of document-level exam categories from:
+  // a) Explicit metadata lines in the document preamble (e.g., "Exam Categories: ASCP; NHPC")
+  // b) Document title/header lines (e.g., "ASCP 2024", "ASCP 2024 Board Review")
+  // c) Source document filename (e.g., "ASCP_2024.pdf")
+  let docDefaultExamCategories: ExamCategory[] = [];
+
+  if (sourceDocument) {
+    const filenameCats = detectExamCategoriesFromTitle(sourceDocument);
+    if (filenameCats.length > 0) {
+      docDefaultExamCategories = filenameCats;
+    }
+  }
+
+  // Scan top lines of rawText before question segmentation for explicit metadata line or title
+  const rawTopLines = rawText.split(/\r?\n/).slice(0, 25);
+  for (const rawLine of rawTopLines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const explicitCats = detectExplicitExamCategoryLine(line);
+    if (explicitCats !== null) {
+      docDefaultExamCategories = explicitCats;
+      break;
+    }
+    if (docDefaultExamCategories.length === 0) {
+      const titleCats = detectExamCategoriesFromTitle(line);
+      if (titleCats.length > 0) {
+        docDefaultExamCategories = titleCats;
+      }
+    }
+  }
+
   // 2. Expand inline options ("A. ... B. ... C. ... D. ...") onto separate lines
   const expandedText = expandInlineOptionsInText(cleanedText);
 
@@ -583,6 +619,7 @@ export function parseRawMCQText(
     let explanation = '';
     let reference = '';
     let clinicalCase = '';
+    let questionExamCategories: ExamCategory[] | null = null;
 
     let state: 'stem' | 'case' | 'options' | 'answer_pending' | 'answer' | 'explanation' | 'ref' = 'stem';
 
@@ -601,13 +638,28 @@ export function parseRawMCQText(
         }
       }
 
+      // Check for explicit Exam Categories metadata line within the question chunk
+      // e.g. "Exam Categories: ASCP; NHPC", "Exam Category: PSC", "Target Exam: DHA", "Boards: ASCP"
+      const explicitChunkCats = detectExplicitExamCategoryLine(line);
+      if (explicitChunkCats !== null) {
+        questionExamCategories = explicitChunkCats;
+        continue;
+      }
+
       // Strip leading document title headers on the very first question if present
       if (
         counter === 1 &&
         state === 'stem' &&
         !questionStem &&
-        /^(?:BOARD\s+REVIEW|EXAMINATION\s+REVISION|PRACTICE\s+EXAM|MULTIPLE\s+CHOICE\s+QUESTIONS)\b/i.test(line)
+        (/^(?:BOARD\s+REVIEW|EXAMINATION\s+REVISION|PRACTICE\s+EXAM|MULTIPLE\s+CHOICE\s+QUESTIONS)\b/i.test(line) ||
+          /^(?:ASCP|NHPC|PSC|DHA|AIMS|CEE-UG)?\s*(?:20\d\d)?\s*(?:BOARD\s+REVIEW|EXAMINATION|PRACTICE\s+EXAM|MULTIPLE\s+CHOICE\s+QUESTIONS)\b/i.test(line))
       ) {
+        if (docDefaultExamCategories.length === 0) {
+          const titleCats = detectExamCategoriesFromTitle(line);
+          if (titleCats.length > 0) {
+            docDefaultExamCategories = titleCats;
+          }
+        }
         continue;
       }
 
@@ -905,7 +957,8 @@ export function parseRawMCQText(
       subject: categoryInference.subject,
       topic: categoryInference.topic,
       difficulty: categoryInference.difficulty,
-      examCategories: ['ASCP', 'NHPC'],
+      // Examination tags: conservative detection from explicit line or title, defaulting to General ([])
+      examCategories: questionExamCategories ?? docDefaultExamCategories,
       sourceDocument,
       confidenceScore,
       validationErrors: [],
@@ -1062,7 +1115,7 @@ export function parseCSVToMCQ(
       subject = '',
       topic = '',
       difficulty = 'Conceptual',
-      examCategoriesStr = 'ASCP;NHPC',
+      examCategoriesStr = '',
       highYieldStr = '',
       pastPaper = '',
     ] = row;
@@ -1077,10 +1130,7 @@ export function parseCSVToMCQ(
     const validDifficulty: DifficultyLevel =
       difficulty === 'Memory-based' || difficulty === 'Advanced' ? difficulty : 'Conceptual';
 
-    const examCategories: ExamCategory[] = examCategoriesStr
-      .split(/[\;\,\/]/)
-      .map((e) => e.trim().toUpperCase())
-      .filter((e): e is ExamCategory => ['NHPC', 'PSC', 'ASCP', 'DHA', 'AIMS'].includes(e as ExamCategory));
+    const examCategories: ExamCategory[] = normalizeExamCategories(examCategoriesStr);
 
     const inferred = inferCategoryFromContent(`${stem} ${explanation}`);
 
@@ -1096,7 +1146,7 @@ export function parseCSVToMCQ(
       subject: subject.trim() || inferred.subject,
       topic: topic.trim() || inferred.topic,
       difficulty: validDifficulty,
-      examCategories: examCategories.length > 0 ? examCategories : ['ASCP', 'NHPC'],
+      examCategories,
       isHighYield: /^(yes|true|1|y)$/i.test(highYieldStr.trim()),
       pastPaper: pastPaper.trim() || undefined,
       sourceDocument,

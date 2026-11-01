@@ -8,6 +8,13 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { MCQQuestion, UnitCategory } from '../../types';
+import {
+  CEE_UG_DURATION_MINUTES,
+  CEE_UG_PENALTY_PER_WRONG,
+  CEE_UG_TOTAL_QUESTIONS,
+  computeCeeUgAvailability,
+} from '../../config/ceeUg';
+import { questionMatchesExamCategory } from '../../utils/examCategories';
 
 interface AdminDashboardProps {
   questions: MCQQuestion[];
@@ -40,12 +47,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const examStats: Record<string, number> = {
-    ASCP: questions.filter((q) => q.examCategories.includes('ASCP')).length,
-    NHPC: questions.filter((q) => q.examCategories.includes('NHPC')).length,
-    PSC: questions.filter((q) => q.examCategories.includes('PSC')).length,
-    DHA: questions.filter((q) => q.examCategories.includes('DHA')).length,
-    AIMS: questions.filter((q) => q.examCategories.includes('AIMS')).length,
+    ASCP: questions.filter((q) => questionMatchesExamCategory(q.examCategories, 'ASCP')).length,
+    NHPC: questions.filter((q) => questionMatchesExamCategory(q.examCategories, 'NHPC')).length,
+    PSC: questions.filter((q) => questionMatchesExamCategory(q.examCategories, 'PSC')).length,
+    DHA: questions.filter((q) => questionMatchesExamCategory(q.examCategories, 'DHA')).length,
+    AIMS: questions.filter((q) => questionMatchesExamCategory(q.examCategories, 'AIMS')).length,
+    'CEE-UG': questions.filter((q) => questionMatchesExamCategory(q.examCategories, 'CEE-UG')).length,
+    General: questions.filter((q) => (q.examCategories || []).length === 0).length,
   };
+
+  // CEE-UG entrance blueprint readiness (published questions per section)
+  const ceeUgAvailability = useMemo(
+    () => computeCeeUgAvailability(questions, (q) => q.status === 'Published'),
+    [questions]
+  );
 
   const [breakdownSearch, setBreakdownSearch] = useState('');
   const [expandedUnitNames, setExpandedUnitNames] = useState<Set<string>>(
@@ -198,7 +213,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Unit Breakdown */}
         <div className="bg-white border border-slate-200 rounded p-5 space-y-3">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-            Questions by Laboratory Unit
+            Questions by Unit
           </h3>
 
           <div className="space-y-2.5">
@@ -247,9 +262,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           <div className="bg-white border border-slate-200 rounded p-5 space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-              Licensing Syllabus Coverage
+              Licensing &amp; Entrance Coverage
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 text-center text-xs">
               {Object.entries(examStats).map(([exam, count]) => (
                 <div key={exam} className="bg-slate-50 p-2.5 rounded border border-slate-200">
                   <span className="font-semibold text-slate-800 block">{exam}</span>
@@ -257,6 +272,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CEE-UG entrance mock readiness */}
+      <div className="bg-white border border-slate-200 rounded p-5 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              CEE-UG Entrance Mock Readiness
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Fixed paper: {CEE_UG_TOTAL_QUESTIONS} questions · {CEE_UG_DURATION_MINUTES} min · −
+              {CEE_UG_PENALTY_PER_WRONG} per wrong answer ·{' '}
+              <strong className="text-slate-800">
+                {ceeUgAvailability.totalAvailable}/{ceeUgAvailability.totalRequired}
+              </strong>{' '}
+              published questions available
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {ceeUgAvailability.isShort ? (
+              <span className="text-[11px] font-medium px-2 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800">
+                {ceeUgAvailability.totalRequired - ceeUgAvailability.totalAvailable} questions needed
+              </span>
+            ) : (
+              <span className="text-[11px] font-medium px-2 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800">
+                Ready to serve
+              </span>
+            )}
+            <button
+              onClick={() => onNavigateSubtab('bulk')}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium transition-colors cursor-pointer"
+            >
+              Bulk Upload Questions
+            </button>
+            <button
+              onClick={() => onNavigateSubtab('manual')}
+              className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded text-xs font-medium transition-colors cursor-pointer"
+            >
+              Question Editor
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-500">200-question paper readiness</span>
+            <span className="font-semibold text-slate-900">
+              {ceeUgAvailability.totalAvailable} / {ceeUgAvailability.totalRequired} Questions ({Math.min(100, Math.round((ceeUgAvailability.totalAvailable / ceeUgAvailability.totalRequired) * 100))}%)
+            </span>
+          </div>
+          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                ceeUgAvailability.isShort ? 'bg-amber-500' : 'bg-emerald-600'
+              }`}
+              style={{
+                width: `${Math.min(100, Math.round((ceeUgAvailability.totalAvailable / ceeUgAvailability.totalRequired) * 100))}%`,
+              }}
+            />
           </div>
         </div>
       </div>

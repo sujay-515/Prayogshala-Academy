@@ -1,6 +1,6 @@
 # MedLab QBank
 
-Clinical Laboratory Medicine and Pathology question bank with PDF ingestion, multi-tier taxonomy, interactive practice, and timed mock examinations for licensing preparation (ASCP, NHPC, PSC, DHA, and AIMS).
+Clinical Laboratory Medicine and Pathology question bank with PDF ingestion, multi-tier taxonomy, interactive practice, and timed mock examinations for licensing preparation (ASCP, NHPC, PSC, DHA, and AIMS), plus a standalone CEE-UG (MECEE-BL) medical entrance mock: 200 questions, 3 hours, −0.25 negative marking, Biology 80 (Botany 40 + Zoology 40) · Chemistry 50 · Physics 50 · Mental Ability 20.
 
 ## Getting Started
 
@@ -39,6 +39,16 @@ Open `http://localhost:3000` in your browser.
   - `source_pdfs`: Uploaded PDF text and staging drafts.
   - `active_exams`: Server-side state for in-progress timed exams.
   - `reports`: Content discrepancy submissions.
+
+### CEE-UG Entrance Mock
+
+`/cee-ug` is a standalone full-length entrance mock, served by `POST /api/cee-ug/exams/start`:
+
+- **Pattern:** 200 questions · 200 marks · 180 minutes (3 hours) · −0.25 per wrong answer.
+- **Bulk Upload & Assembly:** Administrator can upload 200 questions in bulk tagged with `CEE-UG`. The server draws from published CEE-UG questions directly without requiring specific subject or unit quotas.
+- **Availability:** Independent of the weekly Grand Test window and leaderboard; it can be sat at any time.
+- **Pass mark:** 50% (stored per session in `active_exams.passing_percentage`).
+- **Tagging:** Authors tag questions with the `CEE-UG` exam category in the bulk uploader or question editor.
 
 ### Initial Administrator Setup
 On a fresh installation, specify initial superadmin credentials in `.env`:

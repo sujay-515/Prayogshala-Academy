@@ -1276,6 +1276,102 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(statsValid.body.success, true);
   });
 
+  it('staff accounts never retain or expose candidate study progress', async () => {
+    const suffix = Date.now().toString(36);
+    const studentUsername = `stats_promoted_${suffix}`;
+    const studentEmail = `${studentUsername}@example.com`;
+    const studentPassword = 'PromotedStudent123!';
+
+    // 1. A student accumulates study progress.
+    const studentReg = await request('POST', '/api/auth/register', {
+      body: { username: studentUsername, email: studentEmail, password: studentPassword },
+    });
+    assert.equal(studentReg.status, 200);
+    const studentToken = studentReg.body.token;
+
+    const studentStats = {
+      totalAnswered: 12,
+      totalCorrect: 9,
+      streakDays: 3,
+      lastActiveDate: '2026-10-29',
+      bookmarkedIds: ['q-chk-pub-01'],
+      bookmarkMeta: { 'q-chk-pub-01': { note: 'review' } },
+      revisionQueueIds: ['q-chk-pub-01'],
+      mistakeStreaks: { 'q-chk-pub-01': 1 },
+      subjectPerformance: { Chemistry: { answered: 12, correct: 9 } },
+      topicPerformance: { 'Acid-Base': { answered: 12, correct: 9 } },
+      examRecords: [
+        {
+          id: 'exam-test-1',
+          date: '2026-10-29T10:00:00.000Z',
+          title: 'Practice Mock',
+          score: 9,
+          total: 12,
+          timeSpentSeconds: 300,
+          passed: true,
+        },
+      ],
+    };
+    const savedStudentStats = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: { stats: studentStats },
+    });
+    assert.equal(savedStudentStats.status, 200);
+
+    // 2. Superadmin promotes that student to staff.
+    const superLogin = await request('POST', '/api/auth/login', {
+      body: {
+        identifier: 'bootstrap_superadmin@example.com',
+        password: 'BootstrapPassword123!',
+      },
+    });
+    assert.equal(superLogin.status, 200);
+    const superToken = superLogin.body.token;
+
+    const usersBefore = await request('GET', '/api/admin/users', { token: superToken });
+    const promoted = usersBefore.body.users.find((u: any) => u.username === studentUsername);
+    assert.ok(promoted, 'promoted account should be listed');
+
+    const promoteRes = await request('PATCH', `/api/admin/users/${promoted.id}/role`, {
+      token: superToken,
+      body: { role: 'admin' },
+    });
+    assert.equal(promoteRes.status, 200);
+
+    // 3. The promoted staff account receives no study progress on login.
+    const staffLogin = await request('POST', '/api/auth/login', {
+      body: { identifier: studentEmail, password: studentPassword },
+    });
+    assert.equal(staffLogin.status, 200);
+    assert.equal(staffLogin.body.user.role, 'admin');
+    assert.equal(staffLogin.body.stats, null);
+    const staffToken = staffLogin.body.token;
+
+    // 4. It cannot save candidate stats through the API.
+    const staffStatsAttempt = await request('PUT', '/api/stats', {
+      token: staffToken,
+      body: { stats: studentStats },
+    });
+    assert.equal(staffStatsAttempt.status, 403);
+    assert.equal(staffStatsAttempt.body.success, false);
+    assert.ok(staffStatsAttempt.body.error?.includes('Staff accounts'));
+
+    // 5. Stats are neither returned nor listed for the staff account.
+    const meRes = await request('GET', '/api/auth/me', { token: staffToken });
+    assert.equal(meRes.status, 200);
+    assert.equal(meRes.body.stats, null);
+
+    const bootstrapRes = await request('GET', '/api/bootstrap', { token: staffToken });
+    assert.equal(bootstrapRes.status, 200);
+    assert.equal(bootstrapRes.body.stats, null);
+
+    const usersAfter = await request('GET', '/api/admin/users', { token: superToken });
+    const staffRow = usersAfter.body.users.find((u: any) => u.id === promoted.id);
+    assert.ok(staffRow);
+    assert.equal(staffRow.totalAnswered, 0);
+    assert.equal(staffRow.totalCorrect, 0);
+  });
+
   it('bulk-import invalid imageUrl is rejected', async () => {
     const adminLogin = await request('POST', '/api/auth/login', {
       body: {

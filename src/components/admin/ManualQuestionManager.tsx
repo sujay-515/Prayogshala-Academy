@@ -17,6 +17,7 @@ import {
 import { MCQQuestion, UnitCategory, QuestionStatus, ExamCategory, DifficultyLevel } from '../../types';
 import { QuestionFormModal } from './QuestionFormModal';
 import { generateNextQuestionCode } from '../../utils/mcqParser';
+import { GENERAL_EXAM_LABEL, normalizeExamCategories, questionMatchesExamCategory } from '../../utils/examCategories';
 import { Modal } from '../common/Modal';
 
 interface ManualQuestionManagerProps {
@@ -31,7 +32,7 @@ interface ManualQuestionManagerProps {
   onClearInitialEditingQuestion?: () => void;
 }
 
-const ALL_EXAMS: ExamCategory[] = ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'];
+const ALL_EXAMS: ExamCategory[] = ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS', 'CEE-UG'];
 
 export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   questions,
@@ -60,6 +61,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   const [bulkCategoryTopic, setBulkCategoryTopic] = useState<string>('');
   const [bulkCategoryDifficulty, setBulkCategoryDifficulty] = useState<string>('');
   const [bulkCategoryExams, setBulkCategoryExams] = useState<ExamCategory[]>([]);
+  const [bulkClearCategoryExams, setBulkClearCategoryExams] = useState<boolean>(false);
   const [isBulkExamDropdownOpen, setIsBulkExamDropdownOpen] = useState<boolean>(false);
   const bulkExamDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -121,7 +123,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
       if (selectedStatus !== 'All' && q.status !== selectedStatus) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
-      if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
+      if (selectedExam !== 'All' && !questionMatchesExamCategory(q.examCategories, selectedExam as ExamCategory)) return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -241,7 +243,8 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       !bulkCategorySubject &&
       !bulkCategoryTopic &&
       !bulkCategoryDifficulty &&
-      bulkCategoryExams.length === 0
+      bulkCategoryExams.length === 0 &&
+      !bulkClearCategoryExams
     )
       return;
 
@@ -256,8 +259,10 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
           nextSubject = targetUnitObj.subjects[0]?.name || q.subject;
         }
 
-        let nextExams = [...q.examCategories];
-        if (bulkCategoryExams.length > 0) {
+        let nextExams = normalizeExamCategories(q.examCategories);
+        if (bulkClearCategoryExams) {
+          nextExams = [];
+        } else if (bulkCategoryExams.length > 0) {
           const examSet = new Set(nextExams);
           bulkCategoryExams.forEach((e) => examSet.add(e));
           nextExams = Array.from(examSet);
@@ -288,6 +293,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
     setBulkCategoryTopic('');
     setBulkCategoryDifficulty('');
     setBulkCategoryExams([]);
+    setBulkClearCategoryExams(false);
   };
 
   const bulkUnitObj = categories.find((c) => c.name === bulkCategoryUnit);
@@ -413,6 +419,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
               <option value="PSC">PSC</option>
               <option value="DHA">DHA</option>
               <option value="AIMS">AIMS</option>
+              <option value="CEE-UG">CEE-UG (Entrance)</option>
             </select>
           </div>
         </div>
@@ -530,12 +537,17 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsBulkExamDropdownOpen((prev) => !prev)}
+                  title="Exam tags are optional — choose General to remove tags"
                   className={`bg-slate-50 border ${
-                    bulkCategoryExams.length > 0 ? 'border-slate-400 bg-white' : 'border-slate-200'
-                  } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[140px]`}
+                    bulkCategoryExams.length > 0 || bulkClearCategoryExams
+                      ? 'border-slate-400 bg-white'
+                      : 'border-slate-200'
+                  } rounded px-2.5 py-1 text-slate-800 text-xs flex items-center justify-between gap-1.5 hover:border-slate-400 focus:outline-none transition-colors cursor-pointer min-w-[150px]`}
                 >
-                  <span className="truncate max-w-[120px] text-left">
-                    {bulkCategoryExams.length === 0 ? (
+                  <span className="truncate max-w-[130px] text-left">
+                    {bulkClearCategoryExams ? (
+                      <span className="font-medium text-slate-900">General (no exam tag)</span>
+                    ) : bulkCategoryExams.length === 0 ? (
                       <span className="text-slate-600">Tag Exam Board...</span>
                     ) : (
                       <span className="font-medium text-slate-900">
@@ -546,13 +558,14 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                     )}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
-                    {bulkCategoryExams.length > 0 && (
+                    {(bulkCategoryExams.length > 0 || bulkClearCategoryExams) && (
                       <span
                         role="button"
                         tabIndex={0}
                         onClick={(e) => {
                           e.stopPropagation();
                           setBulkCategoryExams([]);
+                          setBulkClearCategoryExams(false);
                         }}
                         className="p-0.5 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
                         title="Clear selections"
@@ -569,13 +582,16 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                 </button>
 
                 {isBulkExamDropdownOpen && (
-                  <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
+                  <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-30 p-2 text-xs">
                     <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 px-1">
-                      <span className="font-semibold text-slate-700 text-[11px]">Select Exam Boards</span>
+                      <span className="font-semibold text-slate-700 text-[11px]">Select Exam Boards (Optional)</span>
                       <div className="flex items-center gap-2 text-[11px]">
                         <button
                           type="button"
-                          onClick={() => setBulkCategoryExams([...ALL_EXAMS])}
+                          onClick={() => {
+                            setBulkCategoryExams([...ALL_EXAMS]);
+                            setBulkClearCategoryExams(false);
+                          }}
                           className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
                         >
                           All
@@ -583,13 +599,45 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                         <span className="text-slate-300">|</span>
                         <button
                           type="button"
-                          onClick={() => setBulkCategoryExams([])}
+                          onClick={() => {
+                            setBulkCategoryExams([]);
+                            setBulkClearCategoryExams(false);
+                          }}
                           className="text-slate-600 hover:text-slate-900 font-medium cursor-pointer"
                         >
                           Clear
                         </button>
                       </div>
                     </div>
+
+                    <label
+                      className={`flex items-start justify-between px-2 py-1.5 mb-1 rounded cursor-pointer transition-colors ${
+                        bulkClearCategoryExams
+                          ? 'bg-slate-100 font-medium text-slate-900'
+                          : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          checked={bulkClearCategoryExams}
+                          onChange={(e) => {
+                            setBulkClearCategoryExams(e.target.checked);
+                            if (e.target.checked) setBulkCategoryExams([]);
+                          }}
+                          className="mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-900 h-3.5 w-3.5 cursor-pointer"
+                        />
+                        <span>
+                          <span className="block">No exam board</span>
+                          <span className="block text-[10px] text-slate-500 font-normal">
+                            {GENERAL_EXAM_LABEL} question — removes existing tags
+                          </span>
+                        </span>
+                      </div>
+                      {bulkClearCategoryExams && <CheckCircle2 className="w-3.5 h-3.5 text-slate-800 mt-0.5" />}
+                    </label>
+
+                    <div className="border-t border-slate-100 mb-1" />
 
                     <div className="space-y-0.5">
                       {ALL_EXAMS.map((ex) => {
@@ -606,6 +654,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                                 type="checkbox"
                                 checked={checked}
                                 onChange={() => {
+                                  setBulkClearCategoryExams(false);
                                   if (checked) {
                                     setBulkCategoryExams(bulkCategoryExams.filter((e) => e !== ex));
                                   } else {
@@ -631,7 +680,8 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                   !bulkCategorySubject &&
                   !bulkCategoryTopic &&
                   !bulkCategoryDifficulty &&
-                  bulkCategoryExams.length === 0
+                  bulkCategoryExams.length === 0 &&
+                  !bulkClearCategoryExams
                 }
                 onClick={handleBulkCategorizeSelected}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-white rounded text-xs font-medium cursor-pointer"

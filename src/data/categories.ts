@@ -1,4 +1,5 @@
 import { UnitCategory } from '../types';
+import { CEE_UG_CATEGORY_UNITS } from '../config/ceeUg';
 
 export const INITIAL_CATEGORIES: UnitCategory[] = [
   {
@@ -142,4 +143,6 @@ export const INITIAL_CATEGORIES: UnitCategory[] = [
       },
     ],
   },
+  // CEE-UG (MECEE-BL) entrance subjects — Physics, Chemistry, Biology, Mental Ability
+  ...CEE_UG_CATEGORY_UNITS,
 ];
