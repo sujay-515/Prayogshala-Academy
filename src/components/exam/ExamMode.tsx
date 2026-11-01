@@ -17,6 +17,7 @@ import { ExamScoreResult } from '../../utils/scoring';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
+import { isVisibleQuestion } from '../../utils/questionVisibility';
 
 interface ExamModeProps {
   questions: MCQQuestion[];
@@ -105,7 +106,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   }, [isExamRunning]);
 
   const publishedQuestions = useMemo(() => {
-    return questions.filter((q) => q.status === 'Published');
+    return questions.filter((q) => isVisibleQuestion(q));
   }, [questions]);
 
   const units = useMemo(() => {

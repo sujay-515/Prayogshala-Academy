@@ -1,4 +1,5 @@
 import { MCQQuestion } from '../types';
+import { isVisibleQuestion } from './questionVisibility';
 
 /**
  * 32-bit FNV-1a hash producing deterministic non-negative integers for date strings
@@ -37,7 +38,7 @@ export function getDailyQuestion(
   if (!Array.isArray(questions)) return null;
 
   const published = questions
-    .filter((q) => q && q.status === 'Published')
+    .filter((q) => q && isVisibleQuestion(q))
     .sort((a, b) => (a.code || a.id).localeCompare(b.code || b.id));
 
   if (published.length === 0) {

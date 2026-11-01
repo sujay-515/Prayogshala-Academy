@@ -8,11 +8,13 @@ import {
   ArrowLeft,
   RotateCcw,
   Loader2,
+  Star,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
+import { isVisibleQuestion } from '../../utils/questionVisibility';
 
 interface PracticeModeProps {
   questions: MCQQuestion[];
@@ -44,6 +46,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [selectedExam, setSelectedExam] = useState<string>(initialExam || 'All');
   const [questionCountLimit, setQuestionCountLimit] = useState<number>(10);
   const [isRandomized, setIsRandomized] = useState<boolean>(true);
+  const [highYieldOnly, setHighYieldOnly] = useState<boolean>(false);
 
   // Active Session State
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
@@ -77,14 +80,14 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   }, [initialUnit, initialExam]);
 
   const units = useMemo(() => {
-    const set = new Set(questions.filter((q) => q.status === 'Published').map((q) => q.unit));
+    const set = new Set(questions.filter((q) => isVisibleQuestion(q)).map((q) => q.unit));
     return ['All', ...Array.from(set)];
   }, [questions]);
 
   const subjects = useMemo(() => {
     const set = new Set(
       questions
-        .filter((q) => q.status === 'Published' && (selectedUnit === 'All' || q.unit === selectedUnit))
+        .filter((q) => isVisibleQuestion(q) && (selectedUnit === 'All' || q.unit === selectedUnit))
         .map((q) => q.subject)
     );
     return ['All', ...Array.from(set)];
@@ -95,11 +98,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 
   const filteredPool = useMemo(() => {
     return questions.filter((q) => {
-      if (q.status !== 'Published') return false;
+      if (!isVisibleQuestion(q)) return false;
       if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
       if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
+      if (highYieldOnly && !q.isHighYield) return false;
       return true;
     });
   }, [questions, selectedUnit, selectedSubject, selectedDifficulty, selectedExam]);
@@ -322,6 +326,35 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
                 className="w-4 h-4 text-cyan-700 rounded border-slate-300 focus:ring-cyan-500 cursor-pointer"
               />
             </div>
+
+            <div
+              className={`sm:col-span-2 flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                highYieldOnly
+                  ? 'bg-amber-50 border-amber-300'
+                  : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                <Star
+                  className={`w-4 h-4 mt-0.5 shrink-0 ${
+                    highYieldOnly ? 'fill-amber-500 text-amber-500' : 'text-slate-400'
+                  }`}
+                />
+                <div>
+                  <span className="text-xs font-semibold text-slate-800 block">High-Yield Mode</span>
+                  <span className="text-xs text-slate-500">
+                    Restrict the pool to questions editors flagged as highest-value concepts
+                  </span>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                aria-label="High-Yield Mode"
+                checked={highYieldOnly}
+                onChange={(e) => setHighYieldOnly(e.target.checked)}
+                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+              />
+            </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -376,6 +409,12 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             <span>{currentQ.unit}</span>
             <span aria-hidden="true" className="mx-1.5">·</span>
             <span className="text-slate-500">{currentQ.difficulty}</span>
+            {currentQ.isHighYield && (
+              <span className="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold align-middle">
+                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                High-Yield
+              </span>
+            )}
           </div>
         </div>
 

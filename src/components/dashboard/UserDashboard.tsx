@@ -13,6 +13,7 @@ import { identifyWeakAreas } from '../../utils/scoring';
 import { clearUserScopedStorage } from '../../utils/storage';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
+import { isVisibleQuestion } from '../../utils/questionVisibility';
 
 interface UserDashboardProps {
   stats: UserStats;
@@ -284,7 +285,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             {weakAreas.map((weak) => {
               const matchingQuestions = questions.filter(
-                (q) => q.status === 'Published' && q.subject === weak.subject
+                (q) => isVisibleQuestion(q) && q.subject === weak.subject
               );
               return (
                 <div
@@ -300,7 +301,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   <button
                     onClick={() =>
                       onStartPracticeWithQuestions(
-                        matchingQuestions.length > 0 ? matchingQuestions : questions.filter((q) => q.status === 'Published')
+                        matchingQuestions.length > 0 ? matchingQuestions : questions.filter((q) => isVisibleQuestion(q))
                       )
                     }
                     className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium text-xs shrink-0 cursor-pointer shadow-xs"

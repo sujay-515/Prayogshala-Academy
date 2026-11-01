@@ -43,6 +43,8 @@ export interface MCQQuestion {
   subtopic?: string;
   difficulty: DifficultyLevel;
   examCategories: ExamCategory[];
+  /** Editorially flagged as high-yield for the High-Yield practice mode. */
+  isHighYield?: boolean;
   status: QuestionStatus;
   sourceDocument?: string;
   pageNumber?: number;
@@ -66,6 +68,7 @@ export interface PublicMCQQuestion {
   subtopic?: string;
   difficulty: DifficultyLevel;
   examCategories: ExamCategory[];
+  isHighYield?: boolean;
 }
 
 /**
@@ -98,6 +101,7 @@ export function toPublicQuestion(q: MCQQuestion): PublicMCQQuestion {
   }
   if (q.imageUrl) pub.imageUrl = q.imageUrl;
   if (q.subtopic) pub.subtopic = q.subtopic;
+  if (q.isHighYield) pub.isHighYield = true;
 
   return pub;
 }
@@ -140,6 +144,7 @@ export interface ExtractedMCQDraft {
   subtopic?: string;
   difficulty: DifficultyLevel;
   examCategories: ExamCategory[];
+  isHighYield?: boolean;
   sourceDocument: string;
   pageNumber?: number;
   confidenceScore: number; // 0 to 1

@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronUp,
   Bookmark,
+  Star,
   Flag,
   CheckCircle2,
   AlertCircle,
@@ -14,6 +15,7 @@ import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
+import { isVisibleQuestion } from '../../utils/questionVisibility';
 
 interface BrowseQuestionBankProps {
   questions: MCQQuestion[];
@@ -42,6 +44,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
   const [selectedSubtopic, setSelectedSubtopic] = useState<string>('All');
   const [selectedExam, setSelectedExam] = useState<string>('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
+  const [highYieldOnly, setHighYieldOnly] = useState<boolean>(false);
   const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(15);
@@ -102,7 +105,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
   }, [selectedUnit, selectedSubject, selectedTopic, selectedSubtopic, selectedExam, selectedDifficulty, searchQuery, pageSize]);
 
   const publishedOnly = useMemo(() => {
-    return questions.filter((q) => q.status === 'Published');
+    return questions.filter((q) => isVisibleQuestion(q));
   }, [questions]);
 
   const unitCounts = useMemo(() => {
@@ -179,6 +182,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
       if (selectedSubtopic !== 'All' && q.subtopic !== selectedSubtopic) return false;
       if (selectedExam !== 'All' && !q.examCategories.includes(selectedExam as ExamCategory)) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
+      if (highYieldOnly && !q.isHighYield) return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -354,6 +358,25 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
               <option value="Advanced">Advanced</option>
             </select>
           </div>
+
+          <div className="flex items-end">
+            <label
+              className={`flex items-center gap-2 w-full px-2.5 py-1.5 rounded-md border cursor-pointer transition-colors ${
+                highYieldOnly
+                  ? 'bg-amber-50 border-amber-300 text-amber-900'
+                  : 'bg-white/70 border-slate-200/90 text-slate-700'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={highYieldOnly}
+                onChange={(e) => setHighYieldOnly(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+              />
+              <Star className={`w-3.5 h-3.5 ${highYieldOnly ? 'fill-amber-500 text-amber-500' : 'text-slate-400'}`} />
+              <span className="text-xs font-semibold whitespace-nowrap">High-Yield only</span>
+            </label>
+          </div>
         </div>
 
         {/* Clear filters action */}
@@ -363,6 +386,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
           selectedSubtopic !== 'All' ||
           selectedExam !== 'All' ||
           selectedDifficulty !== 'All' ||
+          highYieldOnly ||
           searchQuery) && (
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <span>Showing {filteredQuestions.length} matching questions</span>
@@ -374,6 +398,7 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                 setSelectedSubtopic('All');
                 setSelectedExam('All');
                 setSelectedDifficulty('All');
+                setHighYieldOnly(false);
                 setSearchQuery('');
               }}
               className="text-slate-800 hover:underline font-medium cursor-pointer"
@@ -422,6 +447,12 @@ export const BrowseQuestionBank: React.FC<BrowseQuestionBankProps> = ({
                     )}
                     <span aria-hidden="true">·</span>
                     <span className="text-slate-500 font-medium">{q.difficulty}</span>
+                    {q.isHighYield && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                        High-Yield
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5">

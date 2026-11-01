@@ -91,6 +91,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         subtopic: 'Hepatobiliary vs Bone Isoenzymes',
         difficulty: 'Conceptual',
         examCategories: ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'],
+        isHighYield: true,
       },
     ];
     const blob = new Blob([JSON.stringify(jsonTemplate, null, 2)], { type: 'application/json' });
@@ -204,6 +205,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
                 subtopic: item.subtopic,
                 difficulty: item.difficulty || 'Conceptual',
                 examCategories: item.examCategories || ['ASCP', 'NHPC'],
+                isHighYield: Boolean(item.isHighYield),
                 sourceDocument: file.name,
                 confidenceScore: 1.0,
                 validationErrors: [],
@@ -302,6 +304,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         subtopic: d.subtopic,
         difficulty: d.difficulty || 'Conceptual',
         examCategories: d.examCategories.length > 0 ? d.examCategories : ['ASCP', 'NHPC'],
+        isHighYield: Boolean(d.isHighYield),
         status: 'Draft',
         sourceDocument: d.sourceDocument,
         createdAt: timestamp,
@@ -588,6 +591,11 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {draft.isHighYield && (
+                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                          High-Yield
+                        </span>
+                      )}
                       <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
                         Ans: {draft.correctAnswer || 'Missing'}
                       </span>

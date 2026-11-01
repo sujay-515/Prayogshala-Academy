@@ -40,6 +40,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
   const [topic, setTopic] = useState('Transaminases (ALT/AST)');
   const [subtopic, setSubtopic] = useState('');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('Conceptual');
+  const [isHighYield, setIsHighYield] = useState(false);
   const [selectedExams, setSelectedExams] = useState<ExamCategory[]>(['ASCP', 'NHPC']);
   const [status, setStatus] = useState<QuestionStatus>('Published');
   const [auditNote, setAuditNote] = useState('');
@@ -84,6 +85,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setTopic(editingQuestion.topic);
       setSubtopic(editingQuestion.subtopic || '');
       setDifficulty(editingQuestion.difficulty);
+      setIsHighYield(Boolean(editingQuestion.isHighYield));
       setSelectedExams(editingQuestion.examCategories);
       setStatus(editingQuestion.status);
       setImageUrl(editingQuestion.imageUrl || '');
@@ -111,6 +113,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setTopic(categories[0]?.subjects[0]?.topics[0] || 'Transaminases (ALT/AST)');
       setSubtopic('');
       setDifficulty('Conceptual');
+      setIsHighYield(false);
       setSelectedExams(['ASCP', 'NHPC']);
       setStatus('Published');
       setImageUrl('');
@@ -258,6 +261,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       subtopic: subtopic.trim() ? subtopic.trim() : undefined,
       difficulty,
       examCategories: selectedExams.length > 0 ? selectedExams : ['ASCP'],
+      isHighYield,
       status,
       sourceDocument: editingQuestion?.sourceDocument || 'Direct Manual Entry',
       createdAt: editingQuestion ? editingQuestion.createdAt : timestamp,
@@ -280,6 +284,7 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
         correctAnswer !== editingQuestion.correctAnswer ||
         unit !== editingQuestion.unit ||
         difficulty !== editingQuestion.difficulty ||
+        isHighYield !== Boolean(editingQuestion.isHighYield) ||
         options.some((o, i) => o.text !== (editingQuestion.options[i]?.text || ''))
       );
     }
@@ -752,6 +757,26 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                   </select>
                 </div>
               </div>
+
+              {/* High-Yield flag */}
+              <label
+                htmlFor="qform-high-yield"
+                className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 bg-amber-50/60 cursor-pointer"
+              >
+                <input
+                  id="qform-high-yield"
+                  type="checkbox"
+                  checked={isHighYield}
+                  onChange={(e) => setIsHighYield(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                />
+                <span>
+                  <span className="block text-slate-900 font-semibold">High-Yield question</span>
+                  <span className="block text-slate-600 text-[11px] mt-0.5">
+                    Surfaces this question in High-Yield practice filters and adds a highlight badge.
+                  </span>
+                </span>
+              </label>
 
               {/* Exam Category Checkboxes */}
               <div>

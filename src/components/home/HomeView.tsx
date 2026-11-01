@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { UnitCategory, ExamCategory, MCQQuestion } from '../../types';
 import { SITE_CONFIG } from '../../config/site';
+import { isVisibleQuestion } from '../../utils/questionVisibility';
 
 interface HomeViewProps {
   categories: UnitCategory[];
@@ -24,7 +25,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectUnit,
   onSelectExam,
 }) => {
-  const publishedQuestions = questions.filter((q) => q.status === 'Published');
+  const publishedQuestions = questions.filter((q) => isVisibleQuestion(q));
   const publishedCount = publishedQuestions.length;
 
   const exams: { code: ExamCategory; title: string; subtitle: string }[] = [
@@ -167,7 +168,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           {exams.map((exam) => {
             const count = questions.filter(
-              (q) => q.status === 'Published' && q.examCategories.includes(exam.code)
+              (q) => isVisibleQuestion(q) && q.examCategories.includes(exam.code)
             ).length;
 
             return (
@@ -218,7 +219,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {categories.map((cat) => {
             const unitQuestions = questions.filter(
-              (q) => q.status === 'Published' && q.unit === cat.name
+              (q) => isVisibleQuestion(q) && q.unit === cat.name
             );
 
             return (

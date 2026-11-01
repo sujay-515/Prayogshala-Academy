@@ -971,6 +971,7 @@ export function generateCSVTemplate(): string {
     'Topic',
     'Difficulty',
     'ExamCategories',
+    'HighYield',
   ];
 
   const exampleRow = [
@@ -987,6 +988,7 @@ export function generateCSVTemplate(): string {
     '"High-Sensitivity Troponin"',
     '"Conceptual"',
     '"ASCP;NHPC;PSC"',
+    '"Yes"',
   ];
 
   return `${headers.join(',')}\n${exampleRow.join(',')}`;
@@ -1059,6 +1061,7 @@ export function parseCSVToMCQ(
       topic = '',
       difficulty = 'Conceptual',
       examCategoriesStr = 'ASCP;NHPC',
+      highYieldStr = '',
     ] = row;
 
     const options: MCQOption[] = [
@@ -1091,6 +1094,7 @@ export function parseCSVToMCQ(
       topic: topic.trim() || inferred.topic,
       difficulty: validDifficulty,
       examCategories: examCategories.length > 0 ? examCategories : ['ASCP', 'NHPC'],
+      isHighYield: /^(yes|true|1|y)$/i.test(highYieldStr.trim()),
       sourceDocument,
       confidenceScore: 0.98,
       validationErrors: [],

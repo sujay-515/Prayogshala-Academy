@@ -5,6 +5,7 @@ import {
   validateExtractedQuestion,
   generateNextQuestionCode,
   inferCategoryFromContent,
+  parseCSVToMCQ,
 } from './mcqParser';
 import { INITIAL_CATEGORIES } from '../data/categories';
 
@@ -142,4 +143,19 @@ test('generateNextQuestionCode increments from highest existing LAB-XXXX code wi
   const existing = [{ code: 'LAB-0005' }, { code: 'LAB-0040' }, { code: 'LAB-0012' }];
   assert.equal(generateNextQuestionCode(existing, 0), 'LAB-0041');
   assert.equal(generateNextQuestionCode(existing, 4), 'LAB-0045');
+});
+
+test('parseCSVToMCQ reads the trailing HighYield column and defaults to false when absent', () => {
+  const header =
+    'QuestionStem,OptionA,OptionB,OptionC,OptionD,CorrectAnswer,Explanation,Reference,Unit,Subject,Topic,Difficulty,ExamCategories,HighYield';
+  const flagged =
+    'Which analyte is the gold standard for myocardial infarction?,Troponin,Myoglobin,CK-MB,LDH,A,Rationale,Tietz,Clinical Chemistry,Cardiac Markers,Troponin,Conceptual,ASCP,Yes';
+  const unflagged =
+    'Which anticoagulant is used for coagulation studies?,EDTA,Citrate,Heparin,Oxalate,B,Rationale,CLSI,Hematology,Coagulation,PT,Conceptual,NHPC,';
+
+  const drafts = parseCSVToMCQ([header, flagged, unflagged].join('\n'));
+
+  assert.equal(drafts.length, 2);
+  assert.equal(drafts[0].isHighYield, true);
+  assert.equal(drafts[1].isHighYield, false);
 });
