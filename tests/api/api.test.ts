@@ -1845,4 +1845,35 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(hugeRes.body.success, true);
     assert.ok(hugeRes.body.limit <= 200);
   });
+
+  it('concurrent password changes execute cleanly without nested-transaction errors', async () => {
+    const username = `concurrent_pwd_${Date.now()}`;
+    const email = `${username}@example.com`;
+    const oldPassword = 'OldPassword123!';
+    const regRes = await request('POST', '/api/auth/register', {
+      body: { username, email, password: oldPassword },
+    });
+    assert.equal(regRes.status, 200);
+    const token = regRes.body.token;
+
+    // Fire two simultaneous change-password requests
+    const [res1, res2] = await Promise.all([
+      request('POST', '/api/auth/change-password', {
+        token,
+        body: { currentPassword: oldPassword, newPassword: 'NewPassword123!A' },
+      }),
+      request('POST', '/api/auth/change-password', {
+        token,
+        body: { currentPassword: oldPassword, newPassword: 'NewPassword123!B' },
+      }),
+    ]);
+
+    // Neither should fail with an unhandled 500 error or SQLite "cannot start a transaction within a transaction"
+    assert.ok(res1.status === 200 || res1.status === 400);
+    assert.ok(res2.status === 200 || res2.status === 400);
+    assert.notEqual(res1.status, 500);
+    assert.notEqual(res2.status, 500);
+    assert.ok(!res1.rawBody.includes('cannot start a transaction'));
+    assert.ok(!res2.rawBody.includes('cannot start a transaction'));
+  });
 });
