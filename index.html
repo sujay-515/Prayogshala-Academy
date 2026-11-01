@@ -9,6 +9,30 @@
       content="Clinical Laboratory Medicine question bank and mock examinations for ASCP, NHPC, PSC, DHA, and AIMS licensure preparation."
     />
 
+    <!-- Apply the saved theme before first paint to avoid a light flash -->
+    <script>
+      (function () {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var override = params.get('theme');
+          var stored = localStorage.getItem('medlab_theme_v1');
+          var isDark = override === 'dark'
+            ? true
+            : override === 'light'
+              ? false
+              : stored === 'dark' || stored === 'light'
+                ? stored === 'dark'
+                : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#060d14');
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- App Icons & Manifest -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />

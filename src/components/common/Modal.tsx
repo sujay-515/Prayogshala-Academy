@@ -1,5 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export interface UseModalOptions {
   isOpen: boolean;
   onClose: () => void;
@@ -18,6 +21,18 @@ export function useModalA11y({
   const modalRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
+  // Callers almost always pass inline callbacks (`onClose={() => setOpen(false)}`),
+  // so these props get a brand-new identity on every parent render. Keep the
+  // latest values in a ref and register the open/close effect with `isOpen`
+  // only: otherwise it tears down and re-runs on every keystroke inside the
+  // dialog, and its cleanup restores focus to the opener element, which yanks
+  // the caret out of the field being typed into.
+  const latestRef = useRef({ onClose, onEscape, closeOnEscape, initialFocusRef });
+
+  useEffect(() => {
+    latestRef.current = { onClose, onEscape, closeOnEscape, initialFocusRef };
+  });
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -35,20 +50,20 @@ export function useModalA11y({
 
     // 3. Move focus into dialog
     const focusTimer = setTimeout(() => {
-      if (initialFocusRef?.current) {
-        initialFocusRef.current.focus();
-      } else if (modalRef.current) {
-        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
-        const firstFocusable = Array.from(focusableElements).find(
-          (el) => el.offsetParent !== null
-        );
-        if (firstFocusable) {
-          firstFocusable.focus();
-        } else {
-          modalRef.current.focus();
-        }
+      if (!modalRef.current) return;
+      const preferredTarget = latestRef.current.initialFocusRef?.current;
+      if (preferredTarget && modalRef.current.contains(preferredTarget)) {
+        preferredTarget.focus();
+        return;
+      }
+      const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      const firstFocusable = Array.from(focusableElements).find(
+        (el) => el.offsetParent !== null
+      );
+      if (firstFocusable) {
+        firstFocusable.focus();
+      } else {
+        modalRef.current.focus();
       }
     }, 50);
 
@@ -57,10 +72,11 @@ export function useModalA11y({
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        if (onEscape) {
-          onEscape();
-        } else if (closeOnEscape) {
-          onClose();
+        const { onEscape: onEscapeLatest, closeOnEscape: closeOnEscapeLatest } = latestRef.current;
+        if (onEscapeLatest) {
+          onEscapeLatest();
+        } else if (closeOnEscapeLatest) {
+          latestRef.current.onClose();
         }
         return;
       }
@@ -68,9 +84,7 @@ export function useModalA11y({
       if (e.key === 'Tab') {
         if (!modalRef.current) return;
         const focusableElements = Array.from(
-          modalRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-          )
+          modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
         ).filter((el) => el.offsetParent !== null);
 
         if (focusableElements.length === 0) {
@@ -105,12 +119,16 @@ export function useModalA11y({
       document.body.style.overflow = originalOverflow;
       document.body.style.paddingRight = originalPaddingRight;
 
-      // Restore focus to opener element
-      if (openerRef.current && typeof openerRef.current.focus === 'function') {
-        openerRef.current.focus();
+      // Restore focus to opener element, but only when focus is not already
+      // somewhere meaningful (another dialog, a freshly focused control, etc.).
+      const opener = openerRef.current;
+      const active = document.activeElement;
+      const focusIsLoose = !active || active === document.body || active === document.documentElement;
+      if (opener && opener.isConnected && typeof opener.focus === 'function' && focusIsLoose) {
+        opener.focus();
       }
     };
-  }, [isOpen, onClose, initialFocusRef, closeOnEscape, onEscape]);
+  }, [isOpen]);
 
   return { modalRef };
 }

@@ -7,8 +7,11 @@ import {
   LogOut,
   X,
   ShieldCheck,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { UserAccount } from '../types';
+import type { Theme } from '../utils/theme';
 
 interface NavbarProps {
   activeTab: 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin';
@@ -22,6 +25,8 @@ interface NavbarProps {
   onLogout?: () => void;
   isAdmin?: boolean;
   onReturnToAdmin?: () => void;
+  theme?: Theme;
+  onToggleTheme?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +41,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   isAdmin = false,
   onReturnToAdmin,
+  theme = 'light',
+  onToggleTheme,
 }) => {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
@@ -55,6 +62,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden md:inline text-slate-500">ASCP · NHPC · PSC · DHA · AIMS</span>
           </div>
           <div className="flex items-center gap-3 shrink-0">
+            {onToggleTheme && (
+              <button
+                type="button"
+                onClick={onToggleTheme}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-pressed={theme === 'dark'}
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                className="inline-flex items-center justify-center w-6 h-6 rounded-md text-slate-500 hover:text-cyan-700 hover:bg-white/60 transition-colors cursor-pointer"
+              >
+                {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              </button>
+            )}
             <button
               onClick={onOpenDailyQuestion}
               className="text-xs text-slate-600 hover:text-cyan-800 transition-colors font-medium cursor-pointer"

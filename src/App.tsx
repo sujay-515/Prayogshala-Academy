@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/home/HomeView';
@@ -14,6 +14,7 @@ import { ContactPage } from './pages/ContactPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
+import { useTheme } from './utils/theme';
 import {
   MCQQuestion,
   UnitCategory,
@@ -177,6 +178,7 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { theme, toggleTheme } = useTheme();
 
   // Navigation & Role - Derived from URL route
   const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin' => {
@@ -239,6 +241,7 @@ export default function App() {
   const [authResetToken, setAuthResetToken] = useState('');
   const [authError, setAuthError] = useState('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState('');
+  const authUsernameInputRef = useRef<HTMLInputElement>(null);
 
   // Primary Data Stores (hydrated from SQLite backend via /api/bootstrap with localStorage fallback)
   const [questions, setQuestions] = useState<MCQQuestion[]>(() => {
@@ -901,12 +904,12 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-cyan-100 selection:text-cyan-950 relative overflow-x-hidden">
+    <div className="app-shell min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-cyan-100 selection:text-cyan-950 relative overflow-x-hidden">
       {/* Liquid glass ambient background meshes */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
-        <div className="absolute -top-32 left-1/4 w-[550px] h-[550px] rounded-full bg-gradient-to-tr from-cyan-200/20 via-teal-100/15 to-transparent blur-3xl opacity-70" />
-        <div className="absolute top-1/3 -right-32 w-[600px] h-[600px] rounded-full bg-gradient-to-bl from-cyan-100/20 via-sky-100/15 to-transparent blur-3xl opacity-60" />
-        <div className="absolute -bottom-32 left-1/3 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-slate-200/30 via-cyan-100/20 to-transparent blur-3xl opacity-50" />
+      <div className="ambient-mesh fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+        <div className="absolute -top-32 left-1/4 w-[550px] h-[550px] rounded-full bg-gradient-to-tr from-cyan-200/30 via-teal-100/20 to-transparent blur-3xl opacity-70" />
+        <div className="absolute top-1/3 -right-32 w-[600px] h-[600px] rounded-full bg-gradient-to-bl from-cyan-100/30 via-sky-100/20 to-transparent blur-3xl opacity-60" />
+        <div className="absolute -bottom-32 left-1/3 w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-slate-200/40 via-cyan-100/25 to-transparent blur-3xl opacity-50" />
       </div>
 
       {/* Skip to Main Content Link for Keyboard and Screen Reader Accessibility */}
@@ -933,6 +936,8 @@ export default function App() {
         }}
         onOpenAuthModal={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main Content Area with React Router */}
@@ -1079,6 +1084,7 @@ export default function App() {
           setAuthSuccessMsg('');
         }}
         titleId="auth-modal-title"
+        initialFocusRef={authUsernameInputRef}
         maxWidth="max-w-sm"
       >
         <div className="glass-panel w-full rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto border border-white/80 animate-in fade-in zoom-in-95 duration-200">
@@ -1230,6 +1236,7 @@ export default function App() {
                   </label>
                   <input
                     id="auth-username"
+                    ref={authUsernameInputRef}
                     type="text"
                     required
                     aria-required="true"
