@@ -16,5 +16,17 @@
       "sizes": "512x512",
       "type": "image/png"
     }
+  ],
+  "id": "/",
+  "scope": "/",
+  "lang": "en",
+  "description": "Laboratory Medicine question bank and timed mock examinations for ASCP, NHPC, PSC, DHA and AIMS preparation.",
+  "categories": [
+    "education",
+    "medical"
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
   ]
 }
