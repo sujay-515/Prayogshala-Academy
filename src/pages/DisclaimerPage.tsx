@@ -71,6 +71,9 @@ export const DisclaimerPage: React.FC = () => {
               <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <strong>AIMS</strong> — Australian Institute of Medical Scientists
               </div>
+              <div className="p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                <strong>CEE-UG / MECEE-BL</strong> — Medical Education Commission (MEC), Nepal
+              </div>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               — are trademarks or registered trademarks of their respective governing entities. Use of these names on this platform is solely for categorical reference to assist candidates in aligning practice sessions with their desired syllabus. {SITE_CONFIG.SITE_NAME} is not endorsed by, sponsored by, or directly affiliated with any of these credentialing organizations.

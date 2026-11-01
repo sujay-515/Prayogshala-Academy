@@ -923,6 +923,9 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
   const activeExams = isStudent
     ? (db.prepare('SELECT id, title, started_at, duration_minutes FROM active_exams WHERE user_id = ?').all(session.userId) as any[])
     : [];
+  const examAttempts = isStudent
+    ? (db.prepare('SELECT id, exam_type, score, total_questions, correct_count, incorrect_count, time_spent_seconds, completed_at, is_grand_test FROM exam_attempts WHERE user_id = ? ORDER BY completed_at DESC').all(session.userId) as any[])
+    : [];
   const submittedReports = db.prepare('SELECT id, question_id, question_code, reason, details, submitted_at, status FROM reports WHERE user_id = ? ORDER BY submitted_at DESC').all(session.userId) as any[];
 
   const exportPayload = {
@@ -937,6 +940,7 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
     },
     stats: stats || {},
     examHistory: stats?.examRecords || [],
+    examAttempts: examAttempts || [],
     activeExams: activeExams || [],
     submittedReports: submittedReports || [],
   };
@@ -979,6 +983,8 @@ app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
     db.exec('BEGIN');
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM email_verifications WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM exam_attempts WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(session.userId);
     db.prepare('UPDATE reports SET user_id = NULL WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(session.userId);
