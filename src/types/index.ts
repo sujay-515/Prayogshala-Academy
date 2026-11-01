@@ -191,6 +191,8 @@ export interface UserStats {
   lastActiveDate: string;
   bookmarkedIds: string[];
   revisionQueueIds: string[];
+  /** Consecutive-correct progress for each queued mistake (0 or 1; 2 clears). */
+  mistakeStreaks?: Record<string, number>;
   subjectPerformance: Record<string, { answered: number; correct: number }>;
   topicPerformance?: Record<string, { answered: number; correct: number }>;
   examRecords: {

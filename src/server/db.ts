@@ -166,6 +166,7 @@ export const DEFAULT_USER_STATS: UserStats = {
   lastActiveDate: new Date().toISOString().slice(0, 10),
   bookmarkedIds: [],
   revisionQueueIds: [],
+  mistakeStreaks: {},
   subjectPerformance: {},
   topicPerformance: {},
   examRecords: [],

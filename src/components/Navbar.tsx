@@ -14,8 +14,8 @@ import { UserAccount } from '../types';
 import type { Theme } from '../utils/theme';
 
 interface NavbarProps {
-  activeTab: 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin';
-  setActiveTab: (tab: 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin') => void;
+  activeTab: 'home' | 'browse' | 'practice' | 'exam' | 'mistakes' | 'dashboard' | 'admin';
+  setActiveTab: (tab: 'home' | 'browse' | 'practice' | 'exam' | 'mistakes' | 'dashboard' | 'admin') => void;
   onOpenDailyQuestion: () => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
@@ -27,6 +27,7 @@ interface NavbarProps {
   onReturnToAdmin?: () => void;
   theme?: Theme;
   onToggleTheme?: () => void;
+  mistakeCount?: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onReturnToAdmin,
   theme = 'light',
   onToggleTheme,
+  mistakeCount = 0,
 }) => {
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
 
@@ -213,6 +215,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               Mock Exam
+            </Link>
+
+            <Link
+              to="/mistakes"
+              onClick={() => setActiveTab('mistakes')}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all cursor-pointer shrink-0 inline-flex items-center gap-1 ${
+                activeTab === 'mistakes'
+                  ? 'bg-white/95 text-cyan-950 font-semibold border border-cyan-300/80 shadow-xs'
+                  : 'text-slate-600 hover:text-cyan-950 hover:bg-white/60'
+              }`}
+            >
+              Mistakes
+              {mistakeCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold leading-none">
+                  {mistakeCount > 99 ? '99+' : mistakeCount}
+                </span>
+              )}
             </Link>
 
             <Link

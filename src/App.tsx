@@ -15,6 +15,7 @@ import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
 import { useTheme } from './utils/theme';
+import { normalizeMistakes, recordMistakeAnswer } from './utils/mistakes';
 import {
   MCQQuestion,
   UnitCategory,
@@ -31,6 +32,9 @@ import { X, UserCheck } from 'lucide-react';
 const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
 const ExamMode = lazy(() => import('./components/exam/ExamMode').then((m) => ({ default: m.ExamMode })));
 const AdminPortal = lazy(() => import('./components/admin/AdminPortal').then((m) => ({ default: m.AdminPortal })));
+const MistakesRecovery = lazy(() =>
+  import('./components/mistakes/MistakesRecovery').then((m) => ({ default: m.MistakesRecovery }))
+);
 
 function RouteLoadingFallback({ label = 'Loading application component...' }: { label?: string }) {
   return (
@@ -174,6 +178,11 @@ try {
   // Ignore storage errors
 }
 
+function normalizeStats(stats: UserStats): UserStats {
+  if (!stats || typeof stats !== 'object') return stats;
+  return { ...stats, ...normalizeMistakes(stats.revisionQueueIds, stats.mistakeStreaks) };
+}
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -181,18 +190,19 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
 
   // Navigation & Role - Derived from URL route
-  const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin' => {
+  const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'mistakes' | 'dashboard' | 'admin' => {
     const path = location.pathname.toLowerCase();
     if (path.startsWith('/admin')) return 'admin';
     if (path.startsWith('/browse')) return 'browse';
     if (path.startsWith('/practice')) return 'practice';
     if (path.startsWith('/exam')) return 'exam';
+    if (path.startsWith('/mistakes')) return 'mistakes';
     if (path.startsWith('/dashboard')) return 'dashboard';
     return 'home';
   };
   const activeTab = getActiveTab();
 
-  const setActiveTab = (tab: 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin') => {
+  const setActiveTab = (tab: 'home' | 'browse' | 'practice' | 'exam' | 'mistakes' | 'dashboard' | 'admin') => {
     if (tab === 'home') navigate('/');
     else if (tab === 'admin') {
       setIsViewingAsStudent(false);
@@ -277,7 +287,7 @@ export default function App() {
   const [stats, setStats] = useState<UserStats>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_STATS);
-      if (saved) return JSON.parse(saved);
+      if (saved) return normalizeStats(JSON.parse(saved));
     } catch (e) {
       console.warn('Failed to load stored user stats:', e);
     }
@@ -288,6 +298,7 @@ export default function App() {
       lastActiveDate: new Date().toISOString().slice(0, 10),
       bookmarkedIds: [],
       revisionQueueIds: [],
+      mistakeStreaks: {},
       subjectPerformance: {},
       topicPerformance: {},
       examRecords: [],
@@ -348,7 +359,7 @@ export default function App() {
           if (Array.isArray(data.questions)) setQuestions(data.questions);
           if (Array.isArray(data.categories)) setCategories(data.categories);
           if (Array.isArray(data.reports)) setReports(data.reports);
-          if (data.stats && authToken) setStats(data.stats);
+          if (data.stats && authToken) setStats(normalizeStats(data.stats));
           if (data.user) {
             setCurrentUser(data.user);
             try {
@@ -497,17 +508,20 @@ export default function App() {
         } catch {}
         setAuthToken(data.token);
         setCurrentUser(data.user);
-        const resolvedStats: UserStats = data.stats || {
-          totalAnswered: 0,
-          totalCorrect: 0,
-          streakDays: 0,
-          lastActiveDate: new Date().toISOString().slice(0, 10),
-          bookmarkedIds: [],
-          revisionQueueIds: [],
-          subjectPerformance: {},
-          topicPerformance: {},
-          examRecords: [],
-        };
+        const resolvedStats: UserStats = normalizeStats(
+          data.stats || {
+            totalAnswered: 0,
+            totalCorrect: 0,
+            streakDays: 0,
+            lastActiveDate: new Date().toISOString().slice(0, 10),
+            bookmarkedIds: [],
+            revisionQueueIds: [],
+            mistakeStreaks: {},
+            subjectPerformance: {},
+            topicPerformance: {},
+            examRecords: [],
+          }
+        );
         setStats(resolvedStats);
         if (data.user.role === 'admin' || data.user.role === 'superadmin') {
           setIsAdmin(true);
@@ -551,6 +565,7 @@ export default function App() {
       lastActiveDate: new Date().toISOString().slice(0, 10),
       bookmarkedIds: [],
       revisionQueueIds: [],
+      mistakeStreaks: {},
       subjectPerformance: {},
       topicPerformance: {},
       examRecords: [],
@@ -613,13 +628,12 @@ export default function App() {
         },
       };
 
-      // Add to revision queue if wrong, remove if correct
-      let newRevision = [...prev.revisionQueueIds];
-      if (!isCorrect && !newRevision.includes(question.id)) {
-        newRevision.push(question.id);
-      } else if (isCorrect && newRevision.includes(question.id)) {
-        newRevision = newRevision.filter((id) => id !== question.id);
-      }
+      // Mistakes Recovery: wrong answers queue; two consecutive correct answers clear.
+      const mistakeState = recordMistakeAnswer(
+        normalizeMistakes(prev.revisionQueueIds, prev.mistakeStreaks),
+        question.id,
+        isCorrect
+      );
 
       const streakInfo = computeUpdatedStreak(prev);
 
@@ -631,7 +645,7 @@ export default function App() {
         lastActiveDate: streakInfo.lastActiveDate,
         subjectPerformance: updatedSubjectPerformance,
         topicPerformance: updatedTopicPerformance,
-        revisionQueueIds: newRevision,
+        ...mistakeState,
       };
       persistStatsToServer(next);
       return next;
@@ -653,7 +667,7 @@ export default function App() {
     setStats((prev) => {
       const updatedSubjectPerformance = { ...prev.subjectPerformance };
       const updatedTopicPerformance = { ...(prev.topicPerformance || {}) };
-      let newRevision = [...prev.revisionQueueIds];
+      let mistakeState = normalizeMistakes(prev.revisionQueueIds, prev.mistakeStreaks);
 
       if (gradedQuestions && userAnswers) {
         for (const q of gradedQuestions) {
@@ -672,11 +686,7 @@ export default function App() {
             correct: prevTop.correct + (isCorrect ? 1 : 0),
           };
 
-          if (!isCorrect && !newRevision.includes(q.id)) {
-            newRevision.push(q.id);
-          } else if (isCorrect && newRevision.includes(q.id)) {
-            newRevision = newRevision.filter((id) => id !== q.id);
-          }
+          mistakeState = recordMistakeAnswer(mistakeState, q.id, isCorrect);
         }
       }
 
@@ -690,7 +700,7 @@ export default function App() {
         lastActiveDate: streakInfo.lastActiveDate,
         subjectPerformance: updatedSubjectPerformance,
         topicPerformance: updatedTopicPerformance,
-        revisionQueueIds: newRevision,
+        ...mistakeState,
         examRecords: [
           {
             id: `exam-${Date.now()}`,
@@ -938,6 +948,7 @@ export default function App() {
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
+        mistakeCount={stats.revisionQueueIds.length}
       />
 
       {/* Main Content Area with React Router */}
@@ -1020,6 +1031,19 @@ export default function App() {
             }
           />
           <Route
+            path="/mistakes"
+            element={
+              <MistakesRecovery
+                stats={stats}
+                questions={questions}
+                onStartPracticeWithQuestions={(subset) => {
+                  setCustomPracticeSubset(subset);
+                  navigate('/practice');
+                }}
+              />
+            }
+          />
+          <Route
             path="/dashboard"
             element={
               <UserDashboard
@@ -1030,16 +1054,6 @@ export default function App() {
                   navigate('/practice');
                 }}
                 onRemoveBookmark={handleToggleBookmark}
-                onClearRevisionItem={(id) => {
-                  setStats((prev) => {
-                    const next = {
-                      ...prev,
-                      revisionQueueIds: prev.revisionQueueIds.filter((rId) => rId !== id),
-                    };
-                    persistStatsToServer(next);
-                    return next;
-                  });
-                }}
                 currentUser={currentUser}
                 onOpenAuthModal={() => setIsAuthModalOpen(true)}
                 authToken={authToken}

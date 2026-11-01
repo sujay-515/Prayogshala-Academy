@@ -508,6 +508,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     lastActiveDate: now.slice(0, 10),
     bookmarkedIds: [],
     revisionQueueIds: [],
+    mistakeStreaks: {},
     subjectPerformance: {},
     topicPerformance: {},
     examRecords: [],
@@ -1067,6 +1068,7 @@ function validateUserStats(stats: any): string | null {
     'lastActiveDate',
     'bookmarkedIds',
     'revisionQueueIds',
+    'mistakeStreaks',
     'subjectPerformance',
     'topicPerformance',
     'examRecords',
@@ -1121,6 +1123,26 @@ function validateUserStats(stats: any): string | null {
   for (const id of stats.revisionQueueIds) {
     if (typeof id !== 'string' || id.length > 100) {
       return 'Invalid revision ID in revisionQueueIds';
+    }
+  }
+
+  if (stats.mistakeStreaks !== undefined) {
+    const streaks = stats.mistakeStreaks;
+    if (!streaks || typeof streaks !== 'object' || Array.isArray(streaks)) {
+      return 'mistakeStreaks must be an object of question IDs to 0-1 counters';
+    }
+    const streakKeys = Object.keys(streaks);
+    if (streakKeys.length > 5000) {
+      return 'mistakeStreaks must contain at most 5,000 entries';
+    }
+    for (const key of streakKeys) {
+      if (key.length === 0 || key.length > 100) {
+        return 'Invalid question ID in mistakeStreaks';
+      }
+      const value = streaks[key];
+      if (!Number.isInteger(value) || value < 0 || value > 1) {
+        return 'mistakeStreaks counters must be integers between 0 and 1';
+      }
     }
   }
 

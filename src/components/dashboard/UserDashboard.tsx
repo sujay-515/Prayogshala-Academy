@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   Trash2,
@@ -14,13 +15,13 @@ import { clearUserScopedStorage } from '../../utils/storage';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
+import { remainingHits } from '../../utils/mistakes';
 
 interface UserDashboardProps {
   stats: UserStats;
   questions: MCQQuestion[];
   onStartPracticeWithQuestions: (questions: MCQQuestion[]) => void;
   onRemoveBookmark: (id: string) => void;
-  onClearRevisionItem: (id: string) => void;
   currentUser?: UserAccount | null;
   onOpenAuthModal?: () => void;
   authToken?: string | null;
@@ -32,7 +33,6 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   questions,
   onStartPracticeWithQuestions,
   onRemoveBookmark,
-  onClearRevisionItem,
   currentUser,
   onOpenAuthModal,
   authToken,
@@ -396,40 +396,55 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <h3 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
               Missed question queue ({revisionQuestions.length})
             </h3>
-            {revisionQuestions.length > 0 && (
-              <button
-                onClick={() => onStartPracticeWithQuestions(revisionQuestions)}
-                className="text-xs text-cyan-800 hover:text-cyan-950 font-medium cursor-pointer"
-              >
-                Practice missed questions
-              </button>
-            )}
+            <Link
+              to="/mistakes"
+              className="text-xs text-cyan-800 hover:text-cyan-950 font-medium cursor-pointer"
+            >
+              Open Mistakes Recovery →
+            </Link>
           </div>
 
           {revisionQuestions.length === 0 ? (
             <p className="text-xs text-slate-500 py-4 text-center">
-              No missed questions currently queued for revision.
+              No missed questions queued. Wrong answers from practice, daily questions and mocks land here automatically.
             </p>
           ) : (
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1 text-xs">
-              {revisionQuestions.map((q) => (
-                <div
-                  key={q.id}
-                  className="glass-card p-3 rounded-xl flex items-start justify-between gap-2 shadow-2xs"
-                >
-                  <div>
-                    <span className="font-semibold text-slate-800 block">{q.code} · {q.subject}</span>
-                    <p className="text-slate-600 line-clamp-1">{q.questionText}</p>
-                  </div>
-                  <button
-                    onClick={() => onClearRevisionItem(q.id)}
-                    className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
-                    title="Remove"
+              {revisionQuestions.map((q) => {
+                const streak = Math.min(stats.mistakeStreaks?.[q.id] || 0, 1);
+                return (
+                  <div
+                    key={q.id}
+                    className="glass-card p-3 rounded-xl flex items-start justify-between gap-2 shadow-2xs"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
+                    <div className="min-w-0">
+                      <span className="font-semibold text-slate-800 block">{q.code} · {q.subject}</span>
+                      <p className="text-slate-600 line-clamp-1">{q.questionText}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <span className="flex gap-1" aria-hidden="true">
+                          {[0, 1].map((i) => (
+                            <span
+                              key={i}
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                i < streak ? 'bg-emerald-600' : 'bg-slate-300'
+                              }`}
+                            />
+                          ))}
+                        </span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                          {remainingHits(streak)} correct to clear
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onStartPracticeWithQuestions([q])}
+                      className="px-2 py-1 rounded bg-slate-900 text-white text-[10px] font-medium hover:bg-slate-800 cursor-pointer shrink-0"
+                    >
+                      Review
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
