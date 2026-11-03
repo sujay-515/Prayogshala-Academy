@@ -239,6 +239,7 @@ export interface UserAccount {
   token?: string;
   createdAt?: string;
   emailVerified?: boolean;
+  leaderboardHidden?: boolean;
 }
 
 export interface QuestionReport {

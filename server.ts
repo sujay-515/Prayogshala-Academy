@@ -654,7 +654,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   const role: 'student' = 'student';
   const emailVerified = cleanEmail ? 0 : 1;
 
-  const id = `usr-${Date.now()}`;
+  const id = `usr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const now = new Date().toISOString();
   const initialStats = {
     ...DEFAULT_USER_STATS,
@@ -926,12 +926,9 @@ app.get('/api/auth/me', (req, res) => {
     return res.status(401).json({ success: false, error: 'Unauthenticated or session expired.' });
   }
 
-  const userRow =
-    session.role === 'student'
-      ? (db.prepare('SELECT stats_json FROM users WHERE id = ?').get(session.userId) as any)
-      : null;
+  const userRow = db.prepare('SELECT stats_json, leaderboard_hidden FROM users WHERE id = ?').get(session.userId) as any;
   let stats = null;
-  if (userRow?.stats_json) {
+  if (userRow?.stats_json && session.role === 'student') {
     try {
       stats = JSON.parse(userRow.stats_json);
     } catch {}
@@ -946,10 +943,36 @@ app.get('/api/auth/me', (req, res) => {
       role: session.role,
       displayName: session.displayName,
       emailVerified: session.emailVerified,
+      leaderboardHidden: userRow?.leaderboard_hidden === 1,
     },
     stats,
   });
 });
+
+const handleUpdatePreferences = (req: express.Request, res: express.Response) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required.' });
+  }
+
+  const { leaderboardHidden } = req.body || {};
+  if (typeof leaderboardHidden !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'leaderboardHidden must be a boolean.' });
+  }
+
+  db.prepare('UPDATE users SET leaderboard_hidden = ? WHERE id = ?').run(
+    leaderboardHidden ? 1 : 0,
+    session.userId
+  );
+
+  return res.json({
+    success: true,
+    leaderboardHidden,
+  });
+};
+
+app.patch('/api/auth/preferences', requireAuth, handleUpdatePreferences);
+app.patch('/api/auth/me', requireAuth, handleUpdatePreferences);
 
 app.get('/api/auth/export', accountExportLimiter, (req, res) => {
   const session = getSessionUser(req);
@@ -957,7 +980,7 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
   }
 
-  const userRow = db.prepare('SELECT id, username, email, role, display_name, created_at, stats_json FROM users WHERE id = ?').get(session.userId) as any;
+  const userRow = db.prepare('SELECT id, username, email, role, display_name, created_at, stats_json, leaderboard_hidden FROM users WHERE id = ?').get(session.userId) as any;
   if (!userRow) {
     return res.status(404).json({ success: false, error: 'User record not found.' });
   }
@@ -987,6 +1010,7 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
       role: userRow.role,
       displayName: userRow.display_name,
       createdAt: userRow.created_at,
+      leaderboardHidden: userRow.leaderboard_hidden === 1,
     },
     stats: stats || {},
     examHistory: stats?.examRecords || [],
@@ -1110,7 +1134,7 @@ app.post('/api/admin/users', requireSuperAdmin, async (req, res) => {
 
   const tempPassword = password || crypto.randomBytes(6).toString('hex');
   const passwordHash = await hashPassword(tempPassword);
-  const id = `usr-${Date.now()}`;
+  const id = `usr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const now = new Date().toISOString();
   const assignedRole = role === 'student' ? 'student' : 'admin';
   const statsJson = JSON.stringify(DEFAULT_USER_STATS);

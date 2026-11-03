@@ -67,6 +67,45 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Leaderboard privacy preference
+  const [showOnLeaderboard, setShowOnLeaderboard] = useState(!currentUser?.leaderboardHidden);
+  const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false);
+  const [privacyMessage, setPrivacyMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setShowOnLeaderboard(!currentUser?.leaderboardHidden);
+  }, [currentUser?.leaderboardHidden]);
+
+  const handleToggleLeaderboardPrivacy = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextShow = e.target.checked;
+    setShowOnLeaderboard(nextShow);
+    setIsUpdatingPrivacy(true);
+    setPrivacyMessage(null);
+    try {
+      const res = await fetch('/api/auth/preferences', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({ leaderboardHidden: !nextShow }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to update leaderboard preference.');
+      }
+      if (currentUser) {
+        currentUser.leaderboardHidden = !nextShow;
+      }
+      setPrivacyMessage(nextShow ? 'Your name is now visible on the leaderboard.' : 'Your name is hidden from public leaderboards.');
+    } catch (err: any) {
+      setShowOnLeaderboard(!nextShow); // revert
+      setPrivacyMessage(err.message || 'Error updating preference.');
+    } finally {
+      setIsUpdatingPrivacy(false);
+    }
+  };
   const questionMap = useMemo(() => {
     const map = new Map<string, MCQQuestion>();
     for (const q of questions) {
@@ -802,6 +841,33 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               {exportError}
             </p>
           )}
+
+          {/* Leaderboard Privacy Toggle */}
+          <div className="pt-2 border-b border-slate-200/80 pb-5 max-w-xl">
+            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2">
+              Leaderboard Privacy
+            </h4>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showOnLeaderboard}
+                disabled={isUpdatingPrivacy}
+                onChange={handleToggleLeaderboardPrivacy}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600 cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-medium text-slate-800">
+                  Show my name on the leaderboard
+                </span>
+                <p className="text-2xs text-slate-500 mt-0.5">
+                  When enabled, your display name and rank appear on the weekly Grand Test leaderboard. When disabled, your entries are omitted from the public board, but you can still view your own private rank.
+                </p>
+                {privacyMessage && (
+                  <p className="text-2xs mt-1 text-cyan-800 font-medium">{privacyMessage}</p>
+                )}
+              </div>
+            </label>
+          </div>
 
           {/* Change Password Sub-section */}
           <div className="max-w-xl space-y-4">

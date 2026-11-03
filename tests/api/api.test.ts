@@ -2116,4 +2116,105 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.ok(entryA);
     assert.equal(entryA.displayName, 'Dr. Alpha Renamed', 'Leaderboard must join users to reflect current display name');
   });
+
+  it('Leaderboard privacy: anonymous access rejected with 401, opt-out hides user from public list and drops totalParticipants, preserves private rank in me, export includes flag', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const dbOp = <T>(fn: (db: InstanceType<typeof DatabaseSync>) => T): T => {
+      const db = new DatabaseSync(path.join(tempDir, 'medlab_qbank.sqlite'));
+      try {
+        return fn(db);
+      } finally {
+        db.close();
+      }
+    };
+
+    // 1. Anonymous GET /api/leaderboard -> 401
+    const anonRes = await request('GET', '/api/leaderboard');
+    assert.equal(anonRes.status, 401);
+
+    // Register a student
+    const username = `priv_stud_${Date.now()}`;
+    const regRes = await request('POST', '/api/auth/register', {
+      body: {
+        username,
+        email: `${username}@example.com`,
+        password: 'PrivacyPassword123!',
+        displayName: 'Private Candidate',
+      },
+    });
+    assert.equal(regRes.status, 200);
+    const token = regRes.body.token;
+    const userId = regRes.body.user.id;
+
+    // Verify email and verify user starts with leaderboardHidden: false
+    dbOp((db) => db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(userId));
+    const meRes1 = await request('GET', '/api/auth/me', { token });
+    assert.equal(meRes1.status, 200);
+    assert.equal(meRes1.body.user.leaderboardHidden, false);
+
+    // Complete a Grand Test attempt
+    const startRes = await request('POST', '/api/exams/start', {
+      token,
+      body: { isGrandTest: true, questionCount: 5, durationMinutes: 60 },
+    });
+    assert.equal(startRes.status, 200);
+    const submitRes = await request('POST', `/api/exams/${startRes.body.examId}/submit`, {
+      token,
+      body: { userAnswers: {} },
+    });
+    assert.equal(submitRes.status, 200);
+
+    // Initial leaderboard view: user is visible in public entries
+    const lbBefore = await request('GET', '/api/leaderboard', { token });
+    assert.equal(lbBefore.status, 200);
+    const initialCount = lbBefore.body.totalParticipants;
+    assert.ok(initialCount >= 1);
+    assert.ok(lbBefore.body.entries.some((e: any) => e.displayName === 'Private Candidate'));
+    assert.ok(lbBefore.body.me);
+    assert.equal(lbBefore.body.me.hidden, false);
+
+    // 2. Opt out via PATCH /api/auth/preferences
+    const patchRes = await request('PATCH', '/api/auth/preferences', {
+      token,
+      body: { leaderboardHidden: true },
+    });
+    assert.equal(patchRes.status, 200);
+    assert.equal(patchRes.body.leaderboardHidden, true);
+
+    // Check GET /api/auth/me reflects leaderboardHidden = true
+    const meRes2 = await request('GET', '/api/auth/me', { token });
+    assert.equal(meRes2.body.user.leaderboardHidden, true);
+
+    // Check GET /api/leaderboard:
+    // - User disappears from public entries
+    // - totalParticipants drops by 1
+    // - me still returns user's rank and score privately with hidden: true
+    const lbAfterOptOut = await request('GET', '/api/leaderboard', { token });
+    assert.equal(lbAfterOptOut.status, 200);
+    assert.equal(lbAfterOptOut.body.totalParticipants, initialCount - 1);
+    assert.ok(!lbAfterOptOut.body.entries.some((e: any) => e.displayName === 'Private Candidate'));
+    assert.ok(lbAfterOptOut.body.me);
+    assert.equal(lbAfterOptOut.body.me.displayName, 'Private Candidate');
+    assert.equal(lbAfterOptOut.body.me.hidden, true);
+
+    // Check GET /api/auth/export includes leaderboardHidden: true in profile
+    const exportRes = await request('GET', '/api/auth/export', { token });
+    assert.equal(exportRes.status, 200);
+    assert.equal(exportRes.body.profile.leaderboardHidden, true);
+
+    // 3. Toggle back on via PATCH /api/auth/me
+    const toggleBackRes = await request('PATCH', '/api/auth/me', {
+      token,
+      body: { leaderboardHidden: false },
+    });
+    assert.equal(toggleBackRes.status, 200);
+    assert.equal(toggleBackRes.body.leaderboardHidden, false);
+
+    // User reappears on leaderboard
+    const lbReappear = await request('GET', '/api/leaderboard', { token });
+    assert.equal(lbReappear.status, 200);
+    assert.equal(lbReappear.body.totalParticipants, initialCount);
+    assert.ok(lbReappear.body.entries.some((e: any) => e.displayName === 'Private Candidate'));
+    assert.equal(lbReappear.body.me.hidden, false);
+  });
 });
