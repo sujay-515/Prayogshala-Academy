@@ -5,7 +5,7 @@ Clinical Laboratory Medicine and Pathology question bank with PDF ingestion, mul
 ## Getting Started
 
 ### Requirements
-- Node.js 22.5+ or 24+ (uses native `node:sqlite`)
+- Node.js 22.13 or newer (uses native `node:sqlite`)
 - npm
 
 ### Installation

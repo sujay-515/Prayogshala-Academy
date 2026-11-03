@@ -13,7 +13,7 @@ export const CEE_UG_TOTAL_MARKS = 200;
 export const CEE_UG_DURATION_MINUTES = 180;
 export const CEE_UG_MARKS_PER_CORRECT = 1;
 export const CEE_UG_PENALTY_PER_WRONG = 0.25;
-/** CEE-UG cut-offs benchmark: 50% */
+/** CEE-UG practice benchmark threshold: 50% (not an official cutoff) */
 export const CEE_UG_PASSING_PERCENTAGE = 50;
 
 export const CEE_UG_ROUTE = '/cee-ug';

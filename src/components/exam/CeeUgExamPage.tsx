@@ -125,7 +125,7 @@ export const CeeUgExamPage: React.FC<CeeUgExamPageProps> = ({
                       <td className="px-3 py-2 text-right font-semibold text-rose-700">−{CEE_UG_PENALTY_PER_WRONG} Mark</td>
                     </tr>
                     <tr>
-                      <td className="px-3 py-2 text-slate-600 font-medium">Benchmark Threshold</td>
+                      <td className="px-3 py-2 text-slate-600 font-medium">Practice benchmark (not an official cutoff)</td>
                       <td className="px-3 py-2 text-right font-semibold text-slate-900">{CEE_UG_PASSING_PERCENTAGE}% (100 Marks)</td>
                     </tr>
                   </tbody>
@@ -155,8 +155,8 @@ export const CeeUgExamPage: React.FC<CeeUgExamPageProps> = ({
                 <li className="flex items-start gap-2">
                   <span className="mt-1 w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" aria-hidden="true" />
                   <span>
-                    <strong className="text-slate-900">{CEE_UG_PASSING_PERCENTAGE}%</strong> is the benchmark used
-                    on the scorecard; the paper is out of {CEE_UG_TOTAL_MARKS} marks.
+                    <strong className="text-slate-900">{CEE_UG_PASSING_PERCENTAGE}%</strong> is a practice benchmark used
+                    on the scorecard (not an official cutoff); the paper is out of {CEE_UG_TOTAL_MARKS} marks.
                   </span>
                 </li>
                 <li className="flex items-start gap-2">

@@ -5,7 +5,7 @@
  *  - same-origin static assets: stale-while-revalidate
  *  - /api/*: never cached, always network
  */
-const CACHE_NAME = 'medlab-shell-v1';
+const CACHE_NAME = 'medlab-shell-v2';
 const SHELL_URLS = [
   '/',
   '/index.html',
