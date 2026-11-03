@@ -141,6 +141,12 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_exam_attempts_window
     ON exam_attempts(is_grand_test, completed_at);
+
+  CREATE TABLE IF NOT EXISTS weekly_papers (
+    window_start TEXT PRIMARY KEY,
+    question_ids_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
 `);
 
 // Safe migrations for email support & password resets
@@ -195,6 +201,10 @@ try {
 
 try {
   db.prepare('ALTER TABLE users ADD COLUMN email_verify_expires TEXT').run();
+} catch {}
+
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN leaderboard_hidden INTEGER NOT NULL DEFAULT 0').run();
 } catch {}
 
 const scryptAsync = promisify(crypto.scrypt);

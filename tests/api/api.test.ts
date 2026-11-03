@@ -87,6 +87,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
         NODE_ENV: 'test',
         PORT: String(PORT),
         DATA_DIR: tempDir,
+        GEMINI_API_KEY: '',
         SUPABASE_URL: '',
         SUPABASE_SERVICE_ROLE_KEY: '',
         SUPABASE_ANON_KEY: '',
@@ -100,6 +101,8 @@ describe('MedLab QBank API Hardening Test Suite', () => {
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    serverProcess.stdout?.resume();
+    serverProcess.stderr?.resume();
 
     // Wait for server ready
     let ready = false;
@@ -2000,5 +2003,117 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.notEqual(res2.status, 500);
     assert.ok(!res1.rawBody.includes('cannot start a transaction'));
     assert.ok(!res2.rawBody.includes('cannot start a transaction'));
+  });
+
+  it('Grand Test fairness: same weekly paper, one ranked attempt, late attempt unranked, and current display name shown', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const dbOp = <T>(fn: (db: InstanceType<typeof DatabaseSync>) => T): T => {
+      const db = new DatabaseSync(path.join(tempDir, 'medlab_qbank.sqlite'));
+      try {
+        return fn(db);
+      } finally {
+        db.close();
+      }
+    };
+
+    // Register two students
+    const userA = `gt_stud_a_${Date.now()}`;
+    const userB = `gt_stud_b_${Date.now()}`;
+    const [regA, regB] = await Promise.all([
+      request('POST', '/api/auth/register', {
+        body: { username: userA, email: `${userA}@example.com`, password: 'StudentPass123!', displayName: 'Student Alpha' },
+      }),
+      request('POST', '/api/auth/register', {
+        body: { username: userB, email: `${userB}@example.com`, password: 'StudentPass123!', displayName: 'Student Beta' },
+      }),
+    ]);
+    const tokenA = regA.body.token;
+    const tokenB = regB.body.token;
+
+    // Both users must be email_verified for grand test attempt recording
+    dbOp((db) => db.prepare('UPDATE users SET email_verified = 1 WHERE username IN (?, ?)').run(userA, userB));
+
+    // 1. Two users starting Grand Test in the same weekly window get the exact same question IDs
+    const startA = await request('POST', '/api/exams/start', {
+      token: tokenA,
+      body: { isGrandTest: true, questionCount: 5, durationMinutes: 60 },
+    });
+    assert.equal(startA.status, 200);
+    const startB = await request('POST', '/api/exams/start', {
+      token: tokenB,
+      body: { isGrandTest: true, questionCount: 5, durationMinutes: 60 },
+    });
+    assert.equal(startB.status, 200);
+
+    const idsA = startA.body.questions.map((q: any) => q.id);
+    const idsB = startB.body.questions.map((q: any) => q.id);
+    assert.deepEqual(idsA, idsB, 'Both users must receive the exact same weekly paper question IDs');
+
+    // Starting while one is active returns the active session
+    const startARepeat = await request('POST', '/api/exams/start', {
+      token: tokenA,
+      body: { isGrandTest: true, questionCount: 5, durationMinutes: 60 },
+    });
+    assert.equal(startARepeat.status, 200);
+    assert.equal(startARepeat.body.examId, startA.body.examId, 'Should return active exam session rather than creating duplicate');
+
+    // 2. Student A completes Grand Test attempt (ranked)
+    const submitA1 = await request('POST', `/api/exams/${startA.body.examId}/submit`, {
+      token: tokenA,
+      body: { userAnswers: {} },
+    });
+    assert.equal(submitA1.status, 200);
+    assert.equal(submitA1.body.late, false);
+
+    const lb1 = await request('GET', '/api/leaderboard', { token: tokenA });
+    assert.equal(lb1.status, 200);
+    assert.ok(lb1.body.entries.some((e: any) => e.displayName === 'Student Alpha'));
+
+    // 3. Second attempt by Student A in the same window is saved unranked (is_grand_test = 0)
+    const startA2 = await request('POST', '/api/exams/start', {
+      token: tokenA,
+      body: { isGrandTest: true, questionCount: 5, durationMinutes: 60 },
+    });
+    assert.equal(startA2.status, 200);
+    const submitA2 = await request('POST', `/api/exams/${startA2.body.examId}/submit`, {
+      token: tokenA,
+      body: { userAnswers: {} },
+    });
+    assert.equal(submitA2.status, 200);
+
+    // Verify in DB that only 1 attempt for userA is is_grand_test = 1
+    const attemptsA = dbOp((db) =>
+      db.prepare('SELECT id, is_grand_test FROM exam_attempts WHERE user_id = ?').all(regA.body.user.id)
+    ) as any[];
+    assert.equal(attemptsA.length, 2);
+    const rankedCount = attemptsA.filter((a) => a.is_grand_test === 1).length;
+    assert.equal(rankedCount, 1, 'Exactly one attempt must be ranked as is_grand_test = 1');
+
+    // 4. Student B submits late -> attempt is not ranked
+    // Set started_at back by 5 hours (exceeding 60 min + 120s grace)
+    dbOp((db) =>
+      db.prepare("UPDATE active_exams SET started_at = datetime('now', '-300 minutes') WHERE id = ?").run(startB.body.examId)
+    );
+    const submitB = await request('POST', `/api/exams/${startB.body.examId}/submit`, {
+      token: tokenB,
+      body: { userAnswers: {} },
+    });
+    assert.equal(submitB.status, 200);
+    assert.equal(submitB.body.late, true);
+
+    const attemptB = dbOp((db) =>
+      db.prepare('SELECT is_grand_test FROM exam_attempts WHERE user_id = ?').get(regB.body.user.id)
+    ) as any;
+    assert.equal(attemptB.is_grand_test, 0, 'Late attempt must never be saved as ranked');
+
+    // 5. Renaming user: updating display_name shows new name on leaderboard
+    dbOp((db) =>
+      db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run('Dr. Alpha Renamed', regA.body.user.id)
+    );
+    const lbUpdated = await request('GET', '/api/leaderboard', { token: tokenA });
+    assert.equal(lbUpdated.status, 200);
+    const entryA = lbUpdated.body.entries.find((e: any) => e.isCurrentUser);
+    assert.ok(entryA);
+    assert.equal(entryA.displayName, 'Dr. Alpha Renamed', 'Leaderboard must join users to reflect current display name');
   });
 });

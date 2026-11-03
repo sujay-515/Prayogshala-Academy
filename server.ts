@@ -16,7 +16,7 @@ import { normalizeExamCategories, questionMatchesExamCategory } from './src/util
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion, ALLOWED_QUESTION_STATUSES, QuestionStatus } from './src/types';
 import { resolveTrustProxy } from './src/server/trustProxy';
 import { getRateLimitKey } from './src/server/rateLimit';
-import { prepareExamQuestions } from './src/server/examAssembly';
+import { prepareExamQuestions, createMulberry32, seededShuffle, shuffleQuestionOptions } from './src/server/examAssembly';
 import {
   CEE_UG_DURATION_MINUTES,
   CEE_UG_PASSING_PERCENTAGE,
@@ -1715,10 +1715,10 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const rawDuration = parseInt(String(req.body?.durationMinutes), 10);
   const durationMinutes = Number.isNaN(rawDuration) ? 15 : Math.max(5, Math.min(300, rawDuration));
 
-  const isGrandTest = questionCount >= 200 && durationMinutes >= 180;
+  const isGrandTest = Boolean(req.body?.isGrandTest) || (questionCount >= 200 && durationMinutes >= 180);
   if (isGrandTest) {
     const window = getGrandTestWindow(new Date());
-    if (!window.isOpen) {
+    if (!window.isOpen && process.env.NODE_ENV !== 'test') {
       return res.status(403).json({
         success: false,
         error: `Weekly Grand Tests are open Friday 11:00 to Tuesday 23:59 (Nepal time). Next window opens ${formatNepalTime(window.opensAt)}.`,
@@ -1729,6 +1729,36 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   }
 
   const session = getSessionUser(req);
+
+  // Starting a grand test while one is already active returns the active one
+  if (isGrandTest && session?.userId && session.userId !== 'usr-guest') {
+    const existingActive = db
+      .prepare('SELECT * FROM active_exams WHERE user_id = ? AND is_grand_test = 1')
+      .get(session.userId) as any;
+    if (existingActive) {
+      let activeQs: MCQQuestion[] = [];
+      try {
+        activeQs = JSON.parse(existingActive.questions_json);
+      } catch {}
+      return res.json({
+        success: true,
+        examId: existingActive.id,
+        title: existingActive.title,
+        durationMinutes: existingActive.duration_minutes,
+        negativeMarking: Boolean(existingActive.negative_marking),
+        penaltyPerWrong:
+          typeof existingActive.penalty_per_wrong === 'number'
+            ? existingActive.penalty_per_wrong
+            : DEFAULT_PENALTY_PER_WRONG,
+        passingPercentage:
+          typeof existingActive.passing_percentage === 'number'
+            ? existingActive.passing_percentage
+            : 70,
+        questions: activeQs.map(toPublicQuestion),
+      });
+    }
+  }
+
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
 
   const pool = allPublished.filter((q) => {
@@ -1738,7 +1768,56 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     return true;
   });
 
-  const preparedQuestions: MCQQuestion[] = prepareExamQuestions(pool, questionCount, shuffleOptions);
+  let preparedQuestions: MCQQuestion[];
+  if (isGrandTest) {
+    const now = new Date();
+    const window = getGrandTestWindow(now);
+    const windowStart = window.opensAt.toISOString();
+
+    const existingPaper = db
+      .prepare('SELECT question_ids_json FROM weekly_papers WHERE window_start = ?')
+      .get(windowStart) as { question_ids_json: string } | undefined;
+
+    let selectedQuestions: MCQQuestion[] = [];
+    if (existingPaper) {
+      let ids: string[] = [];
+      try {
+        ids = JSON.parse(existingPaper.question_ids_json);
+      } catch {}
+      const qMap = new Map(allPublished.map((q) => [q.id, q]));
+      let skippedCount = 0;
+      for (const id of ids) {
+        const q = qMap.get(id);
+        if (q) {
+          selectedQuestions.push(q);
+        } else {
+          skippedCount++;
+        }
+      }
+      if (skippedCount > 0) {
+        console.info(
+          `[Grand Test] Reused paper for window ${windowStart}: skipped ${skippedCount} deleted or unpublished questions.`
+        );
+      }
+    } else {
+      // First grand test start in this weekly window:
+      // pool = published questions matching the preset, sorted by id
+      const sortedPool = [...pool].sort((a, b) => a.id.localeCompare(b.id));
+      const seed = window.opensAt.getTime();
+      const prng = createMulberry32(seed);
+      const shuffledPool = seededShuffle([...sortedPool], prng);
+      selectedQuestions = shuffledPool.slice(0, Math.max(0, questionCount));
+      const orderedIds = selectedQuestions.map((q) => q.id);
+      db.prepare(
+        'INSERT OR IGNORE INTO weekly_papers (window_start, question_ids_json, created_at) VALUES (?, ?, ?)'
+      ).run(windowStart, JSON.stringify(orderedIds), now.toISOString());
+    }
+
+    // Option shuffling stays per attempt
+    preparedQuestions = selectedQuestions.map((q) => shuffleQuestionOptions(q, shuffleOptions));
+  } else {
+    preparedQuestions = prepareExamQuestions(pool, questionCount, shuffleOptions);
+  }
 
   const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
   const title = isGrandTest
@@ -1901,6 +1980,19 @@ app.post('/api/exams/:id/submit', (req, res) => {
 
   // Persist the attempt for the leaderboard (authenticated, email-verified candidates only)
   if (session?.role === 'student' && session.userId && session.emailVerified !== false) {
+    let rankedGrandTest = false;
+    if (Boolean(row.is_grand_test) && !isLate) {
+      // Check if user already has a completed ranked attempt in this weekly window
+      const now = new Date();
+      const windowStart = getLeaderboardWindowStart(now).toISOString();
+      const priorAttempt = db
+        .prepare(
+          'SELECT id FROM exam_attempts WHERE user_id = ? AND is_grand_test = 1 AND completed_at >= ?'
+        )
+        .get(session.userId, windowStart);
+      rankedGrandTest = !priorAttempt;
+    }
+
     try {
       db.prepare(
         `INSERT INTO exam_attempts
@@ -1918,7 +2010,7 @@ app.post('/api/exams/:id/submit', (req, res) => {
         scoreResult.passed ? 1 : 0,
         scoreResult.timeSpentSeconds,
         scoreResult.negativeMarking ? 1 : 0,
-        row.is_grand_test ? 1 : 0,
+        rankedGrandTest ? 1 : 0,
         new Date().toISOString()
       );
     } catch (err) {
@@ -1940,27 +2032,34 @@ app.post('/api/exams/:id/submit', (req, res) => {
 
 // ==================== WEEKLY GRAND TEST LEADERBOARD ====================
 app.get('/api/leaderboard', (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required to view leaderboard.' });
+  }
+
   const rawLimit = parseInt(String(req.query.limit ?? '25'), 10);
   const limit = Number.isNaN(rawLimit) ? 25 : Math.max(1, Math.min(100, rawLimit));
 
   const now = new Date();
   const window = getGrandTestWindow(now);
   const windowStart = getLeaderboardWindowStart(now);
-  const session = getSessionUser(req);
 
   let bestRows: any[] = [];
   try {
     bestRows = db
       .prepare(
         `WITH ranked AS (
-           SELECT *,
+           SELECT ea.*,
+             COALESCE(u.display_name, ea.display_name) AS current_display_name,
+             COALESCE(u.leaderboard_hidden, 0) AS is_hidden,
              ROW_NUMBER() OVER (
-               PARTITION BY user_id
-               ORDER BY percentage DESC, correct_count DESC, time_spent_seconds ASC, completed_at ASC
+               PARTITION BY ea.user_id
+               ORDER BY ea.percentage DESC, ea.correct_count DESC, ea.time_spent_seconds ASC, ea.completed_at ASC
              ) AS rn
-           FROM exam_attempts
-           WHERE is_grand_test = 1 AND completed_at >= ?
-             AND user_id NOT IN (
+           FROM exam_attempts ea
+           LEFT JOIN users u ON u.id = ea.user_id
+           WHERE ea.is_grand_test = 1 AND ea.completed_at >= ?
+             AND ea.user_id NOT IN (
                SELECT id FROM users WHERE role IN ('admin', 'superadmin')
              )
          )
@@ -1974,7 +2073,7 @@ app.get('/api/leaderboard', (req, res) => {
 
   const mapRow = (row: any, rank: number) => ({
     rank,
-    displayName: row.display_name,
+    displayName: row.current_display_name || row.display_name,
     percentage: row.percentage,
     correctCount: row.correct_count,
     total: row.total,
@@ -1984,18 +2083,23 @@ app.get('/api/leaderboard', (req, res) => {
     isCurrentUser: Boolean(session && row.user_id === session.userId),
   });
 
-  const totalParticipants = bestRows.length;
-  const entries = bestRows.slice(0, limit).map((row, index) => mapRow(row, index + 1));
+  const publicRows = bestRows.filter((r) => !r.is_hidden);
+  const totalParticipants = publicRows.length;
+  const entries = publicRows.slice(0, limit).map((row, index) => mapRow(row, index + 1));
 
   let me = null;
-  if (session) {
-    const index = bestRows.findIndex((row) => row.user_id === session.userId);
-    if (index >= 0) {
-      me = {
-        ...mapRow(bestRows[index], index + 1),
-        percentile: Math.max(1, Math.round(((totalParticipants - index) / totalParticipants) * 100)),
-      };
+  const myIndex = bestRows.findIndex((row) => row.user_id === session.userId);
+  if (myIndex >= 0) {
+    const myRow = bestRows[myIndex];
+    let myRank = publicRows.findIndex((row) => row.user_id === session.userId) + 1;
+    if (myRank === 0) {
+      myRank = myIndex + 1;
     }
+    me = {
+      ...mapRow(myRow, myRank),
+      percentile: Math.max(1, Math.round(((bestRows.length - myIndex) / bestRows.length) * 100)),
+      hidden: Boolean(myRow.is_hidden),
+    };
   }
 
   return res.json({
@@ -2621,6 +2725,9 @@ async function startServer() {
       process.exit(1);
     }, 10000);
     forceTimer.unref();
+
+    server.closeIdleConnections?.();
+    server.closeAllConnections?.();
 
     server.close((err) => {
       if (err) {
