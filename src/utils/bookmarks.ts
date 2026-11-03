@@ -7,7 +7,7 @@
 import type { BookmarkMeta } from '../types';
 
 export const UNFILED_FOLDER = 'Unfiled';
-export const MAX_NOTE_LENGTH = 2000;
+export const MAX_NOTE_LENGTH = 1500;
 export const MAX_FOLDER_LENGTH = 60;
 
 function cleanFolder(folder: unknown): string | undefined {

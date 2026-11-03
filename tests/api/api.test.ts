@@ -1276,6 +1276,131 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(statsValid.body.success, true);
   });
 
+  it('PUT /api/stats enforces limits: accepts ~800KB, rejects >1MB with 413, rejects unknown examRecord key, and limits 121st request', async () => {
+    // Register dedicated test student
+    const studentReg = await request('POST', '/api/auth/register', {
+      body: {
+        username: `stats_limits_${Date.now()}`,
+        email: `stats_limits_${Date.now()}@example.com`,
+        password: 'StudentPassword123!',
+      },
+    });
+    const studentToken = studentReg.body.token;
+
+    // 1. Rejects unknown key in an exam record
+    const statsUnknownExamKey = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: {
+        stats: {
+          totalAnswered: 1,
+          totalCorrect: 1,
+          streakDays: 1,
+          lastActiveDate: '2026-11-03',
+          bookmarkedIds: [],
+          revisionQueueIds: [],
+          subjectPerformance: { Hematology: { answered: 1, correct: 1 } },
+          examRecords: [
+            {
+              id: 'exam-1',
+              title: 'Mock 1',
+              score: 1,
+              total: 1,
+              timeSpentSeconds: 60,
+              passed: true,
+              rogueKey: 'disallowed',
+            },
+          ],
+        },
+      },
+    });
+    assert.equal(statsUnknownExamKey.status, 400);
+    assert.ok(statsUnknownExamKey.body.error?.includes('Unknown field in exam record'));
+
+    // 2. Accepts valid ~800KB payload
+    // Build ~600 bookmark notes of ~1200 chars (approx 800KB serialized)
+    const largeMeta: Record<string, { note: string; folder: string; updatedAt: string }> = {};
+    for (let i = 0; i < 600; i++) {
+      largeMeta[`bm-${i}`] = {
+        note: 'x'.repeat(1200),
+        folder: 'Review',
+        updatedAt: '2026-11-03T10:00:00.000Z',
+      };
+    }
+    const valid800kStats = {
+      totalAnswered: 10,
+      totalCorrect: 10,
+      streakDays: 1,
+      lastActiveDate: '2026-11-03',
+      bookmarkedIds: [],
+      bookmarkMeta: largeMeta,
+      revisionQueueIds: [],
+      subjectPerformance: { Hematology: { answered: 10, correct: 10 } },
+      examRecords: [],
+    };
+    const serialized800k = JSON.stringify(valid800kStats);
+    assert.ok(serialized800k.length > 700_000 && serialized800k.length <= 900_000, `Expected ~800KB, got ${serialized800k.length}`);
+
+    const res800k = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: { stats: valid800kStats },
+    });
+    assert.equal(res800k.status, 200);
+    assert.equal(res800k.body.success, true);
+
+    // 3. Rejects >1MB payload with 413 Payload too large
+    const bodyOver1mb = JSON.stringify({
+      stats: {
+        totalAnswered: 1,
+        totalCorrect: 1,
+        streakDays: 1,
+        lastActiveDate: '2026-11-03',
+        bookmarkedIds: [],
+        revisionQueueIds: [],
+        subjectPerformance: {},
+        examRecords: [],
+        junk: 'J'.repeat(1024 * 1024 + 1000),
+      },
+    });
+    const resOver1mb = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: bodyOver1mb,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    assert.equal(resOver1mb.status, 413);
+    assert.equal(resOver1mb.body.success, false);
+
+    // 4. Rate limiter: 120 requests per 10 minutes; 121st request is limited with 429
+    const minimalStats = {
+      stats: {
+        totalAnswered: 1,
+        totalCorrect: 1,
+        streakDays: 1,
+        lastActiveDate: '2026-11-03',
+        bookmarkedIds: [],
+        revisionQueueIds: [],
+        subjectPerformance: {},
+        examRecords: [],
+      },
+    };
+    // The student made 3 requests already (400, 200, 413).
+    // Send 117 more successful requests to reach exactly 120 requests.
+    for (let i = 0; i < 117; i++) {
+      const r = await request('PUT', '/api/stats', {
+        token: studentToken,
+        body: minimalStats,
+      });
+      assert.equal(r.status, 200);
+    }
+    // 121st request should be rate-limited with 429
+    const limitedRes = await request('PUT', '/api/stats', {
+      token: studentToken,
+      body: minimalStats,
+    });
+    assert.equal(limitedRes.status, 429);
+    assert.equal(limitedRes.body.success, false);
+    assert.ok(limitedRes.body.error?.includes('Too many statistics save requests'));
+  });
+
   it('staff accounts never retain or expose candidate study progress', async () => {
     const suffix = Date.now().toString(36);
     const studentUsername = `stats_promoted_${suffix}`;

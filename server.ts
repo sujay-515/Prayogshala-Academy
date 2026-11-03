@@ -339,6 +339,34 @@ const extractPdfLimiter = rateLimit({
   },
 });
 
+// Rate limiter for PUT /api/stats (120 requests per 10 minutes per user)
+const statsPutLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: (_req) => {
+    const raw = process.env.STATS_PUT_PER_10_MIN;
+    const parsed = raw ? parseInt(raw, 10) : 120;
+    return isNaN(parsed) ? 120 : parsed;
+  },
+  keyGenerator: (req) => getRateLimitKey(req, getSessionUser),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Too many statistics save requests. Please slow down.',
+    });
+  },
+});
+
+// Middleware to enforce authentication
+function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Authentication required to save statistics.' });
+  }
+  return next();
+}
+
 // Middleware to enforce role-based administrator permissions on management endpoints
 function requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const session = getSessionUser(req);
@@ -381,6 +409,42 @@ app.post('/api/questions/bulk-import', requireAdmin, express.json({ limit: '10mb
 app.post('/api/questions/bulk-upsert', requireAdmin, express.json({ limit: '10mb' }));
 app.post('/api/questions', requireAdmin, express.json({ limit: '5mb' }));
 app.put('/api/questions', requireAdmin, express.json({ limit: '5mb' }));
+app.put(
+  '/api/stats',
+  requireAuth,
+  statsPutLimiter,
+  express.json({ limit: '1mb' }),
+  (req, res) => {
+    const session = getSessionUser(req);
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Authentication required to save statistics.' });
+    }
+
+    // Candidate study progress is only valid for student accounts.
+    if (isStaffRole(session.role)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Staff accounts do not have candidate study progress.',
+      });
+    }
+
+    const { stats, ...rest } = req.body || {};
+    if (Object.keys(rest).length > 0) {
+      return res.status(400).json({ success: false, error: 'Unknown top-level fields in request body.' });
+    }
+    if (!stats) {
+      return res.status(400).json({ success: false, error: 'stats object required' });
+    }
+
+    const validationError = validateUserStats(stats);
+    if (validationError) {
+      return res.status(400).json({ success: false, error: validationError });
+    }
+
+    saveUserStats(session.userId, stats);
+    return res.json({ success: true, stats });
+  }
+);
 
 // 4. Global body parsers for all standard endpoints (strictly capped at 100kb)
 // Unauthenticated callers and standard routes retain the 100kb global limit.
@@ -1281,6 +1345,14 @@ function validateUserStats(stats: any): string | null {
     return 'stats must be an object';
   }
 
+  try {
+    if (JSON.stringify(stats).length > 900_000) {
+      return 'Total statistics payload exceeds maximum serialized size (900KB)';
+    }
+  } catch {
+    return 'Failed to serialize statistics';
+  }
+
   const allowedKeys = new Set([
     'totalAnswered',
     'totalCorrect',
@@ -1353,8 +1425,8 @@ function validateUserStats(stats: any): string | null {
       return 'bookmarkMeta must be an object keyed by question ID';
     }
     const metaKeys = Object.keys(meta);
-    if (metaKeys.length > 5000) {
-      return 'bookmarkMeta must contain at most 5,000 entries';
+    if (metaKeys.length > 2000) {
+      return 'bookmarkMeta must contain at most 2,000 entries';
     }
     for (const key of metaKeys) {
       if (key.length === 0 || key.length > 100) {
@@ -1364,8 +1436,8 @@ function validateUserStats(stats: any): string | null {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
         return 'Invalid bookmarkMeta entry';
       }
-      if (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 2000)) {
-        return 'Bookmark notes must be strings of up to 2,000 characters';
+      if (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 1500)) {
+        return 'Bookmark notes must be strings of up to 1,500 characters';
       }
       if (entry.folder !== undefined && (typeof entry.folder !== 'string' || entry.folder.length > 60)) {
         return 'Bookmark folders must be strings of up to 60 characters';
@@ -1456,10 +1528,44 @@ function validateUserStats(stats: any): string | null {
   if (!Array.isArray(stats.examRecords) || stats.examRecords.length > 500) {
     return 'examRecords must be an array of up to 500 records';
   }
+  const ALLOWED_EXAM_RECORD_KEYS = new Set([
+    'id',
+    'date',
+    'title',
+    'score',
+    'total',
+    'timeSpentSeconds',
+    'passed',
+    'pacing',
+    'timings',
+    'questionTimings',
+  ]);
+  const ALLOWED_PACING_KEYS = new Set([
+    'totalSeconds',
+    'timedQuestions',
+    'avgSecondsPerQuestion',
+    'fastestSeconds',
+    'slowestSeconds',
+    'rushingCount',
+    'overthinkingCount',
+    'steadyCount',
+    'habit',
+    'label',
+  ]);
+  const ALLOWED_PACING_HABITS = new Set(['rushing', 'overthinking', 'balanced', 'insufficient']);
+
   for (const rec of stats.examRecords) {
-    if (!rec || typeof rec !== 'object') return 'Invalid exam record';
-    if (typeof rec.id !== 'string' || rec.id.length > 100) return 'Invalid exam record id';
+    if (!rec || typeof rec !== 'object' || Array.isArray(rec)) return 'Invalid exam record';
+    for (const key of Object.keys(rec)) {
+      if (!ALLOWED_EXAM_RECORD_KEYS.has(key)) {
+        return `Unknown field in exam record: ${key}`;
+      }
+    }
+    if (typeof rec.id !== 'string' || rec.id.length === 0 || rec.id.length > 100) return 'Invalid exam record id';
     if (typeof rec.title !== 'string' || rec.title.length > 200) return 'Invalid exam record title';
+    if (rec.date !== undefined && (typeof rec.date !== 'string' || rec.date.length > 50)) {
+      return 'Invalid exam record date';
+    }
     if (
       typeof rec.score !== 'number' ||
       !Number.isFinite(rec.score) ||
@@ -1472,10 +1578,61 @@ function validateUserStats(stats: any): string | null {
     ) {
       return 'Invalid exam record score/total';
     }
-    if (typeof rec.timeSpentSeconds !== 'number' || rec.timeSpentSeconds < 0) {
+    if (
+      typeof rec.timeSpentSeconds !== 'number' ||
+      !Number.isFinite(rec.timeSpentSeconds) ||
+      rec.timeSpentSeconds < 0 ||
+      rec.timeSpentSeconds > 3_600_000
+    ) {
       return 'Invalid exam record timeSpentSeconds';
     }
     if (typeof rec.passed !== 'boolean') return 'Invalid exam record passed';
+
+    if (rec.pacing !== undefined) {
+      if (!rec.pacing || typeof rec.pacing !== 'object' || Array.isArray(rec.pacing)) {
+        return 'Invalid pacing object in exam record';
+      }
+      for (const pKey of Object.keys(rec.pacing)) {
+        if (!ALLOWED_PACING_KEYS.has(pKey)) {
+          return `Unknown field in pacing object: ${pKey}`;
+        }
+      }
+      if (typeof rec.pacing.totalSeconds !== 'number' || !Number.isFinite(rec.pacing.totalSeconds) || rec.pacing.totalSeconds < 0) {
+        return 'Invalid pacing totalSeconds';
+      }
+      if (typeof rec.pacing.timedQuestions !== 'number' || !Number.isFinite(rec.pacing.timedQuestions) || rec.pacing.timedQuestions < 0) {
+        return 'Invalid pacing timedQuestions';
+      }
+      if (rec.pacing.habit !== undefined && !ALLOWED_PACING_HABITS.has(rec.pacing.habit)) {
+        return 'Invalid pacing habit';
+      }
+      if (rec.pacing.label !== undefined && (typeof rec.pacing.label !== 'string' || rec.pacing.label.length > 200)) {
+        return 'Invalid pacing label';
+      }
+    }
+
+    const timings = rec.timings ?? rec.questionTimings;
+    if (timings !== undefined) {
+      if (Array.isArray(timings)) {
+        if (timings.length > 200) return 'Per-question timing array exceeds 200 entries';
+        for (const t of timings) {
+          if (typeof t !== 'number' || !Number.isFinite(t) || t < 0 || t > 3_600_000) {
+            return 'Invalid timing value in timing array';
+          }
+        }
+      } else if (typeof timings === 'object' && timings !== null) {
+        const keys = Object.keys(timings);
+        if (keys.length > 200) return 'Per-question timing entries exceed 200';
+        for (const k of keys) {
+          const t = timings[k];
+          if (typeof t !== 'number' || !Number.isFinite(t) || t < 0 || t > 3_600_000) {
+            return 'Invalid timing value in timing map';
+          }
+        }
+      } else {
+        return 'Invalid question timings format';
+      }
+    }
   }
 
   return null;
@@ -1537,38 +1694,6 @@ app.put('/api/categories', requireAdmin, (req, res) => {
   }
   saveAllCategories(categories);
   return res.json({ success: true, categories: getAllCategories() });
-});
-
-// ==================== USER STATS & ANALYTICS APIs ====================
-app.put('/api/stats', (req, res) => {
-  const session = getSessionUser(req);
-  if (!session) {
-    return res.status(401).json({ success: false, error: 'Authentication required to save statistics.' });
-  }
-
-  // Candidate study progress is only valid for student accounts.
-  if (isStaffRole(session.role)) {
-    return res.status(403).json({
-      success: false,
-      error: 'Staff accounts do not have candidate study progress.',
-    });
-  }
-
-  const { stats, ...rest } = req.body || {};
-  if (Object.keys(rest).length > 0) {
-    return res.status(400).json({ success: false, error: 'Unknown top-level fields in request body.' });
-  }
-  if (!stats) {
-    return res.status(400).json({ success: false, error: 'stats object required' });
-  }
-
-  const validationError = validateUserStats(stats);
-  if (validationError) {
-    return res.status(400).json({ success: false, error: validationError });
-  }
-
-  saveUserStats(session.userId, stats);
-  return res.json({ success: true, stats });
 });
 
 // ==================== PROTECTED EXAM ENGINE APIs ====================

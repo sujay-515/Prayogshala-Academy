@@ -33,7 +33,7 @@ import {
   UserAccount,
   toPublicQuestion,
 } from './types';
-import { X, UserCheck } from 'lucide-react';
+import { X, UserCheck, AlertCircle } from 'lucide-react';
 
 // Route-level code-splitting for heavy feature components
 const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
@@ -309,6 +309,8 @@ export default function App() {
   const [authResetToken, setAuthResetToken] = useState('');
   const [authError, setAuthError] = useState('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState('');
+  const [statsSyncError, setStatsSyncError] = useState<string | null>(null);
+  const pendingStatsRef = useRef<UserStats | null>(null);
   const authUsernameInputRef = useRef<HTMLInputElement>(null);
 
   // Primary Data Stores (hydrated from SQLite backend via /api/bootstrap with localStorage fallback)
@@ -501,6 +503,7 @@ export default function App() {
     if (isStaffAccount) return;
     const token = authToken || localStorage.getItem(STORAGE_KEY_TOKEN);
     if (!token) return;
+    pendingStatsRef.current = updatedStats;
     fetch('/api/stats', {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -509,9 +512,15 @@ export default function App() {
       .then((res) => {
         if (res.status === 401) {
           handleLogout();
+        } else if (!res.ok) {
+          setStatsSyncError('Your latest progress could not be saved');
+        } else {
+          setStatsSyncError(null);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setStatsSyncError('Your latest progress could not be saved');
+      });
   };
 
   // Handler: Student/User Login, Registration, Forgot Password, or Reset
@@ -1043,6 +1052,27 @@ export default function App() {
 
       {currentUser?.email && currentUser.emailVerified === false && (
         <EmailVerificationBanner authToken={authToken} email={currentUser.email} />
+      )}
+
+      {statsSyncError && (
+        <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 relative z-10" role="alert" aria-live="polite">
+          <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-500/40 px-3.5 py-2.5 text-xs font-medium text-red-950 dark:text-red-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+              <span>Your latest progress could not be saved to your account. Your local progress is preserved.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const toRetry = pendingStatsRef.current || stats;
+                persistStatsToServer(toRetry);
+              }}
+              className="px-3 py-1 rounded-lg bg-red-700 hover:bg-red-800 text-white font-semibold text-xs transition-colors cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       )}
 
       {isStaffAccount && (
