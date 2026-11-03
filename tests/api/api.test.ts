@@ -88,6 +88,8 @@ describe('MedLab QBank API Hardening Test Suite', () => {
         PORT: String(PORT),
         DATA_DIR: tempDir,
         GEMINI_API_KEY: '',
+        RESEND_API_KEY: '',
+        EMAIL_VERIFICATION_REQUIRED: 'false',
         SUPABASE_URL: '',
         SUPABASE_SERVICE_ROLE_KEY: '',
         SUPABASE_ANON_KEY: '',
@@ -2216,5 +2218,165 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     assert.equal(lbReappear.body.totalParticipants, initialCount);
     assert.ok(lbReappear.body.entries.some((e: any) => e.displayName === 'Private Candidate'));
     assert.equal(lbReappear.body.me.hidden, false);
+  });
+
+  it('EMAIL_VERIFICATION_REQUIRED configuration: false allows immediate leaderboard ranking without manual verification, and registration succeeds with emailSent: false when delivery fails', async () => {
+    // 1. With EMAIL_VERIFICATION_REQUIRED=false on main test server:
+    // User registers with email, immediately has emailVerified: true and email_verified = 1 in DB
+    const username = `unverified_cfg_${Date.now()}`;
+    const regRes = await request('POST', '/api/auth/register', {
+      body: {
+        username,
+        email: `${username}@example.com`,
+        password: 'Password123!',
+        displayName: 'Auto Verified Student',
+      },
+    });
+    assert.equal(regRes.status, 200);
+    assert.equal(regRes.body.user.emailVerified, true);
+    const token = regRes.body.token;
+
+    // Check DB email_verified is 1 without manual update
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(path.join(tempDir, 'medlab_qbank.sqlite'));
+    try {
+      const row = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(regRes.body.user.id) as any;
+      assert.equal(row.email_verified, 1);
+    } finally {
+      db.close();
+    }
+
+    // Exam attempt immediately ranks on leaderboard without needing manual verification
+    const startRes = await request('POST', '/api/exams/start', {
+      token,
+      body: { isGrandTest: true, questionCount: 5, durationMinutes: 60 },
+    });
+    assert.equal(startRes.status, 200);
+    const submitRes = await request('POST', `/api/exams/${startRes.body.examId}/submit`, {
+      token,
+      body: { userAnswers: {} },
+    });
+    assert.equal(submitRes.status, 200);
+
+    const lbRes = await request('GET', '/api/leaderboard', { token });
+    assert.equal(lbRes.status, 200);
+    assert.ok(lbRes.body.entries.some((e: any) => e.displayName === 'Auto Verified Student'));
+
+    // 2. When EMAIL_VERIFICATION_REQUIRED=true and email delivery fails:
+    // Registration must succeed with 200, user authenticated, emailSent: false
+    const failPort = 5100 + Math.floor(Math.random() * 200);
+    const failTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-fail-email-'));
+    const failProc = spawn('npx', ['tsx', 'server.ts'], {
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(failPort),
+        DATA_DIR: failTempDir,
+        GEMINI_API_KEY: '',
+        RESEND_API_KEY: 're_dummy_invalid_key_for_test',
+        EMAIL_VERIFICATION_REQUIRED: 'true',
+        SUPABASE_URL: '',
+        SUPABASE_SERVICE_ROLE_KEY: '',
+        SUPABASE_ANON_KEY: '',
+        INITIAL_ADMIN_EMAIL: 'fail_superadmin@example.com',
+        INITIAL_ADMIN_PASSWORD: 'BootstrapPassword123!',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    failProc.stdout?.resume();
+    failProc.stderr?.resume();
+
+    try {
+      // Wait for server ready
+      let ready = false;
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 200));
+        try {
+          const res = await new Promise<number>((resolve, reject) => {
+            const req = http.get(`http://127.0.0.1:${failPort}/api/health`, (res) => {
+              res.resume();
+              resolve(res.statusCode || 0);
+            });
+            req.on('error', reject);
+          });
+          if (res === 200) {
+            ready = true;
+            break;
+          }
+        } catch {}
+      }
+      assert.ok(ready, 'Failover server must start successfully');
+
+      // Attempt registration: Resend delivery will fail
+      const failRegPayload = JSON.stringify({
+        username: `fail_delivery_${Date.now()}`,
+        email: `fail_delivery_${Date.now()}@example.com`,
+        password: 'Password123!',
+        displayName: 'Delivery Failure Candidate',
+      });
+
+      const regResult = await new Promise<{ status: number; body: any }>((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: failPort,
+            path: '/api/auth/register',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': String(Buffer.byteLength(failRegPayload)),
+            },
+          },
+          (res) => {
+            let raw = '';
+            res.on('data', (c) => (raw += c));
+            res.on('end', () => resolve({ status: res.statusCode || 0, body: JSON.parse(raw) }));
+          }
+        );
+        req.on('error', reject);
+        req.write(failRegPayload);
+        req.end();
+      });
+
+      // Must succeed with 200 and emailSent: false
+      assert.equal(regResult.status, 200);
+      assert.equal(regResult.body.success, true);
+      assert.equal(regResult.body.emailSent, false);
+      assert.ok(regResult.body.token);
+      assert.equal(regResult.body.user.emailVerified, false);
+
+      // Authenticated session is active and functional
+      const meResult = await new Promise<{ status: number; body: any }>((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: failPort,
+            path: '/api/auth/me',
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${regResult.body.token}`,
+            },
+          },
+          (res) => {
+            let raw = '';
+            res.on('data', (c) => (raw += c));
+            res.on('end', () => resolve({ status: res.statusCode || 0, body: JSON.parse(raw) }));
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+      assert.equal(meResult.status, 200);
+      assert.equal(meResult.body.user.username, regResult.body.user.username);
+    } finally {
+      const exitPromise = new Promise((resolve) => failProc.on('exit', resolve));
+      failProc.kill('SIGTERM');
+      await exitPromise;
+      if (failTempDir && fs.existsSync(failTempDir)) {
+        try {
+          fs.rmSync(failTempDir, { recursive: true, force: true });
+        } catch {}
+      }
+    }
   });
 });

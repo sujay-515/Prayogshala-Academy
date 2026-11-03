@@ -145,6 +145,7 @@ npm run backup
 | `INITIAL_ADMIN_EMAIL` | Email for initial superadmin bootstrapping on clean database install. | Required for 1st boot | None |
 | `INITIAL_ADMIN_PASSWORD` | Password (min 12 chars) for initial superadmin bootstrapping. | Required for 1st boot | None |
 | `RESEND_API_KEY` | Transactional email delivery key for password resets and staff invites. | Optional (prominent warning if missing) | Mock delivery |
+| `EMAIL_VERIFICATION_REQUIRED` | Explicitly enforce or disable transactional email verification (`true` or `false`). When `false`, candidate accounts are verified upon registration without email delivery. | Optional | `true` if `RESEND_API_KEY` is present, `false` otherwise |
 | `EMAIL_FROM` | Sender display name and email address for transactional mail. | Optional | `MedLab QBank <onboarding@resend.dev>` |
 | `APP_URL` | Base public URL used in email reset links. | Optional | `http://localhost:3000` |
 | `GEMINI_API_KEY` | Google Gemini API key for administrative OCR of question documents. | Optional | Rule-based parser |

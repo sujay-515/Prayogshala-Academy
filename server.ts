@@ -178,6 +178,12 @@ const emailVerificationLimiter = createLimiter(
   'Too many email verification requests. Please wait before trying again.'
 );
 
+const rawEmailVerificationRequired = process.env.EMAIL_VERIFICATION_REQUIRED;
+const emailVerificationRequired =
+  rawEmailVerificationRequired !== undefined
+    ? rawEmailVerificationRequired.toLowerCase() === 'true' || rawEmailVerificationRequired === '1'
+    : Boolean(process.env.RESEND_API_KEY?.trim());
+
 const changePasswordLimiter = createLimiter(
   15 * 60 * 1000,
   10,
@@ -245,7 +251,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
     role: row.role,
     username: row.username,
     email: row.email || undefined,
-    emailVerified: row.email_verified !== 0,
+    emailVerified: !emailVerificationRequired || row.email_verified !== 0,
     displayName: row.display_name,
   };
   (req as any)._sessionUser = user;
@@ -614,7 +620,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       email: userRow.email || undefined,
       role: activeRole,
       displayName: userRow.display_name,
-      emailVerified: userRow.email_verified !== 0,
+      emailVerified: !emailVerificationRequired || userRow.email_verified !== 0,
     },
     // Staff accounts never receive candidate study progress.
     stats: isStaffRole(activeRole) ? null : JSON.parse(userRow.stats_json),
@@ -652,7 +658,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   // Public self-registration always creates 'student' role.
   // Administrative promotions can only be granted by an existing Head Administrator.
   const role: 'student' = 'student';
-  const emailVerified = cleanEmail ? 0 : 1;
+  const emailVerified = cleanEmail && emailVerificationRequired ? 0 : 1;
 
   const id = `usr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
   const now = new Date().toISOString();
@@ -702,22 +708,28 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   const tokenHash = hashToken(rawToken);
   recordSession(req, tokenHash, id, role, now);
 
-  // Send asynchronous welcome + verification emails if an address was provided
-  if (cleanEmail) {
+  let emailSent = true;
+  if (cleanEmail && emailVerificationRequired) {
     void sendWelcomeEmail(cleanEmail, finalDisplayName).catch((err) => {
       console.warn('[Welcome Email Failed]', err);
     });
     const verifyToken = createEmailVerification(id);
-    void sendVerificationEmail(cleanEmail, finalDisplayName, verifyToken)
-      .then((delivery) => {
-        if (!delivery.success) console.warn('[Verification Email Failed]', delivery.error);
-      })
-      .catch((err) => console.warn('[Verification Email Failed]', err));
+    try {
+      const delivery = await sendVerificationEmail(cleanEmail, finalDisplayName, verifyToken);
+      if (!delivery.success) {
+        emailSent = false;
+        console.warn('[Verification Email Failed]', delivery.error);
+      }
+    } catch (err) {
+      emailSent = false;
+      console.warn('[Verification Email Failed]', err);
+    }
   }
 
   return res.json({
     success: true,
     token: rawToken,
+    emailSent,
     user: {
       id,
       username: cleanUsername,
@@ -942,7 +954,7 @@ app.get('/api/auth/me', (req, res) => {
       email: session.email,
       role: session.role,
       displayName: session.displayName,
-      emailVerified: session.emailVerified,
+      emailVerified: !emailVerificationRequired || session.emailVerified,
       leaderboardHidden: userRow?.leaderboard_hidden === 1,
     },
     stats,
@@ -2002,8 +2014,8 @@ app.post('/api/exams/:id/submit', (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to score exam.' });
   }
 
-  // Persist the attempt for the leaderboard (authenticated, email-verified candidates only)
-  if (session?.role === 'student' && session.userId && session.emailVerified !== false) {
+  // Persist the attempt for the leaderboard (authenticated, email-verified candidates only unless verification not required)
+  if (session?.role === 'student' && session.userId && (!emailVerificationRequired || session.emailVerified !== false)) {
     let rankedGrandTest = false;
     if (Boolean(row.is_grand_test) && !isLate) {
       // Check if user already has a completed ranked attempt in this weekly window

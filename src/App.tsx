@@ -309,6 +309,7 @@ export default function App() {
   const [authResetToken, setAuthResetToken] = useState('');
   const [authError, setAuthError] = useState('');
   const [authSuccessMsg, setAuthSuccessMsg] = useState('');
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [statsSyncError, setStatsSyncError] = useState<string | null>(null);
   const pendingStatsRef = useRef<UserStats | null>(null);
   const authUsernameInputRef = useRef<HTMLInputElement>(null);
@@ -585,6 +586,11 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        if (data.emailSent === false) {
+          setAuthNotice('Account created, but verification email could not be sent. You can resend it from your dashboard.');
+        } else {
+          setAuthNotice(null);
+        }
         localStorage.setItem(STORAGE_KEY_TOKEN, data.token);
         try {
           localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
@@ -1052,6 +1058,22 @@ export default function App() {
 
       {currentUser?.email && currentUser.emailVerified === false && (
         <EmailVerificationBanner authToken={authToken} email={currentUser.email} />
+      )}
+
+      {authNotice && (
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-3" role="status">
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+            <span>{authNotice}</span>
+            <button
+              type="button"
+              onClick={() => setAuthNotice(null)}
+              className="text-amber-800 hover:text-amber-950 font-bold px-2 cursor-pointer"
+              aria-label="Dismiss notice"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
       )}
 
       {statsSyncError && (
