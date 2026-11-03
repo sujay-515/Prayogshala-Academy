@@ -15,7 +15,7 @@ import { isSafeImageUrl } from './src/utils/urlSecurity';
 import { normalizeExamCategories, questionMatchesExamCategory } from './src/utils/examCategories';
 import { ExtractedMCQDraft, MCQQuestion, QuestionReport, toPublicQuestion, toGradedExamQuestion, ALLOWED_QUESTION_STATUSES, QuestionStatus } from './src/types';
 import { resolveTrustProxy } from './src/server/trustProxy';
-import { getRateLimitKey } from './src/server/rateLimit';
+import { getRateLimitKey, minimizeIp, minimizeUserAgent } from './src/server/rateLimit';
 import { prepareExamQuestions, createMulberry32, seededShuffle, shuffleQuestionOptions } from './src/server/examAssembly';
 import {
   CEE_UG_DURATION_MINUTES,
@@ -555,8 +555,8 @@ function recordSession(
   role: string,
   createdAt: string
 ): void {
-  const userAgent = String(req.headers['user-agent'] || '').slice(0, 300);
-  const ip = String(req.ip || '').slice(0, 60);
+  const userAgent = minimizeUserAgent(req.headers['user-agent']);
+  const ip = minimizeIp(req.ip);
   db.prepare(
     'INSERT INTO sessions (token, user_id, role, created_at, user_agent, ip) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(tokenHash, userId, role, createdAt, userAgent, ip);
