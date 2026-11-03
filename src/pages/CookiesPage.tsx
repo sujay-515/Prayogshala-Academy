@@ -22,7 +22,7 @@ const STORAGE_ROWS: Array<{ key: string; purpose: string; lifetime: string }> = 
   },
   {
     key: 'medlab_qbank_stats_v2',
-    purpose: 'Offline copy of your progress (answers, bookmarks, mistakes, exam history) so the app still works if the network drops.',
+    purpose: 'Offline copy of your progress (answers, bookmarks, personal notes, mistakes, completed exam attempt history) so the app still works if the network drops. In-progress active exams are held only while taking an exam and purged upon submission.',
     lifetime: 'Until you sign out; the server copy remains while your account exists.',
   },
   {
@@ -81,11 +81,14 @@ export const CookiesPage: React.FC = () => {
               tracking pixels or third-party analytics SDKs. Session authentication uses a bearer token sent in
               the <strong>Authorization</strong> header rather than a cookie.
             </p>
-            <p>
+            <p className="mb-3">
               The application does use your browser&apos;s <strong>localStorage</strong> for the small set of
               preferences and caches listed below. Because these entries are essential to signing in, preserving
               your progress and keeping the interface responsive, they cannot be switched off individually while
               using the platform.
+            </p>
+            <p>
+              Additionally, our service worker utilizes the browser <strong>Cache Storage</strong> API (cache name <code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">medlab-shell-v2</code>) solely to pre-cache the static application shell (HTML, compiled JavaScript, CSS stylesheets, and icons) for fast page loading and offline resilience. Cache Storage never stores API responses, question data, personal statistics, or authorization headers, and can be cleared at any time via browser settings.
             </p>
           </section>
 
@@ -116,7 +119,7 @@ export const CookiesPage: React.FC = () => {
               </table>
             </div>
             <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              No passwords, answer keys or payment credentials are ever written to browser storage.
+              No passwords, answer keys or payment credentials are ever written to browser storage. Completed exam attempts are retained in your account statistics until account deletion, whereas in-progress active exam sessions are ephemeral and purged immediately upon exam submission.
             </p>
           </section>
 

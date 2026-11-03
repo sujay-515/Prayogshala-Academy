@@ -46,9 +46,9 @@ export const PrivacyPage: React.FC = () => {
             </p>
             <ul className="list-disc pl-5 space-y-1.5 text-sm">
               <li><strong>Account Credentials:</strong> Email address, username, display name, and a cryptographically salted scrypt password hash. Plaintext passwords are never stored or logged.</li>
-              <li><strong>Examination & Learning Performance:</strong> Answer selections, exam scores, time elapsed, bookmarks, revision queue items, and category accuracy breakdowns.</li>
+              <li><strong>Examination &amp; Learning Performance:</strong> Answer selections, exam scores, time elapsed, bookmarks and personal bookmark study notes, revision queue items, and category accuracy breakdowns. Bookmark notes are stored privately in your account data until you delete them.</li>
               <li><strong>Question Feedback:</strong> Content reports, error flags, and feedback you voluntarily submit regarding question quality.</li>
-              <li><strong>Technical Metadata:</strong> IP address (used solely for sliding-window rate limiting to protect platform availability).</li>
+              <li><strong>Session &amp; Technical Metadata:</strong> Coarse IP address (minimized to /24 for IPv4, /48 for IPv6) and trimmed client user-agent (capped at 200 characters) recorded solely for active session identification and sliding-window rate limiting to protect platform availability. Active sessions have a 7-day TTL and can be reviewed or revoked at any time from your Candidate Dashboard.</li>
             </ul>
           </section>
 
@@ -56,9 +56,20 @@ export const PrivacyPage: React.FC = () => {
             <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-3">
               2. Purpose and Legal Basis for Processing
             </h2>
-            <p>
+            <p className="mb-3">
               We process your data strictly to authenticate user sessions, calculate personal performance metrics, deliver simulated licensure exam scores, and maintain server reliability and security.
             </p>
+            <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-sm">
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-1.5">
+                Weekly Grand Test &amp; Leaderboard Privacy
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mb-2">
+                When you participate in weekly Grand Tests, your candidate display name and score may appear on the weekly leaderboard visible to authenticated candidates. You can opt out at any time via the <em>&ldquo;Show my name on the leaderboard&rdquo;</em> toggle in your Candidate Dashboard. Opting out immediately removes your display name and entry from the public board while preserving your private rank and percentile calculations.
+              </p>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                Your underlying examination attempt history remains private to your account and is retained until account deletion.
+              </p>
+            </div>
           </section>
 
           <section>
@@ -70,7 +81,7 @@ export const PrivacyPage: React.FC = () => {
               Your data is stored in a structured SQLite relational database running on our secured host server. If optional cloud backup is enabled, encrypted records may be synchronized to Supabase.
             </p>
             <p>
-              Session tokens and password reset tokens are stored as SHA-256 hashes at rest and expire automatically after 7 days and 1 hour respectively. Active exam records are purged upon exam submission. Personal study data and credentials are retained until you delete your account. Question error reports you voluntarily submit are retained permanently in the repository; upon account deletion, user identifiers are stripped so that all retained reports are fully anonymized.
+              Session tokens and password reset tokens are stored as SHA-256 hashes at rest and expire automatically after 7 days and 1 hour respectively. Active session metadata (coarse IP, trimmed user-agent) is retained for up to 7 days or until you revoke the session from your dashboard. Active in-progress exam states are ephemeral and purged upon exam submission, while completed scored attempts, personal bookmark notes, and study progress are retained until you delete your account. Question error reports you voluntarily submit are retained permanently in the repository; upon account deletion, user identifiers are stripped so that all retained reports are fully anonymized.
             </p>
           </section>
 
@@ -85,7 +96,7 @@ export const PrivacyPage: React.FC = () => {
                   <Mail className="w-4 h-4 text-emerald-500" /> Resend (Transactional Email)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Processes user email addresses strictly to deliver password reset tokens, welcome confirmations, and administrator staff invites. Resend does not use email addresses for marketing.
+                  Processes user email addresses strictly to deliver password reset tokens, welcome confirmations, verification links, and administrator staff invites. Resend does not use email addresses for marketing. Note that email verification policy can be configured or disabled by the platform administrator depending on operational requirements.
                 </p>
               </div>
 
