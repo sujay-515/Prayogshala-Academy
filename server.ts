@@ -61,7 +61,7 @@ import {
   createEmailVerification,
   verifyEmailToken,
   restoreBackup,
-  ensureCeeUgTaxonomy,
+  cleanupCeeUgTaxonomy,
 } from './src/server/db';
 import { bootstrapSuperAdmin } from './src/server/bootstrap';
 import {
@@ -82,6 +82,39 @@ import {
   sendVerificationEmail,
 } from './src/server/emailService';
 import { startBackupScheduler, stopBackupScheduler } from './src/server/backup';
+import {
+  FREE_MOCK_EXAMS,
+  FREE_PRACTICE_PER_UNIT,
+  activateSubscription,
+  consumeMockStart,
+  consumePracticeAnswer,
+  createPayment,
+  findPaymentByGatewayRef,
+  getActiveSubscription,
+  getMockQuota,
+  getPayment,
+  getPlan,
+  getPlanAny,
+  getPracticeQuota,
+  grantSubscription,
+  hasFullAccess,
+  listPlans,
+  listPracticeUsage,
+  listSubscriptionsForAdmin,
+  revokeSubscription,
+  updatePayment,
+  usageKeyFor,
+} from './src/server/billing';
+import {
+  buildEsewaCheckout,
+  checkEsewaStatus,
+  createKhaltiCheckout,
+  decodeEsewaCallback,
+  isEsewaConfigured,
+  isKhaltiConfigured,
+  verifyEsewaCallbackSignature,
+  verifyKhaltiPayment,
+} from './src/server/payments';
 
 dotenv.config();
 
@@ -206,6 +239,12 @@ const accountDeleteLimiter = createLimiter(
   15 * 60 * 1000,
   5,
   'Too many account deletion attempts. Please wait before retrying.'
+);
+
+const billingCheckoutLimiter = createLimiter(
+  15 * 60 * 1000,
+  20,
+  'Too many checkout attempts. Please wait before trying again.'
 );
 
 // Cloud vision & OCR client initialization
@@ -1071,6 +1110,10 @@ app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
     db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM exam_attempts WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM subscriptions WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM payments WHERE user_id = ?').run(session.userId);
+    db.prepare('DELETE FROM practice_usage WHERE usage_key = ?').run(`user:${session.userId}`);
+    db.prepare('DELETE FROM exam_usage WHERE usage_key = ?').run(`user:${session.userId}`);
     db.prepare('UPDATE reports SET user_id = NULL WHERE user_id = ?').run(session.userId);
     db.prepare('DELETE FROM users WHERE id = ?').run(session.userId);
     db.exec('COMMIT');
@@ -1195,6 +1238,243 @@ app.post('/api/admin/users', requireSuperAdmin, async (req, res) => {
   });
 });
 
+// ==================== BILLING & SUBSCRIPTIONS ====================
+function siteBaseUrl(req: express.Request): string {
+  const rawSiteUrl = process.env.SITE_URL?.trim();
+  return (rawSiteUrl || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+}
+
+app.get('/api/billing/plans', (_req, res) => {
+  return res.json({
+    success: true,
+    plans: listPlans(),
+    gateways: {
+      esewa: isEsewaConfigured(),
+      khalti: isKhaltiConfigured(),
+      simulate: process.env.BILLING_SIMULATE === 'true',
+    },
+    freeTier: {
+      practicePerUnit: FREE_PRACTICE_PER_UNIT,
+      mockExams: FREE_MOCK_EXAMS,
+    },
+  });
+});
+
+app.get('/api/billing/status', (req, res) => {
+  const session = getSessionUser(req);
+  const usageKey = usageKeyFor(session, req);
+  return res.json({
+    success: true,
+    fullAccess: hasFullAccess(session),
+    subscription: session ? getActiveSubscription(session.userId) : null,
+    usage: {
+      practice: listPracticeUsage(usageKey),
+      mocks: getMockQuota(usageKey),
+    },
+    limits: {
+      practicePerUnit: FREE_PRACTICE_PER_UNIT,
+      mockExams: FREE_MOCK_EXAMS,
+    },
+  });
+});
+
+app.post('/api/billing/checkout', billingCheckoutLimiter, async (req, res) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Sign in to purchase a plan.' });
+  }
+  if (session.role !== 'student') {
+    return res.status(403).json({ success: false, error: 'Staff accounts cannot purchase subscriptions.' });
+  }
+
+  const { planId, gateway } = req.body || {};
+  const plan = getPlan(String(planId || ''));
+  if (!plan) {
+    return res.status(400).json({ success: false, error: 'Unknown or inactive plan.' });
+  }
+  if (gateway !== 'esewa' && gateway !== 'khalti') {
+    return res.status(400).json({ success: false, error: "Gateway must be 'esewa' or 'khalti'." });
+  }
+
+  // Development/demo shortcut: instantly activate without contacting a gateway.
+  if (process.env.BILLING_SIMULATE === 'true') {
+    const payment = createPayment(session.userId, plan, 'simulate');
+    updatePayment(payment.id, { status: 'completed', gatewayRef: `sim-${payment.id}` });
+    const subscription = activateSubscription(session.userId, plan, 'simulate', null);
+    return res.json({ success: true, simulated: true, subscription });
+  }
+
+  if (gateway === 'esewa' && !isEsewaConfigured()) {
+    return res.status(503).json({ success: false, error: 'eSewa payments are not configured on this server.' });
+  }
+  if (gateway === 'khalti' && !isKhaltiConfigured()) {
+    return res.status(503).json({ success: false, error: 'Khalti payments are not configured on this server.' });
+  }
+
+  const payment = createPayment(session.userId, plan, gateway);
+  const base = siteBaseUrl(req);
+
+  if (gateway === 'esewa') {
+    const checkout = buildEsewaCheckout({
+      paymentId: payment.id,
+      amountNpr: plan.priceNpr,
+      successUrl: `${base}/api/billing/esewa/callback?pid=${encodeURIComponent(payment.id)}`,
+      failureUrl: `${base}/payment/result?status=failure&gateway=esewa`,
+    });
+    return res.json({ success: true, checkout });
+  }
+
+  try {
+    const checkout = await createKhaltiCheckout({
+      paymentId: payment.id,
+      amountNpr: plan.priceNpr,
+      planName: plan.name,
+      returnUrl: `${base}/payment/result?gateway=khalti`,
+      websiteUrl: base,
+      customer: { name: session.displayName, email: session.email },
+    });
+    updatePayment(payment.id, { gatewayRef: checkout.pidx });
+    return res.json({ success: true, checkout });
+  } catch (err: any) {
+    updatePayment(payment.id, { status: 'failed', gatewayPayload: String(err?.message || err) });
+    return res.status(502).json({ success: false, error: 'Could not initiate Khalti payment. Please try again.' });
+  }
+});
+
+// eSewa redirects the payer here after checkout (success_url).
+app.get('/api/billing/esewa/callback', async (req, res) => {
+  const failureRedirect = '/payment/result?status=failure&gateway=esewa';
+  const successRedirect = '/payment/result?status=success&gateway=esewa';
+
+  const paymentId = String(req.query.pid || '');
+  const payment = getPayment(paymentId);
+  if (!payment || payment.gateway !== 'esewa') {
+    return res.redirect(failureRedirect);
+  }
+  // Idempotent: repeated callbacks for an activated payment just succeed.
+  if (payment.status === 'completed') {
+    return res.redirect(successRedirect);
+  }
+
+  const data = decodeEsewaCallback(String(req.query.data || ''));
+  if (!data || data.transaction_uuid !== paymentId || !verifyEsewaCallbackSignature(data)) {
+    updatePayment(paymentId, { status: 'failed', gatewayPayload: String(req.query.data || '').slice(0, 2000) });
+    return res.redirect(failureRedirect);
+  }
+
+  const callbackAmount = parseFloat(String(data.total_amount || '0'));
+  if (Math.abs(callbackAmount - payment.amountNpr) > 0.01) {
+    updatePayment(paymentId, { status: 'failed', gatewayPayload: JSON.stringify(data).slice(0, 2000) });
+    return res.redirect(failureRedirect);
+  }
+
+  // Server-to-server confirmation; fall back to the signed callback status.
+  const status = await checkEsewaStatus({ paymentId, amountNpr: payment.amountNpr });
+  const isComplete = status?.status === 'COMPLETE' || (!status && data.status === 'COMPLETE');
+  if (!isComplete) {
+    updatePayment(paymentId, {
+      status: 'failed',
+      gatewayPayload: JSON.stringify({ callback: data, statusCheck: status }).slice(0, 4000),
+    });
+    return res.redirect(failureRedirect);
+  }
+
+  const plan = getPlanAny(payment.planId);
+  if (!plan) {
+    updatePayment(paymentId, { status: 'failed', gatewayPayload: 'Plan no longer exists' });
+    return res.redirect(failureRedirect);
+  }
+
+  updatePayment(paymentId, {
+    status: 'completed',
+    gatewayRef: status?.refId || data.transaction_code || null,
+    gatewayPayload: JSON.stringify(data).slice(0, 4000),
+  });
+  activateSubscription(payment.userId, plan, 'esewa', null);
+  return res.redirect(successRedirect);
+});
+
+// Khalti returns the payer to /payment/result?gateway=khalti&pidx=... and the
+// frontend calls this endpoint to confirm before we unlock the account.
+app.post('/api/billing/khalti/verify', async (req, res) => {
+  const pidx = String(req.body?.pidx || '');
+  if (!pidx || pidx.length > 100) {
+    return res.status(400).json({ success: false, error: 'A valid pidx is required.' });
+  }
+
+  const payment = findPaymentByGatewayRef('khalti', pidx);
+  if (!payment) {
+    return res.status(404).json({ success: false, error: 'Payment not found.' });
+  }
+  if (payment.status === 'completed') {
+    return res.json({ success: true, subscription: getActiveSubscription(payment.userId) });
+  }
+
+  const result = await verifyKhaltiPayment(pidx);
+  if (!result) {
+    return res.status(502).json({ success: false, error: 'Could not reach Khalti to confirm the payment. Retry shortly.' });
+  }
+
+  if (result.status === 'Completed') {
+    const amountMatches =
+      result.totalAmountPaisa === undefined || result.totalAmountPaisa === payment.amountNpr * 100;
+    if (!amountMatches) {
+      updatePayment(payment.id, { status: 'failed', gatewayPayload: JSON.stringify(result).slice(0, 4000) });
+      return res.status(402).json({ success: false, error: 'Paid amount does not match the plan price.' });
+    }
+    const plan = getPlanAny(payment.planId);
+    if (!plan) {
+      updatePayment(payment.id, { status: 'failed', gatewayPayload: 'Plan no longer exists' });
+      return res.status(500).json({ success: false, error: 'Plan no longer available.' });
+    }
+    updatePayment(payment.id, {
+      status: 'completed',
+      gatewayRef: result.transactionId || pidx,
+      gatewayPayload: JSON.stringify(result).slice(0, 4000),
+    });
+    const subscription = activateSubscription(payment.userId, plan, 'khalti', null);
+    return res.json({ success: true, subscription });
+  }
+
+  const cancelled = result.status === 'User canceled' || result.status === 'Expired';
+  updatePayment(payment.id, {
+    status: cancelled ? 'cancelled' : 'failed',
+    gatewayPayload: JSON.stringify(result).slice(0, 4000),
+  });
+  return res.status(402).json({ success: false, error: `Payment not completed (status: ${result.status}).` });
+});
+
+// Admin: subscription overview and manual grant/revoke (bank transfer, promos)
+app.get('/api/admin/subscriptions', requireAdmin, (_req, res) => {
+  return res.json({ success: true, subscriptions: listSubscriptionsForAdmin() });
+});
+
+app.post('/api/admin/users/:id/subscription', requireAdmin, (req, res) => {
+  const targetId = req.params.id;
+  const rawDays = parseInt(String(req.body?.durationDays), 10);
+  const durationDays = Number.isNaN(rawDays) ? 0 : Math.max(1, Math.min(3660, rawDays));
+  if (!durationDays) {
+    return res.status(400).json({ success: false, error: 'durationDays between 1 and 3660 is required.' });
+  }
+
+  const target = db.prepare('SELECT id, role FROM users WHERE id = ?').get(targetId) as any;
+  if (!target) {
+    return res.status(404).json({ success: false, error: 'User not found.' });
+  }
+  if (target.role !== 'student') {
+    return res.status(400).json({ success: false, error: 'Subscriptions only apply to student accounts.' });
+  }
+
+  const session = getSessionUser(req)!;
+  const subscription = grantSubscription(targetId, durationDays, session.userId);
+  return res.json({ success: true, subscription });
+});
+
+app.delete('/api/admin/users/:id/subscription', requireAdmin, (req, res) => {
+  const revoked = revokeSubscription(req.params.id);
+  return res.json({ success: true, revoked });
+});
+
 // ==================== QUESTIONS & CATEGORIES APIs ====================
 app.get('/api/questions', (req, res) => {
   const session = getSessionUser(req);
@@ -1283,6 +1563,21 @@ app.post(
     const { selected } = req.body || {};
     if (!selected || typeof selected !== 'string') {
       return res.status(400).json({ success: false, error: 'Selected option is required' });
+    }
+
+    // Free-tier quota: 20 distinct questions per unit for unsubscribed users.
+    if (!isAdmin && !hasFullAccess(session)) {
+      const usageKey = usageKeyFor(session, req);
+      const consumption = consumePracticeAnswer(usageKey, q.unit, q.id);
+      if (!consumption.allowed) {
+        return res.status(402).json({
+          success: false,
+          code: 'PAYWALL',
+          kind: 'practice-quota',
+          error: `You have used all ${consumption.quota.limit} free questions in ${q.unit}. Upgrade to unlock the full question bank.`,
+          quota: consumption.quota,
+        });
+      }
     }
 
     const normalizedSelected = normalizeAnswer(selected);
@@ -1797,6 +2092,21 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
 
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
 
+  // Free tier: one free mock start per user; a subscription unlocks unlimited mocks.
+  if (!hasFullAccess(session)) {
+    const usageKey = usageKeyFor(session, req);
+    const mock = consumeMockStart(usageKey);
+    if (!mock.allowed) {
+      return res.status(402).json({
+        success: false,
+        code: 'PAYWALL',
+        kind: 'mock-quota',
+        error: `You have used your ${mock.quota.limit} free mock exam${mock.quota.limit === 1 ? '' : 's'}. Upgrade to unlock unlimited mock exams and the full question bank.`,
+        quota: mock.quota,
+      });
+    }
+  }
+
   const pool = allPublished.filter((q) => {
     if (examCategory !== 'All' && !questionMatchesExamCategory(q.examCategories, examCategory)) return false;
     if (unit !== 'All' && q.unit !== unit) return false;
@@ -1910,6 +2220,21 @@ app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
   const shuffleOptions = req.body?.shuffleOptions !== false;
   const session = getSessionUser(req);
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
+
+  // Free tier: one free mock start per user; a subscription unlocks unlimited mocks.
+  if (!hasFullAccess(session)) {
+    const usageKey = usageKeyFor(session, req);
+    const mock = consumeMockStart(usageKey);
+    if (!mock.allowed) {
+      return res.status(402).json({
+        success: false,
+        code: 'PAYWALL',
+        kind: 'mock-quota',
+        error: `You have used your ${mock.quota.limit} free mock exam${mock.quota.limit === 1 ? '' : 's'}. Upgrade to unlock unlimited mock exams and the full question bank.`,
+        quota: mock.quota,
+      });
+    }
+  }
 
   // Pull all published questions matching CEE-UG category (or bank questions)
   const pool = allPublished.filter((q) => questionMatchesExamCategory(q.examCategories, 'CEE-UG'));
@@ -2294,7 +2619,7 @@ Each question MUST have this JSON structure:
   "explanation": "Detailed scientific and clinical explanation explaining why the answer is correct",
   "reference": "Authoritative medical textbook or CLSI reference citation",
   "clinicalCase": "Patient case presentation if present, or null",
-  "unit": "One of: Clinical Chemistry, Hematology & Hemostasis, Clinical Microbiology & Parasitology, Immunology & Serology, Immunohematology (Blood Banking), Urinalysis & Body Fluids, Molecular Diagnostics, Laboratory Operations & QA. For CEE-UG entrance content use one of: Physics, Chemistry, Biology, Mental Ability",
+  "unit": "One of: Clinical Chemistry, Hematology & Hemostasis, Clinical Microbiology & Parasitology, Immunology & Serology, Immunohematology (Blood Banking), Urinalysis & Body Fluids, Molecular Diagnostics, Laboratory Operations & QA",
   "subject": "Medical subject name",
   "topic": "Specific diagnostic topic",
   "subtopic": "Specific subtopic if applicable",
@@ -2542,6 +2867,7 @@ export const PUBLIC_SITEMAP_ROUTES = [
   '/practice',
   '/exam',
   '/cee-ug',
+  '/pricing',
   '/privacy',
   '/terms',
   '/disclaimer',
@@ -2662,6 +2988,8 @@ export const KNOWN_CLIENT_ROUTES = [
   '/leaderboard',
   '/bookmarks',
   '/dashboard',
+  '/pricing',
+  '/payment', // includes /payment/result
   '/help',
   '/cookies',
   '/verify-email',
@@ -2682,9 +3010,8 @@ export function isKnownClientRoute(pathname: string): boolean {
 
 async function startServer() {
   await hydrateFromSupabase();
-  // Merge the CEE-UG entrance subjects after hydration so a synced taxonomy
-  // cannot overwrite the migration.
-  ensureCeeUgTaxonomy();
+  // Ensure the taxonomy contains only medical laboratory units.
+  cleanupCeeUgTaxonomy();
   await bootstrapSuperAdmin();
   // Enforce the invariant that staff/superadmin accounts never retain candidate
   // study progress, bookmarks, analytics, or leaderboard attempts.

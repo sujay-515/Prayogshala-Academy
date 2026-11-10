@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Loader2,
   GraduationCap,
+  Crown,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
 import { ExamScoreResult, DEFAULT_PENALTY_PER_WRONG } from '../../utils/scoring';
@@ -105,6 +106,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
   const currentQuestionIdRef = useRef<string>('');
   const reviewOpenRef = useRef<boolean>(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [paywallNotice, setPaywallNotice] = useState<{ message: string; quota?: { used: number; limit: number } } | null>(null);
   const [isStarting, setIsStarting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -257,6 +259,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
   const startExam = async () => {
     setStartError(null);
+    setPaywallNotice(null);
     setIsStarting(true);
     try {
       const token = localStorage.getItem('medlab_qbank_auth_token_v1') || localStorage.getItem('medlab_auth_token');
@@ -281,6 +284,15 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         ),
       });
       const data = await res.json().catch(() => null);
+      if (res.status === 402 || data?.code === 'PAYWALL') {
+        setPaywallNotice({
+          message:
+            data?.error ||
+            'You have used your free mock exam quota. Upgrade to unlock unlimited mock exams and the full question bank.',
+          quota: data?.quota,
+        });
+        return;
+      }
       if (res.status === 429) {
         setStartError(
           data?.error ||
@@ -757,6 +769,21 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             )
           )}
 
+          {paywallNotice && (
+            <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="font-medium">{paywallNotice.message}</span>
+              </div>
+              <Link
+                to="/pricing"
+                className="px-4 py-2 min-h-[44px] inline-flex items-center bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0"
+              >
+                View Plans &amp; Unlock
+              </Link>
+            </div>
+          )}
+
           {startError && (
             <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -1027,6 +1054,21 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
             />
           </div>
+
+          {paywallNotice && (
+            <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2">
+                <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="font-medium">{paywallNotice.message}</span>
+              </div>
+              <Link
+                to="/pricing"
+                className="px-4 py-2 min-h-[44px] inline-flex items-center bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0"
+              >
+                View Plans &amp; Unlock
+              </Link>
+            </div>
+          )}
 
           {startError && (
             <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">

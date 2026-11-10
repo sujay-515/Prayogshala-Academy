@@ -12,6 +12,8 @@ import {
   Gauge,
   Folder,
   MonitorSmartphone,
+  Crown,
+  ShieldCheck,
 } from 'lucide-react';
 import { MCQQuestion, UserStats, UserAccount } from '../../types';
 import { identifyWeakAreas } from '../../utils/scoring';
@@ -23,6 +25,26 @@ import { remainingHits } from '../../utils/mistakes';
 import { predictPerformance } from '../../utils/prediction';
 import { formatPacingTime } from '../../utils/pacing';
 import { folderFor } from '../../utils/bookmarks';
+
+interface DashboardBillingStatus {
+  fullAccess: boolean;
+  subscription: {
+    id: string;
+    planId: string | null;
+    status: string;
+    source: string;
+    startsAt: string;
+    expiresAt: string;
+  } | null;
+  usage: {
+    practice: Record<string, number>;
+    mocks: { used: number; limit: number; remaining: number };
+  };
+  limits: {
+    practicePerUnit: number;
+    mockExams: number;
+  };
+}
 
 interface UserDashboardProps {
   stats: UserStats;
@@ -67,6 +89,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [billingStatus, setBillingStatus] = useState<DashboardBillingStatus | null>(null);
 
   // Leaderboard privacy preference
   const [showOnLeaderboard, setShowOnLeaderboard] = useState(!currentUser?.leaderboardHidden);
@@ -276,6 +299,19 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     loadSessions();
   }, [authToken]);
 
+  useEffect(() => {
+    const headers: Record<string, string> = {};
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    fetch('/api/billing/status', { headers })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.success) {
+          setBillingStatus(data);
+        }
+      })
+      .catch(() => {});
+  }, [authToken]);
+
   const handleRevokeOtherSessions = async () => {
     if (!authToken) return;
     setIsRevokingSessions(true);
@@ -360,6 +396,70 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Subscription & Entitlement Status Banner */}
+      {currentUser?.role === 'admin' || currentUser?.role === 'superadmin' ? (
+        <div className="p-4 rounded-xl border border-cyan-200 bg-cyan-50/70 text-cyan-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="w-5 h-5 text-cyan-700 shrink-0" />
+            <div>
+              <span className="font-semibold text-cyan-900 block">Faculty Staff Exemption</span>
+              <span className="text-cyan-800 text-[11px]">
+                Administrative staff accounts possess unlimited full access to all questions and mock examination pools.
+              </span>
+            </div>
+          </div>
+          <Link
+            to="/admin"
+            className="px-3 py-1.5 rounded-lg bg-cyan-800 hover:bg-cyan-900 text-white font-semibold text-xs transition-colors shrink-0"
+          >
+            Open Admin Console
+          </Link>
+        </div>
+      ) : billingStatus?.subscription ? (
+        <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/80 text-emerald-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <Crown className="w-5 h-5 text-emerald-600 shrink-0" />
+            <div>
+              <div className="font-semibold text-emerald-900 flex items-center gap-1.5">
+                <span>Premium Full Access Active</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-200/70 text-emerald-800 uppercase">
+                  {billingStatus.subscription.source === 'manual' ? 'Faculty Grant' : billingStatus.subscription.source}
+                </span>
+              </div>
+              <span className="text-emerald-800 text-[11px]">
+                Valid through {new Date(billingStatus.subscription.expiresAt).toLocaleDateString(undefined, { dateStyle: 'long' })}. Unlimited practice across all 11 subject units and full mock examinations unlocked.
+              </span>
+            </div>
+          </div>
+          <Link
+            to="/pricing"
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs transition-colors shrink-0 shadow-2xs"
+          >
+            Extend Plan
+          </Link>
+        </div>
+      ) : (
+        <div className="p-4 rounded-xl border border-amber-300 bg-amber-50/80 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <Crown className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <span className="font-semibold text-amber-900 block">Free Tier Candidate Account</span>
+              <span className="text-amber-800 text-[11px]">
+                Free quota: 20 practice questions per subject unit · 1 free mock exam
+                {billingStatus ? ` (Mock exams used: ${billingStatus.usage.mocks.used} / ${billingStatus.limits.mockExams})` : ''}.
+                Upgrade to unlock the complete bank and unlimited mock exams.
+              </span>
+            </div>
+          </div>
+          <Link
+            to="/pricing"
+            className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors shrink-0 shadow-2xs"
+          >
+            Upgrade to Full Access
+          </Link>
+        </div>
+      )}
 
       {/* Unified Metrics Bar */}
       <div className="glass-panel rounded-2xl divide-y sm:divide-y-0 sm:divide-x divide-slate-200/60 grid grid-cols-2 sm:grid-cols-4 shadow-sm overflow-hidden">

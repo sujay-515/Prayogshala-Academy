@@ -13,6 +13,7 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  Crown,
 } from 'lucide-react';
 import { UserAccount } from '../../types';
 import { Modal } from '../common/Modal';
@@ -26,6 +27,19 @@ interface ManagedUser {
   createdAt: string;
   totalAnswered: number;
   totalCorrect: number;
+}
+
+interface AdminSubscription {
+  id: string;
+  userId: string;
+  planId: string | null;
+  status: string;
+  source: string;
+  startsAt: string;
+  expiresAt: string;
+  createdAt: string;
+  username?: string;
+  displayName?: string;
 }
 
 interface UserManagerProps {
@@ -50,6 +64,12 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
   const [isInviting, setIsInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ success: boolean; tempPassword?: string; message?: string } | null>(null);
 
+  // Subscriptions & Grant Modal State
+  const [subscriptions, setSubscriptions] = useState<Record<string, AdminSubscription>>({});
+  const [grantTargetUser, setGrantTargetUser] = useState<ManagedUser | null>(null);
+  const [grantDurationDays, setGrantDurationDays] = useState<number>(30);
+  const [isGranting, setIsGranting] = useState<boolean>(false);
+
   const isSuperAdmin = currentUser?.role === 'superadmin';
 
   const fetchUsers = async () => {
@@ -69,9 +89,104 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
     }
   };
 
+  const fetchSubscriptions = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+      const res = await fetch('/api/admin/subscriptions', { headers });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.subscriptions)) {
+        const map: Record<string, AdminSubscription> = {};
+        const now = new Date().toISOString();
+        for (const sub of data.subscriptions) {
+          if (sub.status === 'active' && sub.expiresAt > now) {
+            if (!map[sub.userId] || map[sub.userId].status !== 'active') {
+              map[sub.userId] = sub;
+            }
+          } else if (!map[sub.userId]) {
+            map[sub.userId] = sub;
+          }
+        }
+        setSubscriptions(map);
+      }
+    } catch (e) {
+      console.error('Failed to fetch subscriptions:', e);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchSubscriptions();
   }, [authToken]);
+
+  const handleGrantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!grantTargetUser) return;
+    setIsGranting(true);
+
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(grantTargetUser.id)}/subscription`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ durationDays: grantDurationDays }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.subscription) {
+        setSubscriptions((prev) => ({
+          ...prev,
+          [grantTargetUser.id]: data.subscription,
+        }));
+        setActionMessage({
+          text: `Granted ${grantDurationDays}-day full access to ${grantTargetUser.displayName}.`,
+          type: 'success',
+        });
+        setGrantTargetUser(null);
+      } else {
+        setActionMessage({ text: data.error || 'Failed to grant subscription.', type: 'error' });
+      }
+    } catch {
+      setActionMessage({ text: 'Network error granting subscription.', type: 'error' });
+    } finally {
+      setIsGranting(false);
+      setTimeout(() => setActionMessage(null), 4000);
+    }
+  };
+
+  const handleRevokeSubscription = async (user: ManagedUser) => {
+    if (!window.confirm(`Revoke full access subscription for ${user.displayName}?`)) {
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {};
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/subscription`, {
+        method: 'DELETE',
+        headers,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSubscriptions((prev) => {
+          const updated = { ...prev };
+          delete updated[user.id];
+          return updated;
+        });
+        setActionMessage({
+          text: `Revoked full access for ${user.displayName}.`,
+          type: 'success',
+        });
+      } else {
+        setActionMessage({ text: data.error || 'Failed to revoke subscription.', type: 'error' });
+      }
+    } catch {
+      setActionMessage({ text: 'Network error revoking subscription.', type: 'error' });
+    }
+    setTimeout(() => setActionMessage(null), 4000);
+  };
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'student') => {
     if (!isSuperAdmin) {
@@ -310,16 +425,18 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
               <tr>
                 <th className="px-4 py-3">Account Holder</th>
                 <th className="px-4 py-3">Email Address</th>
-                <th className="px-4 py-3">Current Role</th>
+                {roleFilter === 'staff' && <th className="px-4 py-3">Current Role</th>}
                 {roleFilter === 'student' && <th className="px-4 py-3">Study Progress</th>}
+                {roleFilter === 'student' && <th className="px-4 py-3">Access / Plan</th>}
                 <th className="px-4 py-3">Joined Date</th>
-                <th className="px-4 py-3 text-right">Privilege Controls</th>
+                {roleFilter === 'staff' && <th className="px-4 py-3 text-right">Privilege Controls</th>}
+                {roleFilter === 'student' && <th className="px-4 py-3 text-right">Subscription Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={roleFilter === 'student' ? 6 : 5} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={roleFilter === 'staff' ? 5 : 6} className="px-4 py-8 text-center text-slate-400">
                     No users matching criteria.
                   </td>
                 </tr>
@@ -359,23 +476,21 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                         )}
                       </td>
 
-                      <td className="px-4 py-3">
-                        {isHead ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-cyan-300 border border-cyan-400/30">
-                            <ShieldAlert className="w-3 h-3 text-cyan-400" />
-                            <span>Head Administrator</span>
-                          </span>
-                        ) : u.role === 'admin' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-900 border border-cyan-300">
-                            <ShieldCheck className="w-3 h-3 text-cyan-700" />
-                            <span>Staff Administrator</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                            <span>Student Candidate</span>
-                          </span>
-                        )}
-                      </td>
+                      {roleFilter === 'staff' && (
+                        <td className="px-4 py-3">
+                          {isHead ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-cyan-300 border border-cyan-400/30">
+                              <ShieldAlert className="w-3 h-3 text-cyan-400" />
+                              <span>Head Administrator</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-100 text-cyan-900 border border-cyan-300">
+                              <ShieldCheck className="w-3 h-3 text-cyan-700" />
+                              <span>Staff Administrator</span>
+                            </span>
+                          )}
+                        </td>
+                      )}
 
                       {roleFilter === 'student' && (
                         <td className="px-4 py-3 text-slate-600">
@@ -389,6 +504,34 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                         </td>
                       )}
 
+                      {roleFilter === 'student' && (
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const sub = subscriptions[u.id];
+                            const isActive = sub && sub.status === 'active' && new Date(sub.expiresAt) > new Date();
+                            if (isActive) {
+                              return (
+                                <div className="space-y-0.5">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                                    <Crown className="w-3 h-3 text-emerald-700" />
+                                    <span>Full Access</span>
+                                  </span>
+                                  <div className="text-[10px] text-slate-500">
+                                    Expires {sub.expiresAt.slice(0, 10)}
+                                    <span className="text-slate-400"> ({sub.source})</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                <span>Free Quota</span>
+                              </span>
+                            );
+                          })()}
+                        </td>
+                      )}
+
                       <td className="px-4 py-3 text-slate-500 text-[11px]">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
@@ -396,11 +539,11 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                         </span>
                       </td>
 
-                      <td className="px-4 py-3 text-right">
-                        {isHead ? (
-                          <span className="text-[11px] text-slate-400 italic">Root Authority</span>
-                        ) : isSuperAdmin ? (
-                          u.role === 'admin' ? (
+                      {roleFilter === 'staff' && (
+                        <td className="px-4 py-3 text-right">
+                          {isHead ? (
+                            <span className="text-[11px] text-slate-400 italic">Root Authority</span>
+                          ) : isSuperAdmin ? (
                             <button
                               onClick={() => handleRoleChange(u.id, 'student')}
                               className="px-2.5 py-1 rounded-md text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
@@ -409,18 +552,44 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                               Demote to Student
                             </button>
                           ) : (
-                            <button
-                              onClick={() => handleRoleChange(u.id, 'admin')}
-                              className="px-2.5 py-1 rounded-md text-[11px] font-medium text-cyan-800 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 transition-colors cursor-pointer"
-                              title="Promote to Staff Administrator"
-                            >
-                              Promote to Staff
-                            </button>
-                          )
-                        ) : (
-                          <span className="text-[11px] text-slate-400">Restricted</span>
-                        )}
-                      </td>
+                            <span className="text-[11px] text-slate-400">Restricted</span>
+                          )}
+                        </td>
+                      )}
+
+                      {roleFilter === 'student' && (
+                        <td className="px-4 py-3 text-right">
+                          {(() => {
+                            const sub = subscriptions[u.id];
+                            const isActive = sub && sub.status === 'active' && new Date(sub.expiresAt) > new Date();
+                            return (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setGrantTargetUser(u);
+                                    setGrantDurationDays(30);
+                                  }}
+                                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors cursor-pointer"
+                                  title={isActive ? 'Extend Full Access' : 'Grant Full Access'}
+                                >
+                                  {isActive ? 'Extend' : 'Grant Access'}
+                                </button>
+                                {isActive && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevokeSubscription(u)}
+                                    className="px-2.5 py-1 rounded-md text-[11px] font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                    title="Revoke subscription"
+                                  >
+                                    Revoke
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -573,6 +742,106 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
             </form>
           </div>
         </Modal>
+
+      {/* Grant Full Access Modal */}
+      <Modal
+        isOpen={Boolean(grantTargetUser)}
+        onClose={() => setGrantTargetUser(null)}
+        titleId="grant-subscription-modal-title"
+        maxWidth="max-w-md"
+      >
+        <div className="bg-white border border-slate-200 w-full rounded-2xl p-6 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
+                <Crown className="w-4 h-4 text-emerald-700" />
+              </div>
+              <h3 id="grant-subscription-modal-title" className="font-semibold text-slate-900 text-sm">
+                Grant Full Access Subscription
+              </h3>
+            </div>
+            <button
+              onClick={() => setGrantTargetUser(null)}
+              aria-label="Close dialog"
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {grantTargetUser && (
+            <form onSubmit={handleGrantSubmit} className="space-y-4 text-xs sm:text-sm">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                <div className="text-slate-500">Candidate Student:</div>
+                <div className="font-semibold text-slate-900 text-sm mt-0.5">{grantTargetUser.displayName}</div>
+                <div className="text-slate-400 font-mono text-[11px]">
+                  @{grantTargetUser.username} {grantTargetUser.email ? `· ${grantTargetUser.email}` : ''}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1.5 text-xs">
+                  Select Access Duration
+                </label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {[
+                    { label: '30 Days (1 Mo)', days: 30 },
+                    { label: '90 Days (3 Mo)', days: 90 },
+                    { label: '180 Days (6 Mo)', days: 180 },
+                    { label: '365 Days (1 Yr)', days: 365 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.days}
+                      type="button"
+                      onClick={() => setGrantDurationDays(preset.days)}
+                      className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                        grantDurationDays === preset.days
+                          ? 'border-emerald-500 bg-emerald-50 font-bold text-emerald-950 shadow-2xs'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-2">
+                  <label htmlFor="custom-duration" className="block text-[11px] font-medium text-slate-500 mb-1">
+                    Or custom duration (days):
+                  </label>
+                  <input
+                    id="custom-duration"
+                    type="number"
+                    min={1}
+                    max={3660}
+                    value={grantDurationDays}
+                    onChange={(e) => setGrantDurationDays(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-900 text-xs focus:bg-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGrantTargetUser(null)}
+                  className="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 text-xs font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isGranting}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white font-semibold rounded-lg text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>{isGranting ? 'Granting...' : `Grant ${grantDurationDays} Days Access`}</span>
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };

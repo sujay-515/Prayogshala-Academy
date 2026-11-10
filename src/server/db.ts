@@ -4,7 +4,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { promisify } from 'node:util';
 import { INITIAL_CATEGORIES } from '../data/categories';
-import { CEE_UG_CATEGORY_UNITS } from '../config/ceeUg';
 import { MCQQuestion, UnitCategory, UserStats, QuestionReport, QuestionStatus } from '../types';
 import { questionMatchesExamCategory } from '../utils/examCategories';
 import {
@@ -147,6 +146,61 @@ db.exec(`
     question_ids_json TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS plans (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    duration_days INTEGER NOT NULL,
+    price_npr INTEGER NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'NPR',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    plan_id TEXT,
+    status TEXT NOT NULL,
+    source TEXT NOT NULL,
+    starts_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_user
+    ON subscriptions(user_id, status, expires_at);
+
+  CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    plan_id TEXT NOT NULL,
+    gateway TEXT NOT NULL,
+    amount_npr INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    gateway_ref TEXT,
+    gateway_payload TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id, status);
+  CREATE INDEX IF NOT EXISTS idx_payments_gateway_ref ON payments(gateway, gateway_ref);
+
+  CREATE TABLE IF NOT EXISTS practice_usage (
+    usage_key TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    first_answered_at TEXT NOT NULL,
+    PRIMARY KEY (usage_key, unit, question_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS exam_usage (
+    usage_key TEXT PRIMARY KEY,
+    free_mock_used INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+  );
 `);
 
 // Safe migrations for email support & password resets
@@ -276,6 +330,17 @@ function seedDatabaseIfNeeded() {
     });
   }
 
+  // Seed default subscription plans if the catalog is empty (prices in whole NPR)
+  const pCountRow = db.prepare('SELECT COUNT(*) as cnt FROM plans').get() as { cnt: number };
+  if (pCountRow.cnt === 0) {
+    const insertP = db.prepare(
+      'INSERT INTO plans (id, name, duration_days, price_npr, currency, is_active, sort_order) VALUES (?, ?, ?, ?, ?, 1, ?)'
+    );
+    insertP.run('plan-1m', '1 Month Full Access', 30, 500, 'NPR', 0);
+    insertP.run('plan-3m', '3 Months Full Access', 90, 1200, 'NPR', 1);
+    insertP.run('plan-6m', '6 Months Full Access', 180, 2000, 'NPR', 2);
+  }
+
   // Optional demo data seeding strictly in development mode when explicitly requested
   if (process.env.SEED_DEMO_DATA === 'true' && process.env.NODE_ENV === 'development') {
     void seedDemoData().catch((err) => console.error('Failed to seed demo data:', err));
@@ -285,34 +350,28 @@ function seedDatabaseIfNeeded() {
 seedDatabaseIfNeeded();
 
 /**
- * Adds the CEE-UG (MECEE-BL) entrance subjects to installations that predate
- * them, so administrators can author Physics/Chemistry/Biology/MAT questions.
- * Guarded by SQLite's user_version so a unit an administrator later renames or
- * removes is not resurrected on every restart.
- *
- * Must run after any cloud hydration, otherwise the synced taxonomy would
- * overwrite the merge performed here.
+ * Cleans up any CEE-UG entrance subjects (Physics, Chemistry, Biology, Mental Ability)
+ * that may have been previously added to the taxonomy.
+ * CEE-UG is an examination category / mock test only and has no units or subjects.
  */
-const CEE_UG_TAXONOMY_VERSION = 1;
-
-export function ensureCeeUgTaxonomy(): void {
+export function cleanupCeeUgTaxonomy(): void {
   try {
-    const versionRow = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
-    if ((versionRow?.user_version ?? 0) >= CEE_UG_TAXONOMY_VERSION) return;
-
     const existing = getAllCategories();
-    const missing = CEE_UG_CATEGORY_UNITS.filter(
-      (unit) => !existing.some((cat) => cat.name.trim().toLowerCase() === unit.name.trim().toLowerCase())
+    const entranceSubjectNames = new Set(['physics', 'chemistry', 'biology', 'mental ability']);
+    const filtered = existing.filter(
+      (cat) =>
+        !cat.id.startsWith('unit-ceeug-') &&
+        !entranceSubjectNames.has(cat.name.trim().toLowerCase())
     );
 
-    if (missing.length > 0) {
-      saveAllCategories([...existing, ...missing]);
-      console.log(`[Taxonomy] Added CEE-UG entrance subjects: ${missing.map((unit) => unit.name).join(', ')}`);
+    if (filtered.length !== existing.length) {
+      saveAllCategories(filtered);
+      console.log(
+        `[Taxonomy] Cleaned up CEE-UG entrance subjects: removed ${existing.length - filtered.length} non-lab categories.`
+      );
     }
-
-    db.exec(`PRAGMA user_version = ${CEE_UG_TAXONOMY_VERSION}`);
   } catch (err) {
-    console.warn('[Taxonomy] Could not add CEE-UG entrance subjects:', err);
+    console.warn('[Taxonomy] Could not clean up CEE-UG taxonomy:', err);
   }
 }
 

@@ -14,7 +14,14 @@ export interface CheckAnswerSuccess {
 
 export type CheckAnswerResult =
   | { ok: true; status: 200; data: CheckAnswerSuccess }
-  | { ok: false; status: number; error: string; isRateLimit: boolean };
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      isRateLimit: boolean;
+      isPaywall?: boolean;
+      quota?: { unit: string; used: number; limit: number };
+    };
 
 export async function checkQuestionAnswer(
   questionId: string,
@@ -54,6 +61,12 @@ export async function checkQuestionAnswer(
         status: res.status,
         error: data?.error || 'Unable to verify answer. Please try again.',
         isRateLimit: false,
+        ...(res.status === 402
+          ? {
+              isPaywall: true,
+              quota: data?.quota && typeof data.quota === 'object' ? data.quota : undefined,
+            }
+          : {}),
       };
     }
 

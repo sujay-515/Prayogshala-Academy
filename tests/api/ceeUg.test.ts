@@ -147,12 +147,12 @@ describe('CEE-UG Entrance Mock Suite', () => {
     assert.equal(res.body.availableCount, 0);
   });
 
-  it('seeds the CEE-UG entrance subjects into the taxonomy', async () => {
+  it('does not add entrance subjects into the site taxonomy (CEE-UG is mock-test only)', async () => {
     const res = await request('GET', '/api/bootstrap');
     assert.equal(res.status, 200);
     const names = (res.body.categories || []).map((c: any) => c.name);
     for (const unit of ['Physics', 'Chemistry', 'Biology', 'Mental Ability']) {
-      assert.ok(names.includes(unit), `missing taxonomy unit: ${unit}`);
+      assert.ok(!names.includes(unit), `entrance subject should not be in taxonomy: ${unit}`);
     }
   });
 

@@ -1,11 +1,11 @@
-import { UnitCategory } from '../types';
 import { questionMatchesExamCategory } from '../utils/examCategories';
 
 /**
  * CEE-UG (MECEE-BL) Entrance Examination configuration.
  *
  * Official pattern: 200 questions, 200 marks, 3 hours (180 minutes), -0.25 negative marking.
- * Questions are uploaded in bulk and tagged under CEE-UG without requiring subject partitioning.
+ * CEE-UG is a standalone mock test without unit or subject-wise requirements.
+ * Questions are uploaded in bulk and tagged under the CEE-UG exam category.
  */
 
 export const CEE_UG_TOTAL_QUESTIONS = 200;
@@ -51,58 +51,3 @@ export function computeCeeUgAvailability(
     isShort: totalAvailable < CEE_UG_TOTAL_QUESTIONS,
   };
 }
-
-/**
- * Optional taxonomy units (Physics, Chemistry, Biology, Mental Ability)
- * kept so any existing question classifications or optional filters remain valid.
- */
-export const CEE_UG_CATEGORY_UNITS: UnitCategory[] = [
-  {
-    id: 'unit-ceeug-physics',
-    name: 'Physics',
-    description: 'CEE-UG entrance physics.',
-    subjects: [
-      {
-        id: 'ceeug-physics-general',
-        name: 'General Physics',
-        topics: ['Mechanics', 'Heat & Thermodynamics', 'Waves & Optics', 'Electricity & Magnetism', 'Modern Physics'],
-      },
-    ],
-  },
-  {
-    id: 'unit-ceeug-chemistry',
-    name: 'Chemistry',
-    description: 'CEE-UG entrance chemistry.',
-    subjects: [
-      {
-        id: 'ceeug-chemistry-general',
-        name: 'General Chemistry',
-        topics: ['Physical Chemistry', 'Inorganic Chemistry', 'Organic Chemistry'],
-      },
-    ],
-  },
-  {
-    id: 'unit-ceeug-biology',
-    name: 'Biology',
-    description: 'CEE-UG entrance biology.',
-    subjects: [
-      {
-        id: 'ceeug-biology-general',
-        name: 'General Biology',
-        topics: ['Botany', 'Zoology', 'Cell Biology & Genetics', 'Human Physiology'],
-      },
-    ],
-  },
-  {
-    id: 'unit-ceeug-mat',
-    name: 'Mental Ability',
-    description: 'Mental Agility Test (MAT) section.',
-    subjects: [
-      {
-        id: 'ceeug-mat-general',
-        name: 'Reasoning & Aptitude',
-        topics: ['Logical Reasoning', 'Numerical Aptitude', 'Spatial Reasoning'],
-      },
-    ],
-  },
-];

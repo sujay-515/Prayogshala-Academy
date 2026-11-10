@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CheckCircle2,
   AlertCircle,
@@ -9,6 +10,7 @@ import {
   RotateCcw,
   Loader2,
   Star,
+  Crown,
 } from 'lucide-react';
 import { MCQQuestion, ExamCategory } from '../../types';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
@@ -59,7 +61,13 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   const [revealedStatus, setRevealedStatus] = useState<Record<string, boolean>>({});
   const [checkResults, setCheckResults] = useState<Record<string, CheckAnswerSuccess>>({});
   const [isChecking, setIsChecking] = useState<boolean>(false);
-  const [checkError, setCheckError] = useState<{ optionId: string; message: string; isRateLimit: boolean } | null>(null);
+  const [checkError, setCheckError] = useState<{
+    optionId: string;
+    message: string;
+    isRateLimit: boolean;
+    isPaywall?: boolean;
+    quota?: { unit: string; used: number; limit: number };
+  } | null>(null);
   const [ariaAnnouncement, setAriaAnnouncement] = useState<string>('');
 
   // Automatically start custom subset session when passed from Dashboard or Browse
@@ -171,6 +179,8 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         optionId: optId,
         message: result.error,
         isRateLimit: result.isRateLimit,
+        isPaywall: result.isPaywall,
+        quota: result.quota,
       });
       setAriaAnnouncement(result.error);
     }
@@ -571,7 +581,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         </div>
 
         {/* Error Alert with Retry Button */}
-        {checkError && (
+        {checkError && !checkError.isPaywall && (
           <div role="alert" className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -584,6 +594,22 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             >
               Retry
             </button>
+          </div>
+        )}
+
+        {/* Paywall: free per-unit quota exhausted */}
+        {checkError?.isPaywall && (
+          <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-amber-600 shrink-0" />
+              <span className="font-medium">{checkError.message}</span>
+            </div>
+            <Link
+              to="/pricing"
+              className="px-4 py-2 min-h-[44px] inline-flex items-center bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition-colors"
+            >
+              View Plans &amp; Unlock
+            </Link>
           </div>
         )}
 

@@ -15,6 +15,8 @@ import { ContactPage } from './pages/ContactPage';
 import { CookiesPage } from './pages/CookiesPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { HelpPage } from './pages/HelpPage';
+import { PricingPage } from './pages/PricingPage';
+import { PaymentResultPage } from './pages/PaymentResultPage';
 import { INITIAL_QUESTIONS } from './data/seedQuestions';
 import { INITIAL_CATEGORIES } from './data/categories';
 import { getDailyQuestion } from './utils/dailyQuestion';
@@ -33,7 +35,7 @@ import {
   UserAccount,
   toPublicQuestion,
 } from './types';
-import { X, UserCheck, AlertCircle } from 'lucide-react';
+import { X, UserCheck, AlertCircle, ShieldCheck, ArrowLeft } from 'lucide-react';
 
 // Route-level code-splitting for heavy feature components
 const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
@@ -963,8 +965,15 @@ export default function App() {
   // Daily Question is deterministic based on current local calendar date among published questions
   const dailyQuestion = getDailyQuestion(questions);
 
+  // If navigated to /admin, exit student view mode
+  useEffect(() => {
+    if (activeTab === 'admin' && isViewingAsStudent) {
+      setIsViewingAsStudent(false);
+    }
+  }, [activeTab, isViewingAsStudent]);
+
   // Standalone Admin Console Mode (no student navbar, student tabs, or student footer)
-  if (activeTab === 'admin' && !isViewingAsStudent) {
+  if (activeTab === 'admin') {
     return (
       <ErrorBoundary>
         <Suspense fallback={<RouteLoadingFallback label="Loading Administrative Console..." />}>
@@ -1097,19 +1106,36 @@ export default function App() {
         </div>
       )}
 
-      {isStaffAccount && (
+      {(isViewingAsStudent || isStaffAccount) && (
         <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 relative z-10">
           <div
             role="status"
-            className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-[11px] sm:text-xs font-medium text-amber-900"
+            className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/50 dark:border-amber-500/40 px-3.5 py-2.5 text-xs font-medium text-amber-950 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3 shadow-xs"
           >
-            Staff account preview — answers, bookmarks, exam history, and study analytics are not recorded.
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+              <span>
+                <strong>Staff preview mode:</strong> Viewing student portal to test questions. Candidate progress, bookmarks, and analytics are not recorded.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsViewingAsStudent(false);
+                navigate('/admin');
+              }}
+              className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 active:bg-amber-950 text-white font-semibold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
+              title="Return to Staff Administration Console"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Admin Page</span>
+            </button>
           </div>
         </div>
       )}
 
       {/* Main Content Area with React Router */}
-      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 relative z-10 focus:outline-none">
+      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 md:pb-8 relative z-10 focus:outline-none">
         <ErrorBoundary>
           <Suspense fallback={<RouteLoadingFallback label="Loading page..." />}>
             <Routes>
@@ -1246,6 +1272,16 @@ export default function App() {
             }
           />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route
+            path="/pricing"
+            element={
+              <PricingPage
+                currentUser={currentUser}
+                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              />
+            }
+          />
+          <Route path="/payment/result" element={<PaymentResultPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/disclaimer" element={<DisclaimerPage />} />
           <Route path="/contact" element={<ContactPage />} />
