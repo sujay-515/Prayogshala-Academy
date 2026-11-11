@@ -1591,6 +1591,7 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-slate-500 dark:text-slate-400">
+            <Link to="/pricing" className="text-amber-600 dark:text-amber-400 font-semibold hover:underline transition">Plans &amp; Pricing</Link>
             <Link to="/privacy" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Terms of Service</Link>
             <Link to="/disclaimer" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Disclaimer</Link>
