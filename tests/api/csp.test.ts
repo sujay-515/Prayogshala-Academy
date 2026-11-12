@@ -95,9 +95,11 @@ describe('CSP Mode Configuration Suite', () => {
       // Verify directives match in enforce mode
       const cspDirectives = enforceHeaders['content-security-policy'];
       assert.ok(cspDirectives.includes("default-src 'self'"));
-      assert.ok(cspDirectives.includes("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"));
+      assert.ok(cspDirectives.includes("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style"));
       assert.ok(cspDirectives.includes("font-src 'self' https://fonts.gstatic.com"));
-      assert.ok(cspDirectives.includes("script-src 'self'"));
+      assert.ok(cspDirectives.includes("script-src 'self' https://accounts.google.com/gsi/client"));
+      assert.ok(cspDirectives.includes("connect-src 'self' https://accounts.google.com/gsi/"));
+      assert.ok(cspDirectives.includes("frame-src 'self' data: blob: https://accounts.google.com/gsi/"));
     } finally {
       procReport.kill('SIGTERM');
       procEnforce.kill('SIGTERM');
