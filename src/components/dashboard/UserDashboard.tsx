@@ -18,6 +18,7 @@ import { identifyWeakAreas } from '../../utils/scoring';
 import { clearUserScopedStorage } from '../../utils/storage';
 import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
+import { GoogleSignInButton } from '../auth/GoogleSignInButton';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
 import { remainingHits } from '../../utils/mistakes';
 import { predictPerformance } from '../../utils/prediction';
@@ -216,6 +217,37 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
   };
 
+  const handleDeleteWithGoogle = async (credential: string) => {
+    setDeleteError('');
+    setIsDeleting(true);
+    try {
+      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const res = await fetch('/api/auth/account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ credential }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to delete account.');
+      }
+      setIsDeleteModalOpen(false);
+      clearUserScopedStorage();
+      if (onLogout) {
+        onLogout();
+      } else {
+        window.location.href = '/';
+      }
+    } catch (err: any) {
+      setDeleteError(err.message || 'Error deleting account.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const loadSessions = () => {
     if (!authToken) {
       setSessions(null);
@@ -272,13 +304,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto py-6 space-y-8">
-      <title>Candidate Dashboard | MedLab QBank</title>
+      <title>{`Candidate Dashboard | ${SITE_CONFIG.siteName}`}</title>
       <meta
         name="description"
         content="Track your medical laboratory examination preparation analytics, accuracy by subject unit, study streak, and revision queue."
       />
       <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/dashboard`} />
-      <meta property="og:title" content="Candidate Dashboard | MedLab QBank" />
+      <meta property="og:title" content={`Candidate Dashboard | ${SITE_CONFIG.siteName}`} />
       <meta
         property="og:description"
         content="Track your medical laboratory examination preparation analytics, accuracy by subject unit, study streak, and revision queue."
@@ -768,9 +800,17 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 <KeyRound className="w-4 h-4 text-cyan-700" aria-hidden="true" />
                 <span>Account & Privacy Controls</span>
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Signed in as <strong className="text-slate-800">{currentUser.username}</strong> ({currentUser.email || 'No email registered'}) · Role: <span className="capitalize font-medium">{currentUser.role}</span>
-              </p>
+              <div className="text-xs text-slate-500 mt-1 flex flex-wrap items-center gap-2">
+                <span>
+                  Signed in as <strong className="text-slate-800">{currentUser.username}</strong> ({currentUser.email || 'No email registered'}) · Role: <span className="capitalize font-medium">{currentUser.role}</span>
+                </span>
+                {currentUser.isGoogleLinked && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Google connected
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -809,82 +849,93 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               Change Account Password
             </h4>
 
-            <form onSubmit={handleChangePassword} className="space-y-3">
-              <div>
-                <label htmlFor="dashboard-current-pw" className="block text-xs font-medium text-slate-700 mb-1">
-                  Current Password <span className="text-rose-600" aria-hidden="true">*</span>
-                </label>
-                <input
-                  id="dashboard-current-pw"
-                  type="password"
-                  required
-                  aria-required="true"
-                  aria-invalid={pwError ? 'true' : undefined}
-                  aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter current password..."
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
-                />
+            {currentUser.hasPassword === false ? (
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 leading-relaxed">
+                <p className="font-semibold text-slate-800 mb-1">
+                  Google Account Authentication
+                </p>
+                <p>
+                  Your account signs in with Google and does not currently have a password. If you would like to set an email/password login, log out and click <strong>Forgot password</strong> on the sign-in modal to receive a password setup link.
+                </p>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-3">
                 <div>
-                  <label htmlFor="dashboard-new-pw" className="block text-xs font-medium text-slate-700 mb-1">
-                    New Password (min 8 chars) <span className="text-rose-600" aria-hidden="true">*</span>
+                  <label htmlFor="dashboard-current-pw" className="block text-xs font-medium text-slate-700 mb-1">
+                    Current Password <span className="text-rose-600" aria-hidden="true">*</span>
                   </label>
                   <input
-                    id="dashboard-new-pw"
+                    id="dashboard-current-pw"
                     type="password"
                     required
                     aria-required="true"
                     aria-invalid={pwError ? 'true' : undefined}
                     aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="New password..."
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password..."
                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
                   />
                 </div>
-                <div>
-                  <label htmlFor="dashboard-confirm-pw" className="block text-xs font-medium text-slate-700 mb-1">
-                    Confirm New Password <span className="text-rose-600" aria-hidden="true">*</span>
-                  </label>
-                  <input
-                    id="dashboard-confirm-pw"
-                    type="password"
-                    required
-                    aria-required="true"
-                    aria-invalid={pwError ? 'true' : undefined}
-                    aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password..."
-                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="dashboard-new-pw" className="block text-xs font-medium text-slate-700 mb-1">
+                      New Password (min 8 chars) <span className="text-rose-600" aria-hidden="true">*</span>
+                    </label>
+                    <input
+                      id="dashboard-new-pw"
+                      type="password"
+                      required
+                      aria-required="true"
+                      aria-invalid={pwError ? 'true' : undefined}
+                      aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="New password..."
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="dashboard-confirm-pw" className="block text-xs font-medium text-slate-700 mb-1">
+                      Confirm New Password <span className="text-rose-600" aria-hidden="true">*</span>
+                    </label>
+                    <input
+                      id="dashboard-confirm-pw"
+                      type="password"
+                      required
+                      aria-required="true"
+                      aria-invalid={pwError ? 'true' : undefined}
+                      aria-describedby={pwError ? 'dashboard-pw-error' : undefined}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password..."
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600/20 shadow-2xs"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {pwError && (
-                <p id="dashboard-pw-error" role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
-                  {pwError}
-                </p>
-              )}
+                {pwError && (
+                  <p id="dashboard-pw-error" role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
+                    {pwError}
+                  </p>
+                )}
 
-              {pwSuccess && (
-                <p role="status" aria-live="polite" className="text-xs text-emerald-700 font-medium">
-                  {pwSuccess}
-                </p>
-              )}
+                {pwSuccess && (
+                  <p role="status" aria-live="polite" className="text-xs text-emerald-700 font-medium">
+                    {pwSuccess}
+                  </p>
+                )}
 
-              <button
-                type="submit"
-                disabled={isSubmittingPw}
-                className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {isSubmittingPw ? 'Updating Password...' : 'Update Password'}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPw}
+                  className="px-4 py-2 bg-cyan-700 hover:bg-cyan-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingPw ? 'Updating Password...' : 'Update Password'}
+                </button>
+              </form>
+            )}
           </div>
 
           {/* Active devices */}
@@ -989,23 +1040,38 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
           </div>
 
           <form onSubmit={handleConfirmDeleteAccount} className="space-y-3">
-            <div>
-              <label htmlFor="delete-account-password" className="block text-xs font-semibold text-slate-700 mb-1">
-                Enter Current Password to Confirm Deletion <span className="text-rose-600" aria-hidden="true">*</span>
-              </label>
-              <input
-                id="delete-account-password"
-                type="password"
-                required
-                aria-required="true"
-                aria-invalid={deleteError ? 'true' : undefined}
-                aria-describedby={deleteError ? 'delete-account-error' : undefined}
-                value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
-                placeholder="Your password..."
-                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600/20 shadow-2xs"
-              />
-            </div>
+            {currentUser?.hasPassword === false ? (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Your account signs in with Google. Re-authenticate with Google below to permanently delete your account.
+                </p>
+                <div className="pt-1 flex justify-center">
+                  <GoogleSignInButton
+                    onSuccess={handleDeleteWithGoogle}
+                    onError={(err) => setDeleteError(err)}
+                    isLoading={isDeleting}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="delete-account-password" className="block text-xs font-semibold text-slate-700 mb-1">
+                  Enter Current Password to Confirm Deletion <span className="text-rose-600" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="delete-account-password"
+                  type="password"
+                  required
+                  aria-required="true"
+                  aria-invalid={deleteError ? 'true' : undefined}
+                  aria-describedby={deleteError ? 'delete-account-error' : undefined}
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Your password..."
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600/20 shadow-2xs"
+                />
+              </div>
+            )}
 
             {deleteError && (
               <p id="delete-account-error" role="alert" aria-live="polite" className="text-xs text-rose-700 font-medium">
@@ -1021,13 +1087,15 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={isDeleting}
-                className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {isDeleting ? 'Deleting Account...' : 'Permanently Delete My Account'}
-              </button>
+              {currentUser?.hasPassword !== false && (
+                <button
+                  type="submit"
+                  disabled={isDeleting}
+                  className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting Account...' : 'Permanently Delete My Account'}
+                </button>
+              )}
             </div>
           </form>
         </div>
