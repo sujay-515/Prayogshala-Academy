@@ -70,12 +70,16 @@ import {
   isSupabaseConfigured,
   pingSupabaseKeepAlive,
   syncUpsertUser,
+  syncPatchUser,
   syncUpdateUserRole,
   syncDeleteUser,
   syncInsertSession,
   syncDeleteSession,
+  syncDeleteUserSessions,
+  syncDeleteUserPasswordResets,
   syncInsertActiveExam,
   syncDeleteActiveExam,
+  syncInsertExamAttempt,
 } from './src/server/supabaseSync';
 import {
   sendWelcomeEmail,
@@ -240,6 +244,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
 
   if (row.created_at && Date.now() - new Date(row.created_at).getTime() > SESSION_TTL_MS) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
+    syncDeleteSession(tokenHash);
     (req as any)._sessionUser = null;
     return null;
   }
@@ -494,6 +499,7 @@ function recordSession(
   db.prepare(
     'INSERT INTO sessions (token, user_id, role, created_at, user_agent, ip) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(tokenHash, userId, role, createdAt, userAgent, ip);
+  syncInsertSession(tokenHash, userId, role, createdAt, userAgent, ip);
 
   const newer = db
     .prepare(
@@ -502,7 +508,10 @@ function recordSession(
     .all(userId, tokenHash) as { token: string }[];
   const excess = newer.slice(MAX_ACTIVE_SESSIONS - 1);
   const remove = db.prepare('DELETE FROM sessions WHERE token = ?');
-  for (const row of excess) remove.run(row.token);
+  for (const row of excess) {
+    remove.run(row.token);
+    syncDeleteSession(row.token);
+  }
 }
 
 function currentTokenHash(req: express.Request): string {
@@ -587,6 +596,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   if (!userRow.password_hash.includes(':')) {
     const upgradedHash = await hashPassword(rawPw);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(upgradedHash, userRow.id);
+    syncPatchUser(userRow.id, { password_hash: upgradedHash });
   }
 
   return issueUserSession(req, res, userRow);
@@ -637,6 +647,8 @@ app.post('/api/auth/google', loginLimiter, async (req, res) => {
 
   let resolvedUser: any = null;
   let isNewUser = false;
+  let linkedExistingId: string | null = null;
+  let hijackedUnverified = false;
   let newUserId = '';
   let newUsername = '';
   let finalDisplayName = '';
@@ -655,9 +667,11 @@ app.post('/api/auth/google', loginLimiter, async (req, res) => {
       const existingByEmail = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(normalizedEmail) as any;
 
       if (existingByEmail) {
+        linkedExistingId = existingByEmail.id;
         if (existingByEmail.email_verified === 0) {
           // Pre-hijack protection: unverified email account registered by someone else
           // Clear its password hash and revoke all existing sessions & reset/verify tokens
+          hijackedUnverified = true;
           db.prepare(
             `UPDATE users
              SET google_sub = ?, email_verified = 1, password_hash = NULL,
@@ -723,18 +737,37 @@ app.post('/api/auth/google', loginLimiter, async (req, res) => {
     return res.status(403).json({ success: false, error: 'Account is suspended or disabled.' });
   }
 
-  // Optional Supabase sync for newly created user
+  // Optional Supabase sync for newly created or linked user
   if (isNewUser) {
     syncUpsertUser({
       id: newUserId,
       username: newUsername,
       email: normalizedEmail,
-      password_hash: '',
+      password_hash: null,
       role: 'student',
       display_name: finalDisplayName,
       stats_json: statsJson,
       created_at: nowIso,
+      email_verified: 1,
+      google_sub: googleSub,
     });
+  } else if (linkedExistingId) {
+    if (hijackedUnverified) {
+      syncPatchUser(linkedExistingId, {
+        google_sub: googleSub,
+        email_verified: 1,
+        password_hash: null,
+        email_verify_token_hash: null,
+        email_verify_expires: null,
+      });
+      syncDeleteUserSessions(linkedExistingId);
+      syncDeleteUserPasswordResets(linkedExistingId);
+    } else {
+      syncPatchUser(linkedExistingId, {
+        google_sub: googleSub,
+        email_verified: 1,
+      });
+    }
   }
 
   return issueUserSession(req, res, resolvedUser);
@@ -815,6 +848,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     display_name: finalDisplayName,
     stats_json: statsJson,
     created_at: now,
+    email_verified: emailVerified,
   });
 
   const rawToken = crypto.randomBytes(24).toString('hex');
@@ -1001,6 +1035,9 @@ app.post('/api/auth/change-password', changePasswordLimiter, async (req, res) =>
     throw err;
   }
 
+  syncPatchUser(session.userId, { password_hash: newHash });
+  syncDeleteUserSessions(session.userId, currentTokenHash || undefined);
+
   return res.json({ success: true, message: 'Password changed successfully.' });
 });
 
@@ -1010,6 +1047,7 @@ app.post('/api/auth/logout', (req, res) => {
     const rawToken = authHeader.slice(7);
     const tokenHash = hashToken(rawToken);
     db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
+    syncDeleteSession(tokenHash);
   }
   res.json({ success: true, message: 'Logged out successfully.' });
 });
@@ -1049,6 +1087,7 @@ app.post('/api/auth/sessions/revoke-others', (req, res) => {
   const result = db
     .prepare('DELETE FROM sessions WHERE user_id = ? AND token <> ?')
     .run(session.userId, current);
+  syncDeleteUserSessions(session.userId, current);
   return res.json({ success: true, revoked: Number(result.changes || 0) });
 });
 
@@ -1239,6 +1278,7 @@ app.patch('/api/admin/users/:id/role', requireSuperAdmin, (req, res) => {
 
   // Immediately revoke all active sessions for the user whose role changed
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(targetId);
+  syncDeleteUserSessions(targetId);
 
   if (isSupabaseConfigured()) {
     syncUpdateUserRole(targetId, role);

@@ -4,8 +4,8 @@
  */
 
 export const SITE_CONFIG = {
-  siteName: 'Prayogshala Academy',
-  SITE_NAME: 'Prayogshala Academy',
+  siteName: 'MedLab QBank',
+  SITE_NAME: 'MedLab QBank',
   SITE_TAGLINE: 'Laboratory Medicine Question Bank & Examination Platform',
   SITE_DESCRIPTION:
     'Comprehensive Medical Laboratory Science examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Immunology, and Blood Banking.',

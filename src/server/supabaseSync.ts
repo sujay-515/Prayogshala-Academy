@@ -134,7 +134,6 @@ export function syncDeleteQuestion(id: string): void {
 export function syncBulkDeleteQuestions(ids: string[]): void {
   if (!isSupabaseConfigured() || ids.length === 0) return;
   void (async () => {
-    // Chunk to keep PostgREST URLs within safe length limits
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100).map((id) => `"${id.replace(/"/g, '')}"`);
       await supabaseRequest(`questions?id=in.(${encodeURIComponent(chunk.join(','))})`, {
@@ -210,6 +209,7 @@ export function syncUpsertUser(user: {
   email_verify_token_hash?: string | null;
   email_verify_expires?: string | null;
   google_sub?: string | null;
+  leaderboard_hidden?: number | boolean;
 }): void {
   if (!isSupabaseConfigured()) return;
   let parsedStats: any = {};
@@ -239,6 +239,9 @@ export function syncUpsertUser(user: {
   }
   if (user.google_sub !== undefined) {
     body.google_sub = user.google_sub;
+  }
+  if (user.leaderboard_hidden !== undefined) {
+    body.leaderboard_hidden = user.leaderboard_hidden ? 1 : 0;
   }
 
   void supabaseRequest('users?on_conflict=id', {
@@ -279,10 +282,15 @@ export function syncDeleteUser(userId: string): void {
   if (!isSupabaseConfigured()) return;
   void (async () => {
     const encoded = encodeURIComponent(userId);
+    const usageKey = encodeURIComponent(`user:${userId}`);
     await supabaseRequest(`sessions?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
     await supabaseRequest(`password_resets?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
     await supabaseRequest(`exam_attempts?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
     await supabaseRequest(`active_exams?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`subscriptions?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`payments?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`practice_usage?usage_key=eq.${usageKey}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`exam_usage?usage_key=eq.${usageKey}`, { method: 'DELETE', prefer: 'return=minimal' });
     await supabaseRequest(`reports?user_id=eq.${encoded}`, {
       method: 'PATCH',
       prefer: 'return=minimal',
@@ -478,6 +486,125 @@ export function syncDeleteUserExamAttempts(userId: string): void {
   void supabaseRequest(`exam_attempts?user_id=eq.${encodeURIComponent(userId)}`, {
     method: 'DELETE',
     prefer: 'return=minimal',
+  });
+}
+
+export function syncUpsertWeeklyPaper(windowStart: string, questionIds: string[], createdAt: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('weekly_papers?on_conflict=window_start', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      window_start: windowStart,
+      question_ids_json: questionIds,
+      created_at: createdAt,
+    },
+  });
+}
+
+export function syncUpsertMockSetConfig(cfg: {
+  syllabus_code: string;
+  set_number: number;
+  duration_minutes: number;
+  negative_marking: number;
+  penalty_per_wrong: number;
+  passing_percentage: number;
+  updated_at: string;
+}): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('mock_set_configs?on_conflict=syllabus_code,set_number', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: cfg,
+  });
+}
+
+export function syncDeleteMockSetConfig(syllabusCode: string, setNumber: number): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(
+    `mock_set_configs?syllabus_code=eq.${encodeURIComponent(syllabusCode)}&set_number=eq.${encodeURIComponent(String(setNumber))}`,
+    {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }
+  );
+}
+
+export function syncUpsertSubscription(sub: {
+  id: string;
+  user_id: string;
+  plan_id: string | null;
+  status: string;
+  source: string;
+  starts_at: string;
+  expires_at: string;
+  created_at: string;
+  created_by: string | null;
+}): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('subscriptions?on_conflict=id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: sub,
+  });
+}
+
+export function syncPatchUserSubscriptions(userId: string, statusFilter: string, newStatus: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(
+    `subscriptions?user_id=eq.${encodeURIComponent(userId)}&status=eq.${encodeURIComponent(statusFilter)}`,
+    {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { status: newStatus },
+    }
+  );
+}
+
+export function syncUpsertPayment(payment: {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  gateway: string;
+  amount_npr: number;
+  status: string;
+  gateway_ref: string | null;
+  gateway_payload: string | null;
+  created_at: string;
+  updated_at: string;
+}): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('payments?on_conflict=id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: payment,
+  });
+}
+
+export function syncUpsertPracticeUsage(usageKey: string, unit: string, questionId: string, firstAnsweredAt: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('practice_usage?on_conflict=usage_key,unit,question_id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      usage_key: usageKey,
+      unit,
+      question_id: questionId,
+      first_answered_at: firstAnsweredAt,
+    },
+  });
+}
+
+export function syncUpsertExamUsage(usageKey: string, freeMockUsed: number, updatedAt: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('exam_usage?on_conflict=usage_key', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      usage_key: usageKey,
+      free_mock_used: freeMockUsed,
+      updated_at: updatedAt,
+    },
   });
 }
 

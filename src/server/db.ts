@@ -1076,6 +1076,7 @@ export async function hydrateFromSupabase(): Promise<void> {
           details: r.details,
           submittedAt: r.submitted_at,
           status: r.status,
+          userId: r.user_id || null,
         },
         true
       );
@@ -1087,14 +1088,22 @@ export async function hydrateFromSupabase(): Promise<void> {
   if (Array.isArray(cloudUsers)) {
     if (cloudUsers.length > 0) {
       const upsertU = db.prepare(`
-        INSERT INTO users (id, username, password_hash, role, display_name, stats_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (
+          id, username, email, password_hash, role, display_name, stats_json, created_at,
+          email_verified, email_verify_token_hash, email_verify_expires, google_sub
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           username = excluded.username,
+          email = excluded.email,
           password_hash = excluded.password_hash,
           role = excluded.role,
           display_name = excluded.display_name,
-          stats_json = excluded.stats_json
+          stats_json = excluded.stats_json,
+          email_verified = excluded.email_verified,
+          email_verify_token_hash = excluded.email_verify_token_hash,
+          email_verify_expires = excluded.email_verify_expires,
+          google_sub = excluded.google_sub
       `);
       for (const u of cloudUsers) {
         const isStaff = u.role === 'admin' || u.role === 'superadmin';
@@ -1103,7 +1112,20 @@ export async function hydrateFromSupabase(): Promise<void> {
           : typeof u.stats_json === 'string'
           ? u.stats_json
           : JSON.stringify(u.stats_json || DEFAULT_USER_STATS);
-        upsertU.run(u.id, u.username, u.password_hash, u.role, u.display_name, statsStr, u.created_at);
+        upsertU.run(
+          u.id,
+          u.username,
+          u.email || null,
+          u.password_hash || null,
+          u.role,
+          u.display_name,
+          statsStr,
+          u.created_at,
+          u.email_verified !== undefined && u.email_verified !== null ? Number(u.email_verified) : 1,
+          u.email_verify_token_hash || null,
+          u.email_verify_expires || null,
+          u.google_sub || null
+        );
       }
     } else {
       const localUsers = db.prepare('SELECT * FROM users').all() as any[];
@@ -1113,12 +1135,146 @@ export async function hydrateFromSupabase(): Promise<void> {
     }
   }
 
-  // 5. Hydrate Unsubmitted PDF Staging Drafts (sessions & password_resets remain local-only)
+  // 5. Hydrate Active Sessions (so logged-in users remain authenticated across Render container restarts)
+  const cloudSessions = await supabaseRequest<any[]>('sessions?select=*');
+  if (Array.isArray(cloudSessions) && cloudSessions.length > 0) {
+    const upsertSession = db.prepare(`
+      INSERT INTO sessions (token, user_id, role, created_at, user_agent, ip)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(token) DO UPDATE SET
+        user_id = excluded.user_id,
+        role = excluded.role,
+        created_at = excluded.created_at,
+        user_agent = excluded.user_agent,
+        ip = excluded.ip
+    `);
+    for (const s of cloudSessions) {
+      upsertSession.run(
+        s.token,
+        s.user_id,
+        s.role,
+        s.created_at,
+        s.user_agent || null,
+        s.ip || null
+      );
+    }
+  }
+
+  // 6. Hydrate Password Reset Tokens
+  const cloudResets = await supabaseRequest<any[]>('password_resets?select=*');
+  if (Array.isArray(cloudResets) && cloudResets.length > 0) {
+    const upsertReset = db.prepare(`
+      INSERT INTO password_resets (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(token) DO UPDATE SET
+        user_id = excluded.user_id,
+        expires_at = excluded.expires_at,
+        created_at = excluded.created_at
+    `);
+    for (const pr of cloudResets) {
+      upsertReset.run(pr.token, pr.user_id, pr.expires_at, pr.created_at);
+    }
+  }
+
+  // 7. Hydrate Active Timed Exams
+  const cloudActiveExams = await supabaseRequest<any[]>('active_exams?select=*');
+  if (Array.isArray(cloudActiveExams) && cloudActiveExams.length > 0) {
+    const upsertExam = db.prepare(`
+      INSERT INTO active_exams (
+        id, user_id, title, questions_json, started_at, duration_minutes,
+        negative_marking, penalty_per_wrong, is_grand_test, passing_percentage
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        user_id = excluded.user_id,
+        title = excluded.title,
+        questions_json = excluded.questions_json,
+        started_at = excluded.started_at,
+        duration_minutes = excluded.duration_minutes,
+        negative_marking = excluded.negative_marking,
+        penalty_per_wrong = excluded.penalty_per_wrong,
+        is_grand_test = excluded.is_grand_test,
+        passing_percentage = excluded.passing_percentage
+    `);
+    for (const ex of cloudActiveExams) {
+      const qJson = typeof ex.questions_json === 'string' ? ex.questions_json : JSON.stringify(ex.questions_json || []);
+      upsertExam.run(
+        ex.id,
+        ex.user_id || null,
+        ex.title,
+        qJson,
+        ex.started_at,
+        ex.duration_minutes,
+        ex.negative_marking ? 1 : 0,
+        typeof ex.penalty_per_wrong === 'number' ? ex.penalty_per_wrong : 0.25,
+        ex.is_grand_test ? 1 : 0,
+        typeof ex.passing_percentage === 'number' ? ex.passing_percentage : 70
+      );
+    }
+  }
+
+  // 8. Hydrate Completed Exam Attempts & Leaderboard Records
+  const cloudAttempts = await supabaseRequest<any[]>('exam_attempts?select=*&order=completed_at.desc');
+  if (Array.isArray(cloudAttempts)) {
+    if (cloudAttempts.length > 0) {
+      const upsertAttempt = db.prepare(`
+        INSERT INTO exam_attempts (
+          id, user_id, display_name, title, total, correct_count, score,
+          percentage, passed, time_spent_seconds, negative_marking, is_grand_test, completed_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          display_name = excluded.display_name,
+          score = excluded.score,
+          percentage = excluded.percentage,
+          passed = excluded.passed,
+          time_spent_seconds = excluded.time_spent_seconds
+      `);
+      for (const att of cloudAttempts) {
+        upsertAttempt.run(
+          att.id,
+          att.user_id,
+          att.display_name,
+          att.title,
+          att.total,
+          att.correct_count,
+          att.score,
+          att.percentage,
+          att.passed ? 1 : 0,
+          att.time_spent_seconds,
+          att.negative_marking ? 1 : 0,
+          att.is_grand_test ? 1 : 0,
+          att.completed_at
+        );
+      }
+    } else {
+      const localAttempts = db.prepare('SELECT * FROM exam_attempts').all() as any[];
+      for (const att of localAttempts) {
+        syncInsertExamAttempt(att);
+      }
+    }
+  }
+
+  // 9. Hydrate Unsubmitted PDF Staging Drafts
   const cloudStaging = await supabaseRequest<any[]>('pdf_staging_drafts?select=*');
   if (Array.isArray(cloudStaging) && cloudStaging.length > 0) {
     for (const st of cloudStaging) {
       const drafts = typeof st.drafts_json === 'string' ? JSON.parse(st.drafts_json) : st.drafts_json;
       saveStagingDrafts(st.id, st.source_filename, drafts || [], true);
+    }
+  }
+
+  // 10. Hydrate Source PDFs
+  const cloudPdfs = await supabaseRequest<any[]>('source_pdfs?select=*');
+  if (Array.isArray(cloudPdfs) && cloudPdfs.length > 0) {
+    for (const pdf of cloudPdfs) {
+      saveSourcePdf(
+        pdf.filename,
+        pdf.mime_type,
+        pdf.base64_data || undefined,
+        pdf.text_content || undefined,
+        true
+      );
     }
   }
 }
