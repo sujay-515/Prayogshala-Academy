@@ -53,6 +53,8 @@ import {
   cleanupExpiredData,
   hydrateFromSupabase,
   getUserByEmailOrUsername,
+  getUserByGoogleSub,
+  getUserByEmail,
   listAllUsers,
   updateUserRole,
   createPasswordReset,
@@ -82,6 +84,7 @@ import {
   sendVerificationEmail,
 } from './src/server/emailService';
 import { startBackupScheduler, stopBackupScheduler } from './src/server/backup';
+import { verifyGoogleIdToken } from './src/server/googleAuth';
 
 dotenv.config();
 
@@ -107,11 +110,12 @@ if (process.env.NODE_ENV !== 'development') {
         reportOnly: !isEnforceCsp,
         directives: {
           defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://accounts.google.com/gsi/style'],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
           imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
-          frameSrc: ["'self'", 'data:', 'blob:'],
-          scriptSrc: ["'self'"],
+          frameSrc: ["'self'", 'data:', 'blob:', 'https://accounts.google.com/gsi/'],
+          connectSrc: ["'self'", 'https://accounts.google.com/gsi/'],
+          scriptSrc: ["'self'", 'https://accounts.google.com/gsi/client'],
           upgradeInsecureRequests: null,
         },
       },
@@ -506,6 +510,43 @@ function currentTokenHash(req: express.Request): string {
   return header.startsWith('Bearer ') ? hashToken(header.slice(7)) : '';
 }
 
+/**
+ * Issues a session token, records session metadata with IP/UA, trims excess sessions,
+ * and returns the standard authentication response payload.
+ */
+function issueUserSession(req: express.Request, res: express.Response, userRow: any) {
+  const activeRole = userRow.role;
+  const rawToken = crypto.randomBytes(24).toString('hex');
+  const tokenHash = hashToken(rawToken);
+  const now = new Date().toISOString();
+  recordSession(req, tokenHash, userRow.id, activeRole, now);
+
+  let parsedStats = null;
+  if (!isStaffRole(activeRole)) {
+    try {
+      parsedStats = JSON.parse(userRow.stats_json);
+    } catch {
+      parsedStats = DEFAULT_USER_STATS;
+    }
+  }
+
+  return res.json({
+    success: true,
+    token: rawToken,
+    user: {
+      id: userRow.id,
+      username: userRow.username,
+      email: userRow.email || undefined,
+      role: activeRole,
+      displayName: userRow.display_name,
+      emailVerified: userRow.email_verified !== 0,
+      hasPassword: Boolean(userRow.password_hash),
+      isGoogleLinked: Boolean(userRow.google_sub),
+    },
+    stats: parsedStats,
+  });
+}
+
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const rawId = req.body?.identifier ?? req.body?.username;
   const rawPw = req.body?.password;
@@ -523,8 +564,23 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const loginId = rawId.toLowerCase().trim();
   const userRow = getUserByEmailOrUsername(loginId);
 
-  if (!userRow || !(await verifyPassword(rawPw, userRow.password_hash))) {
+  // If user does not exist or has no password (e.g. Google-only account),
+  // run a dummy verifyPassword scrypt compare for constant-time rejection.
+  if (!userRow || !userRow.password_hash) {
+    await verifyPassword(
+      rawPw,
+      '00000000000000000000000000000000:00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000'
+    );
     return res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
+  }
+
+  if (!(await verifyPassword(rawPw, userRow.password_hash))) {
+    return res.status(401).json({ success: false, error: 'Invalid username/email or password.' });
+  }
+
+  // Check account status flags (disabled / suspended)
+  if (userRow.status === 'disabled' || userRow.status === 'suspended' || userRow.disabled || userRow.is_disabled) {
+    return res.status(403).json({ success: false, error: 'Account is suspended or disabled.' });
   }
 
   // Upgrade legacy unsalted hash to per-user random salt if needed
@@ -533,28 +589,155 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(upgradedHash, userRow.id);
   }
 
-  // User role is strictly what is stored in the database
-  const activeRole = userRow.role;
+  return issueUserSession(req, res, userRow);
+});
 
-  const rawToken = crypto.randomBytes(24).toString('hex');
-  const tokenHash = hashToken(rawToken);
-  const now = new Date().toISOString();
-  recordSession(req, tokenHash, userRow.id, activeRole, now);
+app.post('/api/auth/google', loginLimiter, async (req, res) => {
+  const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+  if (!googleClientId) {
+    return res.status(404).json({ success: false, error: 'Google sign-in is not enabled.' });
+  }
 
-  return res.json({
-    success: true,
-    token: rawToken,
-    user: {
-      id: userRow.id,
-      username: userRow.username,
-      email: userRow.email || undefined,
-      role: activeRole,
-      displayName: userRow.display_name,
-      emailVerified: userRow.email_verified !== 0,
-    },
-    // Staff accounts never receive candidate study progress.
-    stats: isStaffRole(activeRole) ? null : JSON.parse(userRow.stats_json),
-  });
+  const credential = req.body?.credential;
+  if (!credential || typeof credential !== 'string' || !credential.trim() || credential.length > 8192) {
+    return res.status(400).json({ success: false, error: 'A valid Google credential is required.' });
+  }
+
+  // Token verification (supports mock payload injection in test environment)
+  let verifiedPayload: { sub: string; email: string; name?: string; emailVerified: boolean } | null = null;
+  if (process.env.NODE_ENV === 'test' && req.headers['x-test-google-mock']) {
+    try {
+      const decoded = JSON.parse(Buffer.from(String(req.headers['x-test-google-mock']), 'base64').toString('utf8'));
+      if (decoded.error) {
+        verifiedPayload = null;
+      } else if (decoded.aud && decoded.aud !== googleClientId) {
+        verifiedPayload = null;
+      } else if (decoded.email_verified !== true) {
+        verifiedPayload = null;
+      } else if (decoded.sub && decoded.email) {
+        verifiedPayload = {
+          sub: String(decoded.sub).trim(),
+          email: String(decoded.email).trim().toLowerCase(),
+          name: decoded.name ? String(decoded.name).trim() : undefined,
+          emailVerified: true,
+        };
+      }
+    } catch {
+      verifiedPayload = null;
+    }
+  } else {
+    verifiedPayload = await verifyGoogleIdToken(credential, googleClientId);
+  }
+
+  if (!verifiedPayload || !verifiedPayload.sub || !verifiedPayload.email || !verifiedPayload.emailVerified) {
+    return res.status(401).json({ success: false, error: 'Invalid Google authentication credential.' });
+  }
+
+  const { sub: googleSub, email: normalizedEmail, name: googleName } = verifiedPayload;
+
+  let resolvedUser: any = null;
+  let isNewUser = false;
+  let newUserId = '';
+  let newUsername = '';
+  let finalDisplayName = '';
+  let statsJson = '';
+  let nowIso = '';
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    // 6a. User found by google_sub: log in that user (even if the Google email has since changed)
+    const bySub = db.prepare('SELECT * FROM users WHERE google_sub = ?').get(googleSub) as any;
+
+    if (bySub) {
+      resolvedUser = bySub;
+    } else {
+      // 6b. Else user found by normalized email
+      const existingByEmail = db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(normalizedEmail) as any;
+
+      if (existingByEmail) {
+        if (existingByEmail.email_verified === 0) {
+          // Pre-hijack protection: unverified email account registered by someone else
+          // Clear its password hash and revoke all existing sessions & reset/verify tokens
+          db.prepare(
+            `UPDATE users
+             SET google_sub = ?, email_verified = 1, password_hash = NULL,
+                 email_verify_token_hash = NULL, email_verify_expires = NULL
+             WHERE id = ?`
+          ).run(googleSub, existingByEmail.id);
+          db.prepare('DELETE FROM sessions WHERE user_id = ?').run(existingByEmail.id);
+          db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(existingByEmail.id);
+        } else {
+          // Existing verified account: link google_sub and ensure email_verified is true
+          db.prepare('UPDATE users SET google_sub = ?, email_verified = 1 WHERE id = ?').run(googleSub, existingByEmail.id);
+        }
+        resolvedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(existingByEmail.id);
+      } else {
+        // 6c. Create new user with default 'student' role, verified email, and no usable password
+        isNewUser = true;
+        newUserId = `usr-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+        nowIso = new Date().toISOString();
+
+        // Unique username generator matching format
+        const emailPrefix = normalizedEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 24) || 'candidate';
+        let candidate = emailPrefix;
+        let counter = 1;
+        while (db.prepare('SELECT id FROM users WHERE LOWER(username) = ?').get(candidate)) {
+          candidate = `${emailPrefix}_${counter++}`;
+        }
+        newUsername = candidate;
+
+        finalDisplayName = googleName || normalizedEmail.split('@')[0];
+        const initialStats = {
+          ...DEFAULT_USER_STATS,
+          lastActiveDate: nowIso.slice(0, 10),
+          bookmarkedIds: [],
+          bookmarkMeta: {},
+          revisionQueueIds: [],
+          mistakeStreaks: {},
+          subjectPerformance: {},
+          topicPerformance: {},
+          examRecords: [],
+        };
+        statsJson = JSON.stringify(initialStats);
+
+        db.prepare(
+          `INSERT INTO users (id, username, email, password_hash, role, display_name, stats_json, created_at, email_verified, google_sub)
+           VALUES (?, ?, ?, NULL, 'student', ?, ?, ?, 1, ?)`
+        ).run(newUserId, newUsername, normalizedEmail, finalDisplayName, statsJson, nowIso, googleSub);
+
+        resolvedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(newUserId);
+      }
+    }
+
+    db.exec('COMMIT');
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch {}
+    throw err;
+  }
+
+  // Account status check (refuse login if disabled/suspended/deleted)
+  if (!resolvedUser) {
+    return res.status(401).json({ success: false, error: 'User record not found.' });
+  }
+  if (resolvedUser.status === 'disabled' || resolvedUser.status === 'suspended' || resolvedUser.disabled || resolvedUser.is_disabled) {
+    return res.status(403).json({ success: false, error: 'Account is suspended or disabled.' });
+  }
+
+  // Optional Supabase sync for newly created user
+  if (isNewUser) {
+    syncUpsertUser({
+      id: newUserId,
+      username: newUsername,
+      email: normalizedEmail,
+      password_hash: '',
+      role: 'student',
+      display_name: finalDisplayName,
+      stats_json: statsJson,
+      created_at: nowIso,
+    });
+  }
+
+  return issueUserSession(req, res, resolvedUser);
 });
 
 app.post('/api/auth/register', registerLimiter, async (req, res) => {
@@ -661,6 +844,8 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
       role,
       displayName: finalDisplayName,
       emailVerified: Boolean(emailVerified),
+      hasPassword: true,
+      isGoogleLinked: false,
     },
     stats: initialStats,
   });
@@ -786,7 +971,18 @@ app.post('/api/auth/change-password', changePasswordLimiter, async (req, res) =>
   }
 
   const userRow = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(session.userId) as any;
-  if (!userRow || !(await verifyPassword(String(currentPassword), userRow.password_hash))) {
+  if (!userRow) {
+    return res.status(404).json({ success: false, error: 'User record not found.' });
+  }
+
+  if (!userRow.password_hash) {
+    return res.status(400).json({
+      success: false,
+      error: 'Your account does not have a password set. Please use "Forgot password" to set one.',
+    });
+  }
+
+  if (!(await verifyPassword(String(currentPassword), userRow.password_hash))) {
     return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
   }
 
@@ -862,12 +1058,12 @@ app.get('/api/auth/me', (req, res) => {
     return res.status(401).json({ success: false, error: 'Unauthenticated or session expired.' });
   }
 
-  const userRow =
-    session.role === 'student'
-      ? (db.prepare('SELECT stats_json FROM users WHERE id = ?').get(session.userId) as any)
-      : null;
+  const userRow = db
+    .prepare('SELECT stats_json, password_hash, google_sub FROM users WHERE id = ?')
+    .get(session.userId) as any;
+
   let stats = null;
-  if (userRow?.stats_json) {
+  if (session.role === 'student' && userRow?.stats_json) {
     try {
       stats = JSON.parse(userRow.stats_json);
     } catch {}
@@ -882,6 +1078,8 @@ app.get('/api/auth/me', (req, res) => {
       role: session.role,
       displayName: session.displayName,
       emailVerified: session.emailVerified,
+      hasPassword: Boolean(userRow?.password_hash),
+      isGoogleLinked: Boolean(userRow?.google_sub),
     },
     stats,
   });
@@ -943,14 +1141,42 @@ app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
     return res.status(401).json({ success: false, error: 'Authentication required.' });
   }
 
-  const { currentPassword } = req.body || {};
-  if (!currentPassword || typeof currentPassword !== 'string') {
-    return res.status(400).json({ success: false, error: 'Current password is required to delete your account.' });
+  const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId) as any;
+  if (!userRow) {
+    return res.status(404).json({ success: false, error: 'User record not found.' });
   }
 
-  const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(session.userId) as any;
-  if (!userRow || !(await verifyPassword(String(currentPassword), userRow.password_hash))) {
-    return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
+  if (userRow.password_hash) {
+    const { currentPassword } = req.body || {};
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      return res.status(400).json({ success: false, error: 'Current password is required to delete your account.' });
+    }
+    if (!(await verifyPassword(String(currentPassword), userRow.password_hash))) {
+      return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
+    }
+  } else {
+    // Google-only account: require fresh Google credential
+    const { credential } = req.body || {};
+    if (!credential || typeof credential !== 'string') {
+      return res.status(400).json({ success: false, error: 'Google re-authentication is required to delete your account.' });
+    }
+    const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    if (!googleClientId) {
+      return res.status(400).json({ success: false, error: 'Google authentication is not configured on this server.' });
+    }
+
+    let payload: { sub: string } | null = null;
+    if (process.env.NODE_ENV === 'test' && req.headers['x-test-google-mock']) {
+      try {
+        payload = JSON.parse(Buffer.from(String(req.headers['x-test-google-mock']), 'base64').toString('utf8'));
+      } catch {}
+    } else {
+      payload = await verifyGoogleIdToken(credential, googleClientId);
+    }
+
+    if (!payload || payload.sub !== userRow.google_sub) {
+      return res.status(401).json({ success: false, error: 'Google re-authentication failed.' });
+    }
   }
 
   // Refuse if user is the last superadmin
