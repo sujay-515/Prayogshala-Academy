@@ -35,6 +35,8 @@ import {
   toPublicQuestion,
 } from './types';
 import { X, UserCheck, AlertCircle, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { SITE_CONFIG } from './config/site';
+import { GoogleSignInButton } from './components/auth/GoogleSignInButton';
 
 // Route-level code-splitting for heavy feature components
 const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
@@ -312,6 +314,7 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [statsSyncError, setStatsSyncError] = useState<string | null>(null);
   const pendingStatsRef = useRef<UserStats | null>(null);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const authUsernameInputRef = useRef<HTMLInputElement>(null);
 
   // Primary Data Stores (hydrated from SQLite backend via /api/bootstrap with localStorage fallback)
@@ -525,6 +528,63 @@ export default function App() {
       });
   };
 
+  const handleAuthSuccess = (data: { token: string; user: any; stats?: any }) => {
+    localStorage.setItem(STORAGE_KEY_TOKEN, data.token);
+    try {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+    } catch {}
+    setAuthToken(data.token);
+    setCurrentUser(data.user);
+    const staff = data.user.role === 'admin' || data.user.role === 'superadmin';
+    setStats(
+      staff
+        ? createEmptyUserStats()
+        : normalizeStats(data.stats || createEmptyUserStats())
+    );
+    if (staff) {
+      setIsAdmin(true);
+      setIsViewingAsStudent(false);
+      setActiveTab('admin');
+      window.history.pushState(null, '', '/admin');
+    } else {
+      setIsAdmin(false);
+      setIsViewingAsStudent(false);
+      if (activeTab === 'admin') {
+        window.history.replaceState(null, '', '/');
+        setActiveTab('home');
+      }
+    }
+    setIsAuthModalOpen(false);
+    setAuthPassword('');
+    setAuthUsername('');
+    setAuthEmail('');
+    setAuthDisplayName('');
+    setAuthError('');
+    setAuthSuccessMsg('');
+  };
+
+  const handleGoogleAuthSuccess = async (credential: string) => {
+    setIsGoogleLoading(true);
+    setAuthError('');
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        handleAuthSuccess(data);
+      } else {
+        setAuthError(data.error || 'Google authentication failed.');
+      }
+    } catch {
+      setAuthError('Unable to reach authentication server.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   // Handler: Student/User Login, Registration, Forgot Password, or Reset
   const handleUserAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -592,33 +652,7 @@ export default function App() {
         } else {
           setAuthNotice(null);
         }
-        localStorage.setItem(STORAGE_KEY_TOKEN, data.token);
-        try {
-          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
-        } catch {}
-        setAuthToken(data.token);
-        setCurrentUser(data.user);
-        const staff = data.user.role === 'admin' || data.user.role === 'superadmin';
-        setStats(
-          staff
-            ? createEmptyUserStats()
-            : normalizeStats(data.stats || createEmptyUserStats())
-        );
-        if (staff) {
-          setIsAdmin(true);
-          setIsViewingAsStudent(false);
-          setActiveTab('admin');
-          window.history.pushState(null, '', '/admin');
-        } else {
-          setIsAdmin(false);
-          setIsViewingAsStudent(false);
-          if (activeTab === 'admin') {
-            window.history.replaceState(null, '', '/');
-            setActiveTab('home');
-          }
-        }
-        setIsAuthModalOpen(false);
-        setAuthPassword('');
+        handleAuthSuccess(data);
       } else {
         setAuthError(data.error || 'Authentication failed.');
       }
@@ -1067,7 +1101,7 @@ export default function App() {
         mistakeCount={stats.revisionQueueIds.length}
       />
 
-      {currentUser?.email && currentUser.emailVerified === false && (
+      {currentUser?.email && currentUser.emailVerified === false && !currentUser.isGoogleLinked && (
         <EmailVerificationBanner authToken={authToken} email={currentUser.email} />
       )}
 
@@ -1330,9 +1364,9 @@ export default function App() {
               </div>
               <h3 id="auth-modal-title" className="font-semibold text-slate-900 text-sm">
                 {authMode === 'login'
-                  ? 'Sign In to Prayogshala Academy'
+                  ? `Sign In to ${SITE_CONFIG.siteName}`
                   : authMode === 'register'
-                  ? 'Create Candidate Account'
+                  ? `Create ${SITE_CONFIG.siteName} Account`
                   : authMode === 'forgot'
                   ? 'Recover Account Password'
                   : 'Set New Password'}
@@ -1379,6 +1413,24 @@ export default function App() {
                 >
                   Register Account
                 </button>
+              </div>
+            )}
+
+            {(authMode === 'login' || authMode === 'register') && (
+              <div className="space-y-2 pt-1">
+                <GoogleSignInButton
+                  onSuccess={handleGoogleAuthSuccess}
+                  onError={(err) => setAuthError(err)}
+                  isLoading={isGoogleLoading}
+                  theme={theme === 'dark' ? 'dark' : 'light'}
+                />
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-slate-200/90 dark:border-slate-700/80"></div>
+                  <span className="shrink mx-2 text-[10px] sm:text-[11px] text-slate-400 font-medium uppercase tracking-wider">
+                    or continue with email
+                  </span>
+                  <div className="flex-grow border-t border-slate-200/90 dark:border-slate-700/80"></div>
+                </div>
               </div>
             )}
 
@@ -1583,7 +1635,7 @@ export default function App() {
       <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-            <span className="font-semibold text-slate-900 dark:text-white">Prayogshala Academy</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{SITE_CONFIG.siteName}</span>
             <span aria-hidden="true">·</span>
             <span>Laboratory Medicine Examination Platform</span>
           </div>

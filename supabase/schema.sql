@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS public.users (
   email_verified INTEGER NOT NULL DEFAULT 1,
   email_verify_token_hash TEXT,
   email_verify_expires TEXT,
-  leaderboard_hidden INTEGER NOT NULL DEFAULT 0
+  leaderboard_hidden INTEGER NOT NULL DEFAULT 0,
+  google_sub TEXT
 );
 
 -- Safe migrations for existing Supabase deployments
@@ -66,6 +67,10 @@ ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verified INTEGER NOT NUL
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verify_token_hash TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verify_expires TEXT;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS leaderboard_hidden INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_sub TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub
+  ON public.users(google_sub) WHERE google_sub IS NOT NULL;
 
 -- 4b. Password Reset Tokens (1-hour TTL; SHA-256 hashed at rest)
 CREATE TABLE IF NOT EXISTS public.password_resets (
@@ -344,7 +349,6 @@ CREATE POLICY "Backend full access practice_usage" ON public.practice_usage FOR 
 
 DROP POLICY IF EXISTS "Backend full access exam_usage" ON public.exam_usage;
 CREATE POLICY "Backend full access exam_usage" ON public.exam_usage FOR ALL TO service_role USING (true) WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Backend full access pdf_staging_drafts" ON public.pdf_staging_drafts;
 CREATE POLICY "Backend full access pdf_staging_drafts" ON public.pdf_staging_drafts FOR ALL TO service_role USING (true) WITH CHECK (true);
 

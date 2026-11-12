@@ -238,6 +238,37 @@ async function run() {
     fail(`2MB payload rejection check failed: ${err.message}`);
   }
 
+  // 9. POST /api/auth/google endpoint validation & 404 / 400 rejection
+  try {
+    const res = await fetch(`${BASE_URL}/api/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (res.status === 404) {
+      pass(`POST /api/auth/google safely returns 404 when GOOGLE_CLIENT_ID is not configured`);
+    } else if (res.status === 400) {
+      pass(`POST /api/auth/google validates body and rejects empty credential with 400`);
+    } else {
+      fail(`POST /api/auth/google returned unexpected status ${res.status} (expected 400 or 404)`);
+    }
+  } catch (err) {
+    fail(`Google auth endpoint smoke check failed: ${err.message}`);
+  }
+
+  // 10. Verify CSP includes Google Identity Services directives
+  try {
+    const res = await fetch(`${BASE_URL}/`);
+    const csp = res.headers.get('content-security-policy') || res.headers.get('content-security-policy-report-only') || '';
+    if (csp.includes('accounts.google.com/gsi')) {
+      pass(`CSP headers permit Google Identity Services endpoints (accounts.google.com/gsi)`);
+    } else {
+      warn(`CSP header does not explicitly reference accounts.google.com/gsi: ${csp.slice(0, 100)}...`);
+    }
+  } catch (err) {
+    fail(`CSP GIS directive verification failed: ${err.message}`);
+  }
+
   // Summary
   console.log(`\n========================================`);
   console.log(`Smoke Test Results:`);

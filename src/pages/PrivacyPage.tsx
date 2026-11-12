@@ -2,7 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { SITE_CONFIG } from '../config/site';
-import { Shield, Lock, Database, Mail, Server, RefreshCw } from 'lucide-react';
+import { Shield, Lock, Database, Mail, Server, RefreshCw, Globe } from 'lucide-react';
 
 export const PrivacyPage: React.FC = () => {
   const canonicalUrl = `${SITE_CONFIG.SITE_URL}/privacy`;
@@ -12,13 +12,13 @@ export const PrivacyPage: React.FC = () => {
       <title>{`Privacy Policy | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="Privacy Policy for Prayogshala Academy detailing data collection, storage, third-party processors, localStorage usage, and user rights."
+        content={`Privacy Policy for ${SITE_CONFIG.SITE_NAME} detailing data collection, storage, third-party processors, localStorage usage, and user rights.`}
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Privacy Policy | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="Privacy Policy for Prayogshala Academy detailing data collection, storage, third-party processors, and user rights."
+        content={`Privacy Policy for ${SITE_CONFIG.SITE_NAME} detailing data collection, storage, third-party processors, and user rights.`}
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -108,6 +108,15 @@ export const PrivacyPage: React.FC = () => {
                   Used solely by administrators to parse and extract text from uploaded medical test documents. Student personal data, names, emails, and examination responses are never transmitted to AI processors.
                 </p>
               </div>
+
+              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
+                <h3 className="font-semibold text-slate-900 dark:text-white text-sm mb-1 flex items-center gap-1.5">
+                  <Globe className="w-4 h-4 text-cyan-600" /> Google Identity Services (Sign in with Google)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  When you sign in with Google, Google shares your email address, name, and unique account identifier (sub) with us to create or authenticate your account. Profile pictures are not stored. Using Google sign-in loads Google client scripts and is subject to Google&apos;s privacy policy and authentication cookies.
+                </p>
+              </div>
             </div>
           </section>
 
@@ -179,7 +188,7 @@ export const PrivacyPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to Prayogshala Academy
+            ← Return to {SITE_CONFIG.siteName}
           </Link>
           <div className="flex gap-4">
             <Link to="/terms" className="hover:underline">Terms</Link>

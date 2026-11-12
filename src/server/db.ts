@@ -87,7 +87,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     role TEXT NOT NULL,
     display_name TEXT NOT NULL,
     stats_json TEXT NOT NULL,
@@ -282,6 +282,59 @@ try {
   db.prepare('ALTER TABLE users ADD COLUMN leaderboard_hidden INTEGER NOT NULL DEFAULT 0').run();
 } catch {}
 
+// Google Sign-In support
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN google_sub TEXT').run();
+} catch {}
+
+try {
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL').run();
+} catch {}
+
+// Safely relax password_hash NOT NULL constraint on existing databases where it was created NOT NULL
+try {
+  const tableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string; notnull: number }[];
+  const pwCol = tableInfo.find((c) => c.name === 'password_hash');
+  if (pwCol && pwCol.notnull === 1) {
+    db.exec('BEGIN IMMEDIATE');
+    db.exec(`
+      CREATE TABLE users_rebuild_temp (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT,
+        role TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        stats_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        email TEXT,
+        email_verified INTEGER NOT NULL DEFAULT 1,
+        email_verify_token_hash TEXT,
+        email_verify_expires TEXT,
+        google_sub TEXT,
+        leaderboard_hidden INTEGER NOT NULL DEFAULT 0
+      );
+
+      INSERT INTO users_rebuild_temp (
+        id, username, password_hash, role, display_name, stats_json, created_at,
+        email, email_verified, email_verify_token_hash, email_verify_expires, google_sub, leaderboard_hidden
+      )
+      SELECT
+        id, username, password_hash, role, display_name, stats_json, created_at,
+        email, email_verified, email_verify_token_hash, email_verify_expires, google_sub, leaderboard_hidden
+      FROM users;
+
+      DROP TABLE users;
+      ALTER TABLE users_rebuild_temp RENAME TO users;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;
+    `);
+    db.exec('COMMIT');
+  }
+} catch (err) {
+  try { db.exec('ROLLBACK'); } catch {}
+  console.warn('[Migration Warning] Failed to relax password_hash constraint:', err);
+}
 const scryptAsync = promisify(crypto.scrypt);
 
 export async function hashPassword(password: string, customSalt?: string): Promise<string> {
@@ -517,6 +570,15 @@ export function getUserByEmailOrUsername(identifier: string) {
   return db
     .prepare('SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?')
     .get(clean, clean) as any;
+}
+
+export function getUserByGoogleSub(sub: string) {
+  return db.prepare('SELECT * FROM users WHERE google_sub = ?').get(sub) as any;
+}
+
+export function getUserByEmail(email: string) {
+  const clean = email.trim().toLowerCase();
+  return db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(clean) as any;
 }
 
 export function listAllUsers() {
@@ -1225,9 +1287,9 @@ export async function hydrateFromSupabase(): Promise<void> {
       const upsertU = db.prepare(`
         INSERT INTO users (
           id, username, email, password_hash, role, display_name, stats_json, created_at,
-          email_verified, email_verify_token_hash, email_verify_expires, leaderboard_hidden
+          email_verified, email_verify_token_hash, email_verify_expires, google_sub, leaderboard_hidden
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           username = excluded.username,
           email = excluded.email,
@@ -1238,6 +1300,7 @@ export async function hydrateFromSupabase(): Promise<void> {
           email_verified = excluded.email_verified,
           email_verify_token_hash = excluded.email_verify_token_hash,
           email_verify_expires = excluded.email_verify_expires,
+          google_sub = excluded.google_sub,
           leaderboard_hidden = excluded.leaderboard_hidden
       `);
       for (const u of cloudUsers) {
@@ -1259,6 +1322,7 @@ export async function hydrateFromSupabase(): Promise<void> {
           u.email_verified !== undefined && u.email_verified !== null ? Number(u.email_verified) : 1,
           u.email_verify_token_hash || null,
           u.email_verify_expires || null,
+          u.google_sub || null,
           u.leaderboard_hidden ? 1 : 0
         );
       }
@@ -1387,116 +1451,6 @@ export async function hydrateFromSupabase(): Promise<void> {
       for (const att of localAttempts) {
         syncInsertExamAttempt(att);
       }
-    }
-  }
-
-  // 9. Hydrate Weekly Grand Test Papers
-  const cloudWeeklyPapers = await supabaseRequest<any[]>('weekly_papers?select=*');
-  if (Array.isArray(cloudWeeklyPapers) && cloudWeeklyPapers.length > 0) {
-    const upsertPaper = db.prepare(`
-      INSERT INTO weekly_papers (window_start, question_ids_json, created_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(window_start) DO UPDATE SET
-        question_ids_json = excluded.question_ids_json
-    `);
-    for (const wp of cloudWeeklyPapers) {
-      const qIdsStr = typeof wp.question_ids_json === 'string' ? wp.question_ids_json : JSON.stringify(wp.question_ids_json || []);
-      upsertPaper.run(wp.window_start, qIdsStr, wp.created_at);
-    }
-  }
-
-  // 10. Hydrate Mock Set Configurations
-  const cloudMockConfigs = await supabaseRequest<any[]>('mock_set_configs?select=*');
-  if (Array.isArray(cloudMockConfigs) && cloudMockConfigs.length > 0) {
-    const upsertMockCfg = db.prepare(`
-      INSERT INTO mock_set_configs (
-        syllabus_code, set_number, duration_minutes, negative_marking, penalty_per_wrong, passing_percentage, updated_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(syllabus_code, set_number) DO UPDATE SET
-        duration_minutes = excluded.duration_minutes,
-        negative_marking = excluded.negative_marking,
-        penalty_per_wrong = excluded.penalty_per_wrong,
-        passing_percentage = excluded.passing_percentage,
-        updated_at = excluded.updated_at
-    `);
-    for (const mc of cloudMockConfigs) {
-      upsertMockCfg.run(
-        mc.syllabus_code,
-        mc.set_number,
-        mc.duration_minutes,
-        mc.negative_marking ? 1 : 0,
-        mc.penalty_per_wrong,
-        mc.passing_percentage,
-        mc.updated_at
-      );
-    }
-  }
-
-  // 11. Hydrate Billing Subscriptions, Payments & Quotas
-  const cloudSubs = await supabaseRequest<any[]>('subscriptions?select=*');
-  if (Array.isArray(cloudSubs) && cloudSubs.length > 0) {
-    const upsertSub = db.prepare(`
-      INSERT INTO subscriptions (id, user_id, plan_id, status, source, starts_at, expires_at, created_at, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        status = excluded.status,
-        expires_at = excluded.expires_at
-    `);
-    for (const s of cloudSubs) {
-      upsertSub.run(s.id, s.user_id, s.plan_id || null, s.status, s.source, s.starts_at, s.expires_at, s.created_at, s.created_by || null);
-    }
-  }
-
-  const cloudPayments = await supabaseRequest<any[]>('payments?select=*');
-  if (Array.isArray(cloudPayments) && cloudPayments.length > 0) {
-    const upsertPay = db.prepare(`
-      INSERT INTO payments (id, user_id, plan_id, gateway, amount_npr, status, gateway_ref, gateway_payload, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        status = excluded.status,
-        gateway_ref = excluded.gateway_ref,
-        gateway_payload = excluded.gateway_payload,
-        updated_at = excluded.updated_at
-    `);
-    for (const p of cloudPayments) {
-      upsertPay.run(
-        p.id,
-        p.user_id,
-        p.plan_id,
-        p.gateway,
-        p.amount_npr,
-        p.status,
-        p.gateway_ref || null,
-        p.gateway_payload || null,
-        p.created_at,
-        p.updated_at
-      );
-    }
-  }
-
-  const cloudPracticeUsage = await supabaseRequest<any[]>('practice_usage?select=*');
-  if (Array.isArray(cloudPracticeUsage) && cloudPracticeUsage.length > 0) {
-    const upsertPractice = db.prepare(`
-      INSERT OR IGNORE INTO practice_usage (usage_key, unit, question_id, first_answered_at)
-      VALUES (?, ?, ?, ?)
-    `);
-    for (const pu of cloudPracticeUsage) {
-      upsertPractice.run(pu.usage_key, pu.unit, pu.question_id, pu.first_answered_at);
-    }
-  }
-
-  const cloudExamUsage = await supabaseRequest<any[]>('exam_usage?select=*');
-  if (Array.isArray(cloudExamUsage) && cloudExamUsage.length > 0) {
-    const upsertExamUsage = db.prepare(`
-      INSERT INTO exam_usage (usage_key, free_mock_used, updated_at)
-      VALUES (?, ?, ?)
-      ON CONFLICT(usage_key) DO UPDATE SET
-        free_mock_used = MAX(exam_usage.free_mock_used, excluded.free_mock_used),
-        updated_at = excluded.updated_at
-    `);
-    for (const eu of cloudExamUsage) {
-      upsertExamUsage.run(eu.usage_key, eu.free_mock_used, eu.updated_at);
     }
   }
 

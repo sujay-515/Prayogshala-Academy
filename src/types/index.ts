@@ -259,6 +259,8 @@ export interface UserAccount {
   createdAt?: string;
   emailVerified?: boolean;
   leaderboardHidden?: boolean;
+  hasPassword?: boolean;
+  isGoogleLinked?: boolean;
 }
 
 export interface QuestionReport {

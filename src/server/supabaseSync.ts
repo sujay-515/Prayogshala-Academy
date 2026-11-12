@@ -208,6 +208,7 @@ export function syncUpsertUser(user: {
   email_verified?: number | boolean;
   email_verify_token_hash?: string | null;
   email_verify_expires?: string | null;
+  google_sub?: string | null;
   leaderboard_hidden?: number | boolean;
 }): void {
   if (!isSupabaseConfigured()) return;
@@ -235,6 +236,9 @@ export function syncUpsertUser(user: {
   }
   if (user.email_verify_expires !== undefined) {
     body.email_verify_expires = user.email_verify_expires;
+  }
+  if (user.google_sub !== undefined) {
+    body.google_sub = user.google_sub;
   }
   if (user.leaderboard_hidden !== undefined) {
     body.leaderboard_hidden = user.leaderboard_hidden ? 1 : 0;

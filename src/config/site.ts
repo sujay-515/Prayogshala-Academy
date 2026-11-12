@@ -4,6 +4,7 @@
  */
 
 export const SITE_CONFIG = {
+  siteName: 'Prayogshala Academy',
   SITE_NAME: 'Prayogshala Academy',
   SITE_TAGLINE: 'Laboratory Medicine Question Bank & Examination Platform',
   SITE_DESCRIPTION:
