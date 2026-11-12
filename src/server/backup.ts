@@ -23,7 +23,7 @@ export function performDatabaseBackup(customBackupDir?: string, customKeep?: num
 
   // Filesystem-safe timestamp: YYYY-MM-DDTHH-mm-ss-SSSZ
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backupFileName = `medlab_qbank_backup_${timestamp}.sqlite`;
+  const backupFileName = `prayogshala_academy_backup_${timestamp}.sqlite`;
   const backupPath = path.join(backupDir, backupFileName);
 
   // SQLite VACUUM INTO creates a consistent point-in-time copy without taking down writes
@@ -37,7 +37,7 @@ export function performDatabaseBackup(customBackupDir?: string, customKeep?: num
   const prunedFiles: string[] = [];
   try {
     const files = fs.readdirSync(backupDir)
-      .filter((f) => f.startsWith('medlab_qbank_backup_') && f.endsWith('.sqlite'))
+      .filter((f) => f.startsWith('prayogshala_academy_backup_') && f.endsWith('.sqlite'))
       .map((f) => {
         const fullPath = path.join(backupDir, f);
         const stat = fs.statSync(fullPath);

@@ -41,7 +41,7 @@ export const LeaderboardPage: React.FC = () => {
   const load = () => {
     setIsLoading(true);
     setError(null);
-    const token = localStorage.getItem('medlab_qbank_auth_token_v1');
+    const token = localStorage.getItem('prayogshala_auth_token_v1');
     fetch('/api/leaderboard?limit=25', {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
@@ -74,7 +74,7 @@ export const LeaderboardPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto py-6 space-y-6">
-      <title>Grand Test Leaderboard | MedLab QBank</title>
+      <title>Grand Test Leaderboard | Prayogshala Academy</title>
       <meta
         name="description"
         content="Weekly Grand Test leaderboard with national ranking, scores and completion times."

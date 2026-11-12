@@ -5,7 +5,7 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 type ResultState = 'loading' | 'success' | 'failure';
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('medlab_qbank_auth_token_v1');
+  const token = localStorage.getItem('prayogshala_auth_token_v1');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
@@ -56,7 +56,7 @@ export const PaymentResultPage: React.FC = () => {
 
   return (
     <div className="max-w-md mx-auto py-16 text-center space-y-5">
-      <title>Payment Result | MedLab QBank</title>
+      <title>Payment Result | Prayogshala Academy</title>
       <meta name="robots" content="noindex,nofollow" />
 
       {state === 'loading' && (

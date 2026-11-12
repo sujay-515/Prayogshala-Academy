@@ -17,7 +17,17 @@ import {
   syncInsertReport,
   syncUpdateReportStatus,
   syncUpsertUser,
+  syncPatchUser,
+  syncUpdateUserRole,
   syncUpdateUserStats,
+  syncDeleteUserSessions,
+  syncUpdateUserSessionRole,
+  syncUpsertPasswordReset,
+  syncDeletePasswordReset,
+  syncDeleteUserPasswordResets,
+  syncDeleteUserActiveExams,
+  syncInsertExamAttempt,
+  syncDeleteUserExamAttempts,
   syncSaveSourcePdf,
   syncSaveStagingDrafts,
   syncDeleteStagingDrafts,
@@ -30,7 +40,7 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-const DB_PATH = path.join(DATA_DIR, 'medlab_qbank.sqlite');
+const DB_PATH = path.join(DATA_DIR, 'prayogshala_academy.sqlite');
 export const db = new DatabaseSync(DB_PATH);
 
 // Configure WAL mode for concurrent reads/writes and performance up to 10,000+ MCQs
@@ -201,6 +211,17 @@ db.exec(`
     free_mock_used INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS mock_set_configs (
+    syllabus_code TEXT NOT NULL,
+    set_number INTEGER NOT NULL,
+    duration_minutes INTEGER NOT NULL,
+    negative_marking INTEGER NOT NULL DEFAULT 1,
+    penalty_per_wrong REAL NOT NULL DEFAULT 0.25,
+    passing_percentage REAL NOT NULL DEFAULT 70,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (syllabus_code, set_number)
+  );
 `);
 
 // Safe migrations for email support & password resets
@@ -279,7 +300,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     return crypto.timingSafeEqual(derived, keyBuf);
   }
   // Legacy static-salt compatibility
-  const legacyDerived = (await scryptAsync(password, 'medlab_salt_2026', 64)) as Buffer;
+  const legacyDerived = (await scryptAsync(password, 'prayogshala_salt_2026', 64)) as Buffer;
   const storedBuf = Buffer.from(storedHash, 'hex');
   if (legacyDerived.length !== storedBuf.length) return false;
   return crypto.timingSafeEqual(legacyDerived, storedBuf);
@@ -310,7 +331,7 @@ async function seedDemoData() {
     `).run(
       'usr-demo-student',
       'demo_student',
-      'demo.student@medlab.test',
+      'demo.student@prayogshala.test',
       demoPasswordHash,
       'student',
       'Demo Medical Student',
@@ -322,13 +343,22 @@ async function seedDemoData() {
 
 // Seed initial taxonomy categories if needed (no default user accounts seeded)
 function seedDatabaseIfNeeded() {
-  const cCountRow = db.prepare('SELECT COUNT(*) as cnt FROM categories').get() as { cnt: number };
-  if (cCountRow.cnt === 0) {
-    const insertC = db.prepare('INSERT INTO categories (id, sort_order, data_json) VALUES (?, ?, ?)');
-    INITIAL_CATEGORIES.forEach((cat, idx) => {
-      insertC.run(cat.id, idx, JSON.stringify(cat));
-    });
+  const existingRows = db.prepare('SELECT id FROM categories').all() as { id: string }[];
+  const existingIds = new Set(existingRows.map((r) => r.id));
+
+  // If categories are empty or only the legacy 8 units with legacy IDs, upgrade to modern 15 subjects
+  const isLegacyOnly = existingRows.length <= 8 && existingRows.every((r) => r.id.startsWith('unit-'));
+  if (isLegacyOnly) {
+    db.prepare('DELETE FROM categories').run();
+    existingIds.clear();
   }
+
+  const insertC = db.prepare('INSERT INTO categories (id, sort_order, data_json) VALUES (?, ?, ?)');
+  INITIAL_CATEGORIES.forEach((cat, idx) => {
+    if (!existingIds.has(cat.id)) {
+      insertC.run(cat.id, idx, JSON.stringify(cat));
+    }
+  });
 
   // Seed default subscription plans if the catalog is empty (prices in whole NPR)
   const pCountRow = db.prepare('SELECT COUNT(*) as cnt FROM plans').get() as { cnt: number };
@@ -344,6 +374,113 @@ function seedDatabaseIfNeeded() {
   // Optional demo data seeding strictly in development mode when explicitly requested
   if (process.env.SEED_DEMO_DATA === 'true' && process.env.NODE_ENV === 'development') {
     void seedDemoData().catch((err) => console.error('Failed to seed demo data:', err));
+  }
+
+  // Migrate any inverted unit/subject taxonomies in database
+  migrateUnitSubjectInversion();
+}
+
+/**
+ * One-time migration to swap inverted unit and subject fields:
+ * - Subject is the top-level specialty discipline (e.g. Clinical Chemistry)
+ * - Unit is the section/module within the subject (e.g. Clinical Enzymology & Hepatic Function)
+ */
+export function migrateUnitSubjectInversion(): void {
+  try {
+    const knownSubjectNames = new Set([
+      'clinical chemistry',
+      'hematology & hemostasis',
+      'hematology',
+      'clinical microbiology & parasitology',
+      'microbiology',
+      'immunology & serology',
+      'immunology',
+      'immunohematology (blood banking)',
+      'blood banking',
+      'urinalysis & body fluids',
+      'molecular diagnostics',
+      'laboratory operations & qa',
+      'chemistry',
+    ]);
+
+    // Check categories in db as well
+    const catRows = db.prepare('SELECT id, data_json FROM categories').all() as { id: string; data_json: string }[];
+    const updateCatStmt = db.prepare('UPDATE categories SET data_json = ? WHERE id = ?');
+
+    for (const catRow of catRows) {
+      try {
+        const catData = JSON.parse(catRow.data_json);
+        if (catData.name) {
+          knownSubjectNames.add(catData.name.trim().toLowerCase());
+        }
+        let changed = false;
+        // Ensure units is populated from subjects
+        if (Array.isArray(catData.subjects) && (!catData.units || catData.units.length === 0)) {
+          catData.units = catData.subjects;
+          changed = true;
+        } else if (Array.isArray(catData.units) && (!catData.subjects || catData.subjects.length === 0)) {
+          catData.subjects = catData.units;
+          changed = true;
+        }
+        // Ensure icon is assigned
+        if (!catData.icon) {
+          const initMatch = INITIAL_CATEGORIES.find(
+            (ic) => ic.name.toLowerCase() === catData.name?.toLowerCase()
+          );
+          if (initMatch?.icon) {
+            catData.icon = initMatch.icon;
+            changed = true;
+          }
+        }
+        if (changed) {
+          updateCatStmt.run(JSON.stringify(catData), catRow.id);
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+
+    const rows = db.prepare('SELECT id, unit, subject, data_json FROM questions').all() as any[];
+    const updateStmt = db.prepare(`
+      UPDATE questions 
+      SET unit = ?, subject = ?, data_json = ? 
+      WHERE id = ?
+    `);
+
+    let swappedCount = 0;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const row of rows) {
+        const currentUnitLower = (row.unit || '').trim().toLowerCase();
+        // If current unit is a known subject name, they are inverted!
+        if (knownSubjectNames.has(currentUnitLower)) {
+          const newSubject = row.unit;
+          const newUnit = row.subject;
+
+          let data: any = {};
+          try {
+            data = JSON.parse(row.data_json);
+          } catch {
+            data = {};
+          }
+          data.subject = newSubject;
+          data.unit = newUnit;
+
+          updateStmt.run(newUnit, newSubject, JSON.stringify(data), row.id);
+          swappedCount++;
+        }
+      }
+      db.exec('COMMIT');
+    } catch (txErr) {
+      db.exec('ROLLBACK');
+      throw txErr;
+    }
+
+    if (swappedCount > 0) {
+      console.log(`[Taxonomy Migration] Swapped inverted unit/subject for ${swappedCount} questions.`);
+    }
+  } catch (err) {
+    console.warn('[Taxonomy Migration] Error verifying unit/subject taxonomy:', err);
   }
 }
 
@@ -497,11 +634,16 @@ export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
 
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, userId);
   db.prepare('UPDATE sessions SET role = ? WHERE user_id = ?').run(newRole, userId);
+  syncUpdateUserRole(userId, newRole);
+  syncUpdateUserSessionRole(userId, newRole);
 
   if (newRole === 'admin') {
     db.prepare('UPDATE users SET stats_json = ? WHERE id = ?').run(JSON.stringify(DEFAULT_USER_STATS), userId);
     db.prepare('DELETE FROM exam_attempts WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(userId);
+    syncUpdateUserStats(userId, DEFAULT_USER_STATS);
+    syncDeleteUserExamAttempts(userId);
+    syncDeleteUserActiveExams(userId);
   }
 
   return { success: true };
@@ -513,10 +655,15 @@ export function hashToken(token: string): string {
 
 export function createEmailVerification(userId: string): string {
   const rawToken = crypto.randomBytes(24).toString('hex');
+  const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   db.prepare(
     'UPDATE users SET email_verify_token_hash = ?, email_verify_expires = ? WHERE id = ?'
-  ).run(hashToken(rawToken), expiresAt, userId);
+  ).run(tokenHash, expiresAt, userId);
+  syncPatchUser(userId, {
+    email_verify_token_hash: tokenHash,
+    email_verify_expires: expiresAt,
+  });
   return rawToken;
 }
 
@@ -534,28 +681,40 @@ export function verifyEmailToken(rawToken: string): { success: boolean; error?: 
     db.prepare(
       'UPDATE users SET email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
     ).run(row.id);
+    syncPatchUser(row.id, {
+      email_verify_token_hash: null,
+      email_verify_expires: null,
+    });
     return { success: false, error: 'Verification link has expired. Request a new one.' };
   }
 
   db.prepare(
     'UPDATE users SET email_verified = 1, email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
   ).run(row.id);
+  syncPatchUser(row.id, {
+    email_verified: 1,
+    email_verify_token_hash: null,
+    email_verify_expires: null,
+  });
   return { success: true };
 }
 
 export function createPasswordReset(userId: string): string {
   db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(userId);
+  syncDeleteUserPasswordResets(userId);
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);
   const now = new Date();
+  const createdAt = now.toISOString();
   const expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 1 hour TTL
 
   db.prepare('INSERT INTO password_resets (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(
     tokenHash,
     userId,
     expiresAt,
-    now.toISOString()
+    createdAt
   );
+  syncUpsertPasswordReset(tokenHash, userId, expiresAt, createdAt);
 
   return rawToken;
 }
@@ -569,6 +728,7 @@ export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: st
 
   if (new Date(row.expires_at).getTime() < Date.now()) {
     db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
+    syncDeletePasswordReset(tokenHash);
     return { success: false, error: 'Password reset link has expired. Please request a new one.' };
   }
 
@@ -586,6 +746,15 @@ export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: st
     db.exec('ROLLBACK');
     throw err;
   }
+
+  syncPatchUser(row.user_id, {
+    password_hash: newPasswordHash,
+    email_verified: 1,
+    email_verify_token_hash: null,
+    email_verify_expires: null,
+  });
+  syncDeletePasswordReset(tokenHash);
+  syncDeleteUserSessions(row.user_id);
 
   return { success: true };
 }
@@ -664,6 +833,7 @@ export function queryQuestions(params: QuestionQueryParams = {}): {
         q.questionText.toLowerCase().includes(s) ||
         q.code.toLowerCase().includes(s) ||
         q.subject.toLowerCase().includes(s) ||
+        (q.unit && q.unit.toLowerCase().includes(s)) ||
         q.topic.toLowerCase().includes(s) ||
         (q.subtopic && q.subtopic.toLowerCase().includes(s)) ||
         q.options.some((o) => o.text.toLowerCase().includes(s))
@@ -1041,6 +1211,7 @@ export async function hydrateFromSupabase(): Promise<void> {
           details: r.details,
           submittedAt: r.submitted_at,
           status: r.status,
+          userId: r.user_id || null,
         },
         true
       );
@@ -1052,14 +1223,22 @@ export async function hydrateFromSupabase(): Promise<void> {
   if (Array.isArray(cloudUsers)) {
     if (cloudUsers.length > 0) {
       const upsertU = db.prepare(`
-        INSERT INTO users (id, username, password_hash, role, display_name, stats_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (
+          id, username, email, password_hash, role, display_name, stats_json, created_at,
+          email_verified, email_verify_token_hash, email_verify_expires, leaderboard_hidden
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           username = excluded.username,
+          email = excluded.email,
           password_hash = excluded.password_hash,
           role = excluded.role,
           display_name = excluded.display_name,
-          stats_json = excluded.stats_json
+          stats_json = excluded.stats_json,
+          email_verified = excluded.email_verified,
+          email_verify_token_hash = excluded.email_verify_token_hash,
+          email_verify_expires = excluded.email_verify_expires,
+          leaderboard_hidden = excluded.leaderboard_hidden
       `);
       for (const u of cloudUsers) {
         const isStaff = u.role === 'admin' || u.role === 'superadmin';
@@ -1068,7 +1247,20 @@ export async function hydrateFromSupabase(): Promise<void> {
           : typeof u.stats_json === 'string'
           ? u.stats_json
           : JSON.stringify(u.stats_json || DEFAULT_USER_STATS);
-        upsertU.run(u.id, u.username, u.password_hash, u.role, u.display_name, statsStr, u.created_at);
+        upsertU.run(
+          u.id,
+          u.username,
+          u.email || null,
+          u.password_hash || null,
+          u.role,
+          u.display_name,
+          statsStr,
+          u.created_at,
+          u.email_verified !== undefined && u.email_verified !== null ? Number(u.email_verified) : 1,
+          u.email_verify_token_hash || null,
+          u.email_verify_expires || null,
+          u.leaderboard_hidden ? 1 : 0
+        );
       }
     } else {
       const localUsers = db.prepare('SELECT * FROM users').all() as any[];
@@ -1078,12 +1270,256 @@ export async function hydrateFromSupabase(): Promise<void> {
     }
   }
 
-  // 5. Hydrate Unsubmitted PDF Staging Drafts (sessions & password_resets remain local-only)
+  // 5. Hydrate Active Sessions (so logged-in users remain authenticated across Render container restarts)
+  const cloudSessions = await supabaseRequest<any[]>('sessions?select=*');
+  if (Array.isArray(cloudSessions) && cloudSessions.length > 0) {
+    const upsertSession = db.prepare(`
+      INSERT INTO sessions (token, user_id, role, created_at, user_agent, ip)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(token) DO UPDATE SET
+        user_id = excluded.user_id,
+        role = excluded.role,
+        created_at = excluded.created_at,
+        user_agent = excluded.user_agent,
+        ip = excluded.ip
+    `);
+    for (const s of cloudSessions) {
+      upsertSession.run(
+        s.token,
+        s.user_id,
+        s.role,
+        s.created_at,
+        s.user_agent || null,
+        s.ip || null
+      );
+    }
+  }
+
+  // 6. Hydrate Password Reset Tokens
+  const cloudResets = await supabaseRequest<any[]>('password_resets?select=*');
+  if (Array.isArray(cloudResets) && cloudResets.length > 0) {
+    const upsertReset = db.prepare(`
+      INSERT INTO password_resets (token, user_id, expires_at, created_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(token) DO UPDATE SET
+        user_id = excluded.user_id,
+        expires_at = excluded.expires_at,
+        created_at = excluded.created_at
+    `);
+    for (const pr of cloudResets) {
+      upsertReset.run(pr.token, pr.user_id, pr.expires_at, pr.created_at);
+    }
+  }
+
+  // 7. Hydrate Active Timed Exams
+  const cloudActiveExams = await supabaseRequest<any[]>('active_exams?select=*');
+  if (Array.isArray(cloudActiveExams) && cloudActiveExams.length > 0) {
+    const upsertExam = db.prepare(`
+      INSERT INTO active_exams (
+        id, user_id, title, questions_json, started_at, duration_minutes,
+        negative_marking, penalty_per_wrong, is_grand_test, passing_percentage
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        user_id = excluded.user_id,
+        title = excluded.title,
+        questions_json = excluded.questions_json,
+        started_at = excluded.started_at,
+        duration_minutes = excluded.duration_minutes,
+        negative_marking = excluded.negative_marking,
+        penalty_per_wrong = excluded.penalty_per_wrong,
+        is_grand_test = excluded.is_grand_test,
+        passing_percentage = excluded.passing_percentage
+    `);
+    for (const ex of cloudActiveExams) {
+      const qJson = typeof ex.questions_json === 'string' ? ex.questions_json : JSON.stringify(ex.questions_json || []);
+      upsertExam.run(
+        ex.id,
+        ex.user_id || null,
+        ex.title,
+        qJson,
+        ex.started_at,
+        ex.duration_minutes,
+        ex.negative_marking ? 1 : 0,
+        typeof ex.penalty_per_wrong === 'number' ? ex.penalty_per_wrong : 0.25,
+        ex.is_grand_test ? 1 : 0,
+        typeof ex.passing_percentage === 'number' ? ex.passing_percentage : 70
+      );
+    }
+  }
+
+  // 8. Hydrate Completed Exam Attempts & Leaderboard Records
+  const cloudAttempts = await supabaseRequest<any[]>('exam_attempts?select=*&order=completed_at.desc');
+  if (Array.isArray(cloudAttempts)) {
+    if (cloudAttempts.length > 0) {
+      const upsertAttempt = db.prepare(`
+        INSERT INTO exam_attempts (
+          id, user_id, display_name, title, total, correct_count, score,
+          percentage, passed, time_spent_seconds, negative_marking, is_grand_test, completed_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          display_name = excluded.display_name,
+          score = excluded.score,
+          percentage = excluded.percentage,
+          passed = excluded.passed,
+          time_spent_seconds = excluded.time_spent_seconds
+      `);
+      for (const att of cloudAttempts) {
+        upsertAttempt.run(
+          att.id,
+          att.user_id,
+          att.display_name,
+          att.title,
+          att.total,
+          att.correct_count,
+          att.score,
+          att.percentage,
+          att.passed ? 1 : 0,
+          att.time_spent_seconds,
+          att.negative_marking ? 1 : 0,
+          att.is_grand_test ? 1 : 0,
+          att.completed_at
+        );
+      }
+    } else {
+      const localAttempts = db.prepare('SELECT * FROM exam_attempts').all() as any[];
+      for (const att of localAttempts) {
+        syncInsertExamAttempt(att);
+      }
+    }
+  }
+
+  // 9. Hydrate Weekly Grand Test Papers
+  const cloudWeeklyPapers = await supabaseRequest<any[]>('weekly_papers?select=*');
+  if (Array.isArray(cloudWeeklyPapers) && cloudWeeklyPapers.length > 0) {
+    const upsertPaper = db.prepare(`
+      INSERT INTO weekly_papers (window_start, question_ids_json, created_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(window_start) DO UPDATE SET
+        question_ids_json = excluded.question_ids_json
+    `);
+    for (const wp of cloudWeeklyPapers) {
+      const qIdsStr = typeof wp.question_ids_json === 'string' ? wp.question_ids_json : JSON.stringify(wp.question_ids_json || []);
+      upsertPaper.run(wp.window_start, qIdsStr, wp.created_at);
+    }
+  }
+
+  // 10. Hydrate Mock Set Configurations
+  const cloudMockConfigs = await supabaseRequest<any[]>('mock_set_configs?select=*');
+  if (Array.isArray(cloudMockConfigs) && cloudMockConfigs.length > 0) {
+    const upsertMockCfg = db.prepare(`
+      INSERT INTO mock_set_configs (
+        syllabus_code, set_number, duration_minutes, negative_marking, penalty_per_wrong, passing_percentage, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(syllabus_code, set_number) DO UPDATE SET
+        duration_minutes = excluded.duration_minutes,
+        negative_marking = excluded.negative_marking,
+        penalty_per_wrong = excluded.penalty_per_wrong,
+        passing_percentage = excluded.passing_percentage,
+        updated_at = excluded.updated_at
+    `);
+    for (const mc of cloudMockConfigs) {
+      upsertMockCfg.run(
+        mc.syllabus_code,
+        mc.set_number,
+        mc.duration_minutes,
+        mc.negative_marking ? 1 : 0,
+        mc.penalty_per_wrong,
+        mc.passing_percentage,
+        mc.updated_at
+      );
+    }
+  }
+
+  // 11. Hydrate Billing Subscriptions, Payments & Quotas
+  const cloudSubs = await supabaseRequest<any[]>('subscriptions?select=*');
+  if (Array.isArray(cloudSubs) && cloudSubs.length > 0) {
+    const upsertSub = db.prepare(`
+      INSERT INTO subscriptions (id, user_id, plan_id, status, source, starts_at, expires_at, created_at, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        expires_at = excluded.expires_at
+    `);
+    for (const s of cloudSubs) {
+      upsertSub.run(s.id, s.user_id, s.plan_id || null, s.status, s.source, s.starts_at, s.expires_at, s.created_at, s.created_by || null);
+    }
+  }
+
+  const cloudPayments = await supabaseRequest<any[]>('payments?select=*');
+  if (Array.isArray(cloudPayments) && cloudPayments.length > 0) {
+    const upsertPay = db.prepare(`
+      INSERT INTO payments (id, user_id, plan_id, gateway, amount_npr, status, gateway_ref, gateway_payload, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        gateway_ref = excluded.gateway_ref,
+        gateway_payload = excluded.gateway_payload,
+        updated_at = excluded.updated_at
+    `);
+    for (const p of cloudPayments) {
+      upsertPay.run(
+        p.id,
+        p.user_id,
+        p.plan_id,
+        p.gateway,
+        p.amount_npr,
+        p.status,
+        p.gateway_ref || null,
+        p.gateway_payload || null,
+        p.created_at,
+        p.updated_at
+      );
+    }
+  }
+
+  const cloudPracticeUsage = await supabaseRequest<any[]>('practice_usage?select=*');
+  if (Array.isArray(cloudPracticeUsage) && cloudPracticeUsage.length > 0) {
+    const upsertPractice = db.prepare(`
+      INSERT OR IGNORE INTO practice_usage (usage_key, unit, question_id, first_answered_at)
+      VALUES (?, ?, ?, ?)
+    `);
+    for (const pu of cloudPracticeUsage) {
+      upsertPractice.run(pu.usage_key, pu.unit, pu.question_id, pu.first_answered_at);
+    }
+  }
+
+  const cloudExamUsage = await supabaseRequest<any[]>('exam_usage?select=*');
+  if (Array.isArray(cloudExamUsage) && cloudExamUsage.length > 0) {
+    const upsertExamUsage = db.prepare(`
+      INSERT INTO exam_usage (usage_key, free_mock_used, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(usage_key) DO UPDATE SET
+        free_mock_used = MAX(exam_usage.free_mock_used, excluded.free_mock_used),
+        updated_at = excluded.updated_at
+    `);
+    for (const eu of cloudExamUsage) {
+      upsertExamUsage.run(eu.usage_key, eu.free_mock_used, eu.updated_at);
+    }
+  }
+
+  // 12. Hydrate Unsubmitted PDF Staging Drafts
   const cloudStaging = await supabaseRequest<any[]>('pdf_staging_drafts?select=*');
   if (Array.isArray(cloudStaging) && cloudStaging.length > 0) {
     for (const st of cloudStaging) {
       const drafts = typeof st.drafts_json === 'string' ? JSON.parse(st.drafts_json) : st.drafts_json;
       saveStagingDrafts(st.id, st.source_filename, drafts || [], true);
+    }
+  }
+
+  // 13. Hydrate Source PDFs
+  const cloudPdfs = await supabaseRequest<any[]>('source_pdfs?select=*');
+  if (Array.isArray(cloudPdfs) && cloudPdfs.length > 0) {
+    for (const pdf of cloudPdfs) {
+      saveSourcePdf(
+        pdf.filename,
+        pdf.mime_type,
+        pdf.base64_data || undefined,
+        pdf.text_content || undefined,
+        true
+      );
     }
   }
 }

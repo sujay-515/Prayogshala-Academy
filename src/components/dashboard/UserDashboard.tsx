@@ -25,6 +25,7 @@ import { remainingHits } from '../../utils/mistakes';
 import { predictPerformance } from '../../utils/prediction';
 import { formatPacingTime } from '../../utils/pacing';
 import { folderFor } from '../../utils/bookmarks';
+import { SubjectIcon } from '../SubjectIcon';
 
 interface DashboardBillingStatus {
   fullAccess: boolean;
@@ -176,7 +177,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setIsExporting(true);
     setExportError('');
     try {
-      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const token = authToken || localStorage.getItem('prayogshala_auth_token_v1');
       const res = await fetch('/api/auth/export', {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -192,7 +193,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `medlab-qbank-export-${currentUser?.username || 'user'}-${Date.now()}.json`;
+      a.download = `prayogshala-export-${currentUser?.username || 'user'}-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -218,7 +219,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     }
     setIsSubmittingPw(true);
     try {
-      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const token = authToken || localStorage.getItem('prayogshala_auth_token_v1');
       const res = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: {
@@ -251,7 +252,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setDeleteError('');
     setIsDeleting(true);
     try {
-      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const token = authToken || localStorage.getItem('prayogshala_auth_token_v1');
       const res = await fetch('/api/auth/account', {
         method: 'DELETE',
         headers: {
@@ -347,13 +348,13 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
 
   return (
     <div className="max-w-5xl mx-auto py-6 space-y-8">
-      <title>Candidate Dashboard | MedLab QBank</title>
+      <title>Candidate Dashboard | Prayogshala Academy</title>
       <meta
         name="description"
         content="Track your medical laboratory examination preparation analytics, accuracy by subject unit, study streak, and revision queue."
       />
       <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/dashboard`} />
-      <meta property="og:title" content="Candidate Dashboard | MedLab QBank" />
+      <meta property="og:title" content="Candidate Dashboard | Prayogshala Academy" />
       <meta
         property="og:description"
         content="Track your medical laboratory examination preparation analytics, accuracy by subject unit, study streak, and revision queue."
@@ -428,7 +429,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </span>
               </div>
               <span className="text-emerald-800 text-[11px]">
-                Valid through {new Date(billingStatus.subscription.expiresAt).toLocaleDateString(undefined, { dateStyle: 'long' })}. Unlimited practice across all 11 subject units and full mock examinations unlocked.
+                Valid through {new Date(billingStatus.subscription.expiresAt).toLocaleDateString(undefined, { dateStyle: 'long' })}. Unlimited practice across all specialty subjects and full mock examinations unlocked.
               </span>
             </div>
           </div>
@@ -446,7 +447,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
             <div>
               <span className="font-semibold text-amber-900 block">Free Tier Candidate Account</span>
               <span className="text-amber-800 text-[11px]">
-                Free quota: 20 practice questions per subject unit · 1 free mock exam
+                Free quota: 20 practice questions per specialty subject · 1 free mock exam
                 {billingStatus ? ` (Mock exams used: ${billingStatus.usage.mocks.used} / ${billingStatus.limits.mockExams})` : ''}.
                 Upgrade to unlock the complete bank and unlimited mock exams.
               </span>
@@ -632,8 +633,11 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                   className="bg-white/80 border border-amber-200/90 p-3 rounded-xl flex items-center justify-between gap-3 shadow-2xs"
                 >
                   <div className="space-y-0.5">
-                    <span className="font-semibold text-slate-900 block">{weak.subject}</span>
-                    <span className="text-slate-600">
+                    <span className="font-semibold text-slate-900 inline-flex items-center gap-1.5">
+                      <SubjectIcon name={weak.subject} className="w-3.5 h-3.5 text-slate-500" />
+                      {weak.subject}
+                    </span>
+                    <span className="text-slate-600 block">
                       Accuracy: {weak.accuracy}% ({weak.totalAttempted} answered)
                     </span>
                   </div>
@@ -673,7 +677,10 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 return (
                   <div key={subject} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-800">{subject}</span>
+                      <span className="font-medium text-slate-800 inline-flex items-center gap-1.5">
+                        <SubjectIcon name={subject} className="w-3.5 h-3.5 text-slate-500" />
+                        {subject}
+                      </span>
                       <span className="text-slate-500">
                         {perf.correct}/{perf.answered} ({accuracy}%)
                       </span>

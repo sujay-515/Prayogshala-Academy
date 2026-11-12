@@ -1,21 +1,21 @@
 import { hasRevealOnlyFields } from './cacheSanitizer';
 
 export const USER_SCOPED_STORAGE_KEYS = [
-  'medlab_qbank_auth_token_v1',
-  'medlab_auth_token',
-  'medlab_qbank_current_user_v1',
-  'medlab_qbank_auth_user',
-  'medlab_qbank_stats_v2',
-  'medlab_qbank_stats_v1',
-  'medlab_qbank_reports_v2',
-  'medlab_qbank_reports_v1',
-  'medlab_staged_questions_v1',
-  'medlab_admin_subtab',
+  'prayogshala_auth_token_v1',
+  'prayogshala_auth_token',
+  'prayogshala_current_user_v1',
+  'prayogshala_auth_user',
+  'prayogshala_stats_v2',
+  'prayogshala_stats_v1',
+  'prayogshala_reports_v2',
+  'prayogshala_reports_v1',
+  'prayogshala_staged_questions_v1',
+  'prayogshala_admin_subtab',
 ] as const;
 
 export const PUBLIC_CACHE_KEYS = {
-  QUESTIONS: 'medlab_qbank_questions_v2',
-  CATEGORIES: 'medlab_qbank_categories_v2',
+  QUESTIONS: 'prayogshala_questions_v2',
+  CATEGORIES: 'prayogshala_categories_v2',
 } as const;
 
 /**

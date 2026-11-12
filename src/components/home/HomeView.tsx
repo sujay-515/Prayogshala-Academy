@@ -3,19 +3,23 @@ import {
   BookOpen,
   Timer,
   ArrowRight,
+  Sparkles,
+  Award,
 } from 'lucide-react';
-import { UnitCategory, ExamCategory, MCQQuestion } from '../../types';
+import { ExamCategory, MCQQuestion, UserAccount } from '../../types';
 import { SITE_CONFIG } from '../../config/site';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
-import { questionMatchesExamCategory } from '../../utils/examCategories';
 
 interface HomeViewProps {
-  categories: UnitCategory[];
+  categories: any[];
   questions: MCQQuestion[];
-  onNavigateTab: (tab: 'home' | 'browse' | 'practice' | 'exam' | 'dashboard' | 'admin') => void;
+  currentUser?: UserAccount | null;
+  onNavigateTab: (tab: 'home' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin') => void;
   onOpenDailyQuestion: () => void;
-  onSelectUnit: (unitName: string) => void;
-  onSelectExam: (exam: ExamCategory) => void;
+  onOpenAuthModal?: (mode?: 'login' | 'register') => void;
+  onSelectSubject?: (subjectName: string) => void;
+  onSelectUnit?: (unitName: string) => void;
+  onSelectExam?: (exam: ExamCategory) => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -23,20 +27,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
   questions,
   onNavigateTab,
   onOpenDailyQuestion,
-  onSelectUnit,
-  onSelectExam,
 }) => {
   const publishedQuestions = questions.filter((q) => isVisibleQuestion(q));
   const publishedCount = publishedQuestions.length;
-
-  const exams: { code: ExamCategory; title: string; subtitle: string }[] = [
-    { code: 'ASCP', title: 'ASCP MLS / MLT', subtitle: 'Generalist & Specialist Licensure' },
-    { code: 'NHPC', title: 'NHPC Licensure', subtitle: 'Nepal Health Professional Council' },
-    { code: 'PSC', title: 'PSC Medical Lab', subtitle: 'Public Service Commission Syllabus' },
-    { code: 'DHA', title: 'DHA Technologist', subtitle: 'Dubai Health Authority Clinical Exam' },
-    { code: 'AIMS', title: 'AIMS Professional', subtitle: 'Australian Institute of Medical Scientists' },
-    { code: 'CEE-UG', title: 'CEE-UG Entrance', subtitle: 'MECEE-BL Medical Entrance Mock' },
-  ];
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -52,7 +45,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           '@type': 'SearchAction',
           target: {
             '@type': 'EntryPoint',
-            urlTemplate: `${SITE_CONFIG.SITE_URL}/browse?q={search_term_string}`,
+            urlTemplate: `${SITE_CONFIG.SITE_URL}/practice?q={search_term_string}`,
           },
           'query-input': 'required name=search_term_string',
         },
@@ -68,14 +61,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
   };
 
   return (
-    <div className="space-y-12 pb-20">
-      <title>MedLab QBank · Clinical Laboratory Medicine Question Bank</title>
+    <div className="space-y-10 pb-20">
+      <title>{SITE_CONFIG.SITE_NAME} · Clinical Laboratory Medicine Question Bank</title>
       <meta
         name="description"
         content="Medical laboratory examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Blood Banking, and Immunology."
       />
       <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/`} />
-      <meta property="og:title" content="MedLab QBank · Clinical Laboratory Medicine Question Bank" />
+      <meta property="og:title" content={`${SITE_CONFIG.SITE_NAME} · Clinical Laboratory Medicine Question Bank`} />
       <meta
         property="og:description"
         content="Medical laboratory examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Blood Banking, and Immunology."
@@ -93,165 +86,85 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
           <div className="lg:col-span-8 space-y-4">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight leading-snug">
+            <div className="glass-pill inline-flex items-center gap-2 px-3 py-1 rounded-full text-cyan-800 dark:text-cyan-300 text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
+              Clinical Laboratory Science &amp; Pathology
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white tracking-tight leading-snug">
               Structured question bank for licensing and laboratory certification
             </h1>
 
-            <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
               Curated multiple-choice questions covering clinical enzymology, hematopathology, bacteriology, and immunohematology. Review individual topics with full diagnostic rationales or sit timed examinations calibrated to licensing standards.
             </p>
 
             <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 pt-3">
               <button
+                type="button"
                 onClick={() => onNavigateTab('practice')}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs hover:shadow-cyan-900/10 hover:-translate-y-0.5"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs sm:text-sm font-medium rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer hover:-translate-y-0.5"
               >
-                <BookOpen className="w-4 h-4 text-cyan-400" />
-                <span>Begin Practice</span>
+                <BookOpen className="w-4 h-4" />
+                <span>Begin Practice Session</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => onNavigateTab('exam')}
-                className="glass-card hover:bg-white text-slate-800 px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer hover:-translate-y-0.5"
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs sm:text-sm font-medium rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer hover:-translate-y-0.5"
               >
-                <Timer className="w-4 h-4 text-slate-500" />
-                <span>Timed Examination</span>
+                <Timer className="w-4 h-4" />
+                <span>Take Mock Examination</span>
               </button>
 
               <button
+                type="button"
                 onClick={onOpenDailyQuestion}
-                className="glass-card hover:bg-white text-slate-800 px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all text-center cursor-pointer hover:-translate-y-0.5"
+                className="glass-card hover:bg-white dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 px-4 py-2 text-xs sm:text-sm font-medium rounded-xl transition-all text-center cursor-pointer hover:-translate-y-0.5 flex items-center justify-center gap-1.5"
               >
-                Question of the Day
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Question of the Day</span>
               </button>
             </div>
           </div>
 
-          <div className="lg:col-span-4 glass-card rounded-xl p-4 text-xs space-y-3">
-            <div className="font-semibold text-slate-900 text-xs uppercase tracking-wide border-b border-slate-200/80 pb-2">
-              Repository Status
-            </div>
+          <div className="lg:col-span-4 bg-slate-50/80 dark:bg-slate-900/60 rounded-xl p-4 border border-slate-200/70 dark:border-white/10 space-y-3">
+            <h2 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              Question Bank Scope
+            </h2>
 
-            <div className="space-y-2 text-slate-600">
-              <div className="flex justify-between items-center py-0.5">
+            <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300 divide-y divide-slate-200/60 dark:divide-white/5">
+              <div className="flex justify-between items-center py-1">
                 <span>Verified questions:</span>
-                <span className="font-semibold text-slate-900">{publishedCount.toLocaleString()}</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{publishedCount} MCQs</span>
               </div>
-              <div className="flex justify-between items-center py-0.5">
-                <span>Specialty units:</span>
-                <span className="font-semibold text-slate-900">{categories.length}</span>
+              <div className="flex justify-between items-center py-1">
+                <span>Specialty modules:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{categories.length} Disciplines</span>
               </div>
-              <div className="flex justify-between items-center py-0.5">
-                <span>Supported examination boards:</span>
-                <span className="font-semibold text-slate-900">6 Syllabi</span>
+              <div className="flex justify-between items-center py-1">
+                <span>Licensing boards:</span>
+                <span className="font-semibold text-slate-900 dark:text-white">6 Syllabi</span>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/80">
+            <div className="pt-2 border-t border-slate-200/80 dark:border-white/10">
               <button
-                onClick={() => onNavigateTab('browse')}
-                className="text-cyan-800 hover:text-cyan-950 font-medium inline-block cursor-pointer"
+                type="button"
+                onClick={() => onNavigateTab('practice')}
+                className="text-xs text-cyan-800 dark:text-cyan-400 hover:text-cyan-950 dark:hover:text-cyan-300 font-medium inline-flex items-center gap-1 cursor-pointer"
               >
-                Search and filter all items →
+                <span>Search and practice all items</span>
+                <ArrowRight className="w-3 h-3" />
               </button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
-          <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
-            Licensing &amp; Entrance Syllabi
-          </h2>
-          <span className="text-xs text-slate-500">Select a syllabus to begin practice or mock</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-          {exams.map((exam) => {
-            const count = questions.filter(
-              (q) => isVisibleQuestion(q) && questionMatchesExamCategory(q.examCategories, exam.code)
-            ).length;
-
-            return (
-              <div
-                key={exam.code}
-                onClick={() => onSelectExam(exam.code)}
-                className="glass-panel glass-panel-hover rounded-xl p-4 cursor-pointer flex flex-col justify-between space-y-3 group"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-900 group-hover:text-cyan-800 transition-colors">
-                      {exam.code}
-                    </span>
-                    <span className="text-slate-500 text-xs">{count} questions</span>
-                  </div>
-                  <div className="text-xs font-medium text-slate-800">
-                    {exam.title}
-                  </div>
-                  <div className="text-xs text-slate-500 leading-normal">
-                    {exam.subtitle}
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-100/80 flex items-center justify-between text-xs text-slate-500 group-hover:text-slate-900 font-medium">
-                  <span>Open syllabus</span>
-                  <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Laboratory Medicine Units Directory */}
-      <section className="space-y-4">
-        <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
-          <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
-            Specialty Units ({categories.length})
-          </h2>
-          <button
-            onClick={() => onNavigateTab('browse')}
-            className="text-xs text-slate-600 hover:text-cyan-900 font-medium cursor-pointer"
-          >
-            View all questions →
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {categories.map((cat) => {
-            const unitQuestions = questions.filter(
-              (q) => isVisibleQuestion(q) && q.unit === cat.name
-            );
-
-            return (
-              <div
-                key={cat.id}
-                onClick={() => onSelectUnit(cat.name)}
-                className="glass-panel glass-panel-hover rounded-xl p-5 cursor-pointer flex flex-col justify-between group space-y-3"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-medium text-slate-700">{unitQuestions.length} MCQs</span>
-                    <span>{cat.subjects.length} subjects</span>
-                  </div>
-                  <h3 className="font-semibold text-slate-900 text-sm group-hover:text-cyan-800 transition-colors">
-                    {cat.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                    {cat.description}
-                  </p>
-                </div>
-
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-slate-900 font-medium">
-                  <span>Browse subjects</span>
-                  <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                </div>
-              </div>
-            );
-          })}
         </div>
       </section>
     </div>
   );
 };
+
+export default HomeView;

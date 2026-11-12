@@ -27,7 +27,7 @@ export async function checkQuestionAnswer(
   questionId: string,
   selected: string
 ): Promise<CheckAnswerResult> {
-  const token = localStorage.getItem('medlab_qbank_auth_token_v1') || localStorage.getItem('medlab_auth_token');
+  const token = localStorage.getItem('prayogshala_auth_token_v1') || localStorage.getItem('prayogshala_auth_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };

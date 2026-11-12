@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle2,
   AlertCircle,
@@ -9,15 +9,19 @@ import {
   ArrowLeft,
   RotateCcw,
   Loader2,
-  Star,
   Crown,
+  Search,
+  X,
+  BookOpen,
+  Sparkles,
 } from 'lucide-react';
-import { MCQQuestion, ExamCategory } from '../../types';
+import { MCQQuestion, SubjectCategory, SubjectUnit } from '../../types';
+import { INITIAL_CATEGORIES } from '../../data/categories';
 import { getSafeImageUrl } from '../../utils/urlSecurity';
 import { SITE_CONFIG } from '../../config/site';
 import { checkQuestionAnswer, CheckAnswerSuccess } from '../../utils/answerCheck';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
-import { questionMatchesExamCategory } from '../../utils/examCategories';
+import { SubjectIcon, getSubjectColorClasses } from '../SubjectIcon';
 
 interface PracticeModeProps {
   questions: MCQQuestion[];
@@ -25,10 +29,13 @@ interface PracticeModeProps {
   onToggleBookmark: (id: string) => void;
   onReportQuestion: (question: MCQQuestion) => void;
   onRecordAnswer: (question: MCQQuestion, selected: string, isCorrect: boolean) => void;
+  categories?: SubjectCategory[];
   customSubset?: MCQQuestion[] | null;
   onClearCustomSubset?: () => void;
   initialUnit?: string;
-  initialExam?: ExamCategory;
+  initialSubject?: string;
+  searchQuery?: string;
+  setSearchQuery?: (q: string) => void;
 }
 
 export const PracticeMode: React.FC<PracticeModeProps> = ({
@@ -37,21 +44,37 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   onToggleBookmark,
   onReportQuestion,
   onRecordAnswer,
+  categories,
   customSubset,
   onClearCustomSubset,
   initialUnit,
-  initialExam,
+  initialSubject,
+  searchQuery,
+  setSearchQuery,
 }) => {
-  // Filters & Setup
-  const [selectedUnit, setSelectedUnit] = useState<string>(initialUnit || 'All');
-  const [selectedSubject, setSelectedSubject] = useState<string>('All');
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
-  const [selectedExam, setSelectedExam] = useState<string>(initialExam || 'All');
-  const [selectedPastPaper, setSelectedPastPaper] = useState<string>('All');
-  const [questionCountLimit, setQuestionCountLimit] = useState<number>(10);
-  const [isRandomized, setIsRandomized] = useState<boolean>(true);
-  const [highYieldOnly, setHighYieldOnly] = useState<boolean>(false);
-  const [bookmarksOnly, setBookmarksOnly] = useState<boolean>(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const activeCategories = useMemo(() => {
+    return categories && categories.length > 0 ? categories : INITIAL_CATEGORIES;
+  }, [categories]);
+
+  // Read initial values from props or URL query params
+  const paramSubject = searchParams.get('subject') || initialSubject || initialUnit || null;
+  const paramUnit = searchParams.get('unit') || null;
+
+  // Selected subject: null means user is on the Subjects Directory page
+  const [selectedSubject, setSelectedSubject] = useState<string | null>(() => {
+    if (paramSubject && paramSubject !== 'All') {
+      const match = activeCategories.find(
+        (c) => c.name.toLowerCase() === paramSubject.toLowerCase()
+      );
+      return match ? match.name : paramSubject;
+    }
+    return null;
+  });
+
+  const [selectedUnit, setSelectedUnit] = useState<string | null>(paramUnit);
+  const [localSearch, setLocalSearch] = useState<string>(searchQuery || '');
 
   // Active Session State
   const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
@@ -70,7 +93,29 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
   } | null>(null);
   const [ariaAnnouncement, setAriaAnnouncement] = useState<string>('');
 
-  // Automatically start custom subset session when passed from Dashboard or Browse
+  useEffect(() => {
+    if (searchQuery !== undefined) {
+      setLocalSearch(searchQuery);
+    }
+  }, [searchQuery]);
+
+  const handleSearchChange = (val: string) => {
+    setLocalSearch(val);
+    if (setSearchQuery) {
+      setSearchQuery(val);
+    }
+  };
+
+  // Sync external navigation / props changes
+  useEffect(() => {
+    const s = searchParams.get('subject') || initialSubject || initialUnit;
+    if (s && s !== 'All') {
+      const match = activeCategories.find((c) => c.name.toLowerCase() === s.toLowerCase());
+      setSelectedSubject(match ? match.name : s);
+    }
+  }, [searchParams, initialSubject, initialUnit, activeCategories]);
+
+  // Automatically start custom subset session when passed from Dashboard or Mistakes
   useEffect(() => {
     if (customSubset && customSubset.length > 0) {
       setSessionQuestions(customSubset);
@@ -85,56 +130,75 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     }
   }, [customSubset]);
 
-  useEffect(() => {
-    if (initialUnit) setSelectedUnit(initialUnit);
-    if (initialExam) setSelectedExam(initialExam);
-  }, [initialUnit, initialExam]);
+  const currentCategoryObj = useMemo(() => {
+    if (!selectedSubject) return null;
+    return activeCategories.find((c) => c.name === selectedSubject) || null;
+  }, [activeCategories, selectedSubject]);
 
-  const units = useMemo(() => {
-    const set = new Set(questions.filter((q) => isVisibleQuestion(q)).map((q) => q.unit));
-    return ['All', ...Array.from(set)];
-  }, [questions]);
+  const unitsInCurrentSubject: SubjectUnit[] = useMemo(() => {
+    if (!currentCategoryObj) return [];
+    return currentCategoryObj.units || currentCategoryObj.subjects || [];
+  }, [currentCategoryObj]);
 
-  const subjects = useMemo(() => {
-    const set = new Set(
-      questions
-        .filter((q) => isVisibleQuestion(q) && (selectedUnit === 'All' || q.unit === selectedUnit))
-        .map((q) => q.subject)
-    );
-    return ['All', ...Array.from(set)];
-  }, [questions, selectedUnit]);
+  const getSubjectQuestionCount = (subjectName: string) => {
+    return questions.filter(
+      (q) => isVisibleQuestion(q) && (q.subject === subjectName || q.unit === subjectName)
+    ).length;
+  };
 
-  const exams: ('All' | ExamCategory)[] = ['All', 'ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS', 'CEE-UG'];
-  const pastPapers = useMemo(() => {
-    const set = new Set(
-      questions.filter((q) => isVisibleQuestion(q) && q.pastPaper).map((q) => q.pastPaper as string)
-    );
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [questions]);
-  const difficulties = ['All', 'Memory-based', 'Conceptual', 'Advanced'];
+  const getUnitQuestionCount = (subjectName: string, unitName: string) => {
+    return questions.filter(
+      (q) =>
+        isVisibleQuestion(q) &&
+        (q.subject === subjectName || q.unit === subjectName) &&
+        (q.unit === unitName || q.subject === unitName)
+    ).length;
+  };
 
-  const filteredPool = useMemo(() => {
-    return questions.filter((q) => {
+  const totalQuestionCount = questions.filter(isVisibleQuestion).length;
+
+  const handleSelectSubject = (subjectName: string) => {
+    setSelectedSubject(subjectName);
+    setSelectedUnit(null);
+    setSearchParams({ subject: subjectName });
+  };
+
+  const handleBackToSubjects = () => {
+    setIsSessionActive(false);
+    setSelectedSubject(null);
+    setSelectedUnit(null);
+    setSearchParams({});
+  };
+
+  const handleBackToUnits = () => {
+    setIsSessionActive(false);
+    onClearCustomSubset?.();
+  };
+
+  // Launch questions for a chosen unit (or for the whole subject if unitName is omitted)
+  const handleStartPractice = (unitName?: string | null) => {
+    onClearCustomSubset?.();
+    const targetUnit = unitName !== undefined ? unitName : selectedUnit;
+    setSelectedUnit(targetUnit);
+
+    let pool = questions.filter((q) => {
       if (!isVisibleQuestion(q)) return false;
-      if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
-      if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
-      if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
-      if (selectedExam !== 'All' && !questionMatchesExamCategory(q.examCategories, selectedExam as ExamCategory)) return false;
-      if (selectedPastPaper !== 'All' && q.pastPaper !== selectedPastPaper) return false;
-      if (highYieldOnly && !q.isHighYield) return false;
-      if (bookmarksOnly && !bookmarkedIds.includes(q.id)) return false;
+      if (selectedSubject && q.subject !== selectedSubject && q.unit !== selectedSubject) return false;
+      if (targetUnit && q.unit !== targetUnit && q.subject !== targetUnit) return false;
+      if (localSearch.trim()) {
+        const query = localSearch.trim().toLowerCase();
+        const match =
+          q.questionText.toLowerCase().includes(query) ||
+          q.code.toLowerCase().includes(query) ||
+          q.topic.toLowerCase().includes(query) ||
+          (q.clinicalCase && q.clinicalCase.toLowerCase().includes(query)) ||
+          q.options.some((o) => o.text.toLowerCase().includes(query));
+        if (!match) return false;
+      }
       return true;
     });
-  }, [questions, selectedUnit, selectedSubject, selectedDifficulty, selectedExam, selectedPastPaper, highYieldOnly, bookmarksOnly, bookmarkedIds]);
 
-  const startSession = () => {
-    onClearCustomSubset?.();
-    let pool = [...filteredPool];
-    if (isRandomized) {
-      pool.sort(() => Math.random() - 0.5);
-    }
-    const finalSet = pool.slice(0, questionCountLimit);
-    setSessionQuestions(finalSet);
+    setSessionQuestions(pool);
     setCurrentIndex(0);
     setSelectedAnswers({});
     setRevealedStatus({});
@@ -143,11 +207,6 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     setIsChecking(false);
     setAriaAnnouncement('');
     setIsSessionActive(true);
-  };
-
-  const handleEndSession = () => {
-    setIsSessionActive(false);
-    onClearCustomSubset?.();
   };
 
   const currentQ = sessionQuestions[currentIndex];
@@ -166,14 +225,14 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
 
     if (result.ok) {
       const data = result.data;
-      setCheckResults((prev) => ({ ...prev, [currentQ.id]: data }));
       setRevealedStatus((prev) => ({ ...prev, [currentQ.id]: true }));
-      onRecordAnswer(currentQ, optId, data.correct);
+      setCheckResults((prev) => ({ ...prev, [currentQ.id]: data }));
       setAriaAnnouncement(
         data.correct
-          ? `Correct! Option ${data.correctAnswer} is the right answer.`
-          : `Incorrect. The correct answer is Option ${data.correctAnswer}.`
+          ? `Correct. Option ${optId} is the correct answer.`
+          : `Incorrect. Option ${optId} is incorrect. The correct answer is Option ${data.correctAnswer}.`
       );
+      onRecordAnswer(currentQ, optId, data.correct);
     } else {
       setCheckError({
         optionId: optId,
@@ -182,7 +241,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         isPaywall: result.isPaywall,
         quota: result.quota,
       });
-      setAriaAnnouncement(result.error);
+      setAriaAnnouncement(`Error: ${result.error}`);
     }
   };
 
@@ -190,6 +249,7 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     if (currentIndex < sessionQuestions.length - 1) {
       setCurrentIndex((prev) => prev + 1);
       setCheckError(null);
+      setAriaAnnouncement('');
     }
   };
 
@@ -197,250 +257,339 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
       setCheckError(null);
+      setAriaAnnouncement('');
     }
   };
 
-  const sessionStats = useMemo(() => {
-    let answered = 0;
-    let correct = 0;
-    for (const q of sessionQuestions) {
-      if (revealedStatus[q.id] && checkResults[q.id]) {
-        answered++;
-        if (checkResults[q.id].correct) {
-          correct++;
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isSessionActive || !currentQ) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['input', 'textarea', 'select'].includes((e.target as HTMLElement).tagName.toLowerCase())) {
+        return;
+      }
+      if (['1', '2', '3', '4', '5'].includes(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        if (currentQ.options[idx] && !isRevealed && !isChecking) {
+          handleSelectOption(currentQ.options[idx].id);
         }
       }
-    }
-    const pct = answered > 0 ? Math.round((correct / answered) * 100) : 0;
-    return { answered, correct, pct };
+      if (['a', 'b', 'c', 'd', 'e'].includes(e.key.toLowerCase())) {
+        const id = e.key.toUpperCase();
+        if (currentQ.options.some((o) => o.id === id) && !isRevealed && !isChecking) {
+          handleSelectOption(id);
+        }
+      }
+      if ((e.key === 'ArrowRight' || e.key === 'Enter') && isRevealed) {
+        handleNext();
+      }
+      if (e.key === 'ArrowLeft') {
+        handlePrev();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSessionActive, currentQ, isRevealed, isChecking, currentIndex, sessionQuestions.length]);
+
+  const sessionStats = useMemo(() => {
+    let correct = 0;
+    let answered = 0;
+    sessionQuestions.forEach((q) => {
+      const res = checkResults[q.id];
+      if (res) {
+        answered++;
+        if (res.correct) correct++;
+      }
+    });
+    return {
+      answered,
+      correct,
+      pct: answered > 0 ? Math.round((correct / answered) * 100) : 0,
+    };
   }, [sessionQuestions, revealedStatus, checkResults]);
 
-  if (!isSessionActive || !currentQ) {
+  // =========================================================================
+  // VIEW 1: All Subjects Directory (when no subject is selected)
+  // =========================================================================
+  if (!selectedSubject && !isSessionActive) {
     return (
-      <div className="max-w-3xl mx-auto py-6 space-y-6">
-        <title>Practice Mode | MedLab QBank</title>
+      <div className="max-w-6xl mx-auto py-6 space-y-6">
+        <title>Laboratory Subjects Practice | Prayogshala Academy</title>
         <meta
           name="description"
-          content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
+          content="Select any laboratory medicine subject to view curriculum units and practice high-yield exam questions."
         />
         <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/practice`} />
-        <meta property="og:title" content="Practice Mode | MedLab QBank" />
-        <meta
-          property="og:description"
-          content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
-        />
-        <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/practice`} />
 
-        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
-          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
-            Configure practice session
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Select a laboratory unit, subject, or examination syllabus. Questions are presented one by one with immediate diagnostic rationales and reference citations.
-          </p>
-        </div>
-
-        {/* Configuration Form */}
-        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Hero Header */}
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Laboratory Medicine Unit
-              </label>
-              <select
-                value={selectedUnit}
-                onChange={(e) => {
-                  setSelectedUnit(e.target.value);
-                  setSelectedSubject('All');
-                }}
-                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
-              >
-                {units.map((u) => (
-                  <option key={u} value={u}>
-                    {u === 'All' ? 'All Specialty Units (Mixed)' : u}
-                  </option>
-                ))}
-              </select>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                Laboratory Medicine Practice
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mt-1">
+                Choose a subject to explore its curriculum units and start interactive practice drills.
+              </p>
             </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Subject Filter
-              </label>
-              <select
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
-              >
-                {subjects.map((s) => (
-                  <option key={s} value={s}>
-                    {s === 'All' ? 'All Subjects (Mixed)' : s}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Target Licensing Syllabus
-              </label>
-              <select
-                value={selectedExam}
-                onChange={(e) => setSelectedExam(e.target.value)}
-                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
-              >
-                {exams.map((e) => (
-                  <option key={e} value={e}>
-                    {e === 'All' ? 'All Examination Boards' : `${e} Examination`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Cognitive Difficulty
-              </label>
-              <select
-                value={selectedDifficulty}
-                onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500 shadow-2xs transition-all"
-              >
-                {difficulties.map((d) => (
-                  <option key={d} value={d}>
-                    {d === 'All' ? 'All Difficulties' : d}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Past Paper
-              </label>
-              <select
-                value={selectedPastPaper}
-                onChange={(e) => setSelectedPastPaper(e.target.value)}
-                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-cyan-500"
-              >
-                <option value="All">All Past Papers</option>
-                {pastPapers.map((paper) => (
-                  <option key={paper} value={paper}>
-                    {paper}
-                  </option>
-                ))}
-              </select>
-              {pastPapers.length === 0 && (
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  No questions are tagged to a past paper yet.
-                </span>
-              )}
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Question Count
-              </label>
-              <div className="flex items-center gap-2">
-                {[5, 10, 20, 50].map((cnt) => (
-                  <button
-                    key={cnt}
-                    onClick={() => setQuestionCountLimit(cnt)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
-                      questionCountLimit === cnt
-                        ? 'bg-cyan-700 text-white border-cyan-700 font-semibold'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-cyan-50/40'
-                    }`}
-                  >
-                    {cnt} Questions
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="sm:col-span-2 flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
-              <div>
-                <span className="text-xs font-semibold text-slate-800 block">Randomized Order</span>
-                <span className="text-xs text-slate-500">Shuffle questions for varied clinical exposure</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={isRandomized}
-                onChange={(e) => setIsRandomized(e.target.checked)}
-                className="w-4 h-4 text-cyan-700 rounded border-slate-300 focus:ring-cyan-500 cursor-pointer"
-              />
-            </div>
-
-            <div
-              className={`sm:col-span-2 flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                highYieldOnly
-                  ? 'bg-amber-50 border-amber-300'
-                  : 'bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <Star
-                  className={`w-4 h-4 mt-0.5 shrink-0 ${
-                    highYieldOnly ? 'fill-amber-500 text-amber-500' : 'text-slate-400'
-                  }`}
-                />
-                <div>
-                  <span className="text-xs font-semibold text-slate-800 block">High-Yield Mode</span>
-                  <span className="text-xs text-slate-500">
-                    Restrict the pool to questions editors flagged as highest-value concepts
-                  </span>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                aria-label="High-Yield Mode"
-                checked={highYieldOnly}
-                onChange={(e) => setHighYieldOnly(e.target.checked)}
-                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
-              />
-            </div>
-
-            <div
-              className={`sm:col-span-2 flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                bookmarksOnly
-                  ? 'bg-amber-50 border-amber-300'
-                  : 'bg-slate-50 border-slate-200'
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <Bookmark
-                  className={`w-4 h-4 mt-0.5 shrink-0 ${
-                    bookmarksOnly ? 'fill-amber-500 text-amber-500' : 'text-slate-400'
-                  }`}
-                />
-                <div>
-                  <span className="text-xs font-semibold text-slate-800 block">Bookmarks only</span>
-                  <span className="text-xs text-slate-500">
-                    Practise only questions you have saved to your bookmark library
-                  </span>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                aria-label="Bookmarks only"
-                checked={bookmarksOnly}
-                onChange={(e) => setBookmarksOnly(e.target.checked)}
-                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
-              />
+            <div className="shrink-0 flex items-center gap-2">
+              <span className="text-xs text-slate-600 font-medium bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                {activeCategories.length} Subjects · {totalQuestionCount} MCQs
+              </span>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+          {/* Real-time Search Box */}
+          <div className="pt-2">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="search"
+                value={localSearch}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search questions across all subjects by analyte, test, bacteria, or clinical condition..."
+                className="w-full bg-white/90 border border-slate-200/90 rounded-xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 shadow-2xs transition-all"
+              />
+              {localSearch && (
+                <button
+                  type="button"
+                  onClick={() => handleSearchChange('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Subjects Grid (15 Standard Subjects) */}
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
+            <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
+              Laboratory Subjects ({activeCategories.length})
+            </h2>
             <span className="text-xs text-slate-500">
-              Available pool: <strong className="text-slate-900">{filteredPool.length}</strong> questions
+              Click any subject to open its units
             </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {activeCategories.map((cat) => {
+              const qCount = getSubjectQuestionCount(cat.name);
+              const unitsList = cat.units || cat.subjects || [];
+              const colorClasses = getSubjectColorClasses(cat.name);
+
+              return (
+                <div
+                  key={cat.id}
+                  onClick={() => handleSelectSubject(cat.name)}
+                  className="glass-panel glass-panel-hover rounded-xl p-5 cursor-pointer flex flex-col justify-between group space-y-4 transition-all hover:border-slate-300"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center ${colorClasses.iconBg} ${colorClasses.iconColor} group-hover:scale-105 transition-transform`}
+                      >
+                        <SubjectIcon name={cat.name} icon={cat.icon} className="w-5 h-5" />
+                      </div>
+                      <span className="font-medium text-xs text-slate-700 bg-slate-100/90 px-2.5 py-0.5 rounded-md border border-slate-200/60">
+                        {qCount} MCQs
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold text-slate-900 text-sm group-hover:text-cyan-800 transition-colors">
+                        {cat.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {unitsList.length} {unitsList.length === 1 ? 'unit' : 'units'}
+                      </p>
+                    </div>
+
+                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                      {cat.description}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 group-hover:text-slate-900 font-medium">
+                    <span>Explore units</span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 2: Subject Page - List of Units (when a subject is selected)
+  // =========================================================================
+  if (selectedSubject && !isSessionActive) {
+    const colorClasses = getSubjectColorClasses(selectedSubject);
+    const subjectQCount = getSubjectQuestionCount(selectedSubject);
+
+    return (
+      <div className="max-w-5xl mx-auto py-6 space-y-6">
+        <title>{selectedSubject} | Units & Practice | Prayogshala Academy</title>
+        <meta
+          name="description"
+          content={`Practice MCQs and review clinical units for ${selectedSubject}.`}
+        />
+        <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/practice?subject=${encodeURIComponent(selectedSubject)}`} />
+
+        {/* Back Link */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handleBackToSubjects}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>All Subjects</span>
+          </button>
+        </div>
+
+        {/* Subject Hero Header */}
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${colorClasses.iconBg} ${colorClasses.iconColor} shadow-2xs`}
+              >
+                <SubjectIcon name={selectedSubject} icon={currentCategoryObj?.icon} className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Subject Overview
+                  </span>
+                </div>
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                  {selectedSubject}
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
+                  {currentCategoryObj?.description || 'Curriculum units, clinical cases, and examination questions.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:self-center">
+              <button
+                type="button"
+                onClick={() => handleStartPractice(null)}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-xs flex items-center gap-2 cursor-pointer transition-colors"
+              >
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Practice All Units ({subjectQCount} MCQs)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Units List */}
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
+            <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
+              Units in {selectedSubject} ({unitsInCurrentSubject.length})
+            </h2>
+            <span className="text-xs text-slate-500">
+              Click any unit to load questions and start practice
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {unitsInCurrentSubject.map((unit, index) => {
+              const unitQCount = getUnitQuestionCount(selectedSubject, unit.name);
+
+              return (
+                <div
+                  key={unit.id}
+                  onClick={() => handleStartPractice(unit.name)}
+                  className="glass-panel glass-panel-hover rounded-xl p-5 cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:border-cyan-400"
+                >
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        Unit {index + 1}
+                      </span>
+                      <h3 className="text-sm sm:text-base font-semibold text-slate-900 group-hover:text-cyan-800 transition-colors">
+                        {unit.name}
+                      </h3>
+                    </div>
+
+                    {/* Topics Pill Tags */}
+                    {unit.topics && unit.topics.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                        {unit.topics.map((topic, tIdx) => (
+                          <span
+                            key={tIdx}
+                            className="text-[11px] text-slate-600 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200/70"
+                          >
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 sm:self-center">
+                    <span className="text-xs font-medium text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200/70">
+                      {unitQCount} MCQs
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartPractice(unit.name);
+                      }}
+                      className="px-3.5 py-1.5 rounded-lg bg-cyan-700 group-hover:bg-cyan-800 text-white text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                    >
+                      <span>Practice Unit</span>
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {unitsInCurrentSubject.length === 0 && (
+              <div className="glass-panel rounded-xl p-8 text-center text-slate-500 text-xs">
+                No units configured for this subject yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 3: Active Question Practice Screen (Questions load on clicking unit)
+  // =========================================================================
+  if (!currentQ) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 text-center space-y-4">
+        <div className="glass-panel rounded-2xl p-8 space-y-3">
+          <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+          <h2 className="text-base font-semibold text-slate-900">
+            No questions available for this unit
+          </h2>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            {selectedUnit
+              ? `There are currently no active questions published under ${selectedSubject} > ${selectedUnit}.`
+              : `There are currently no active questions published under ${selectedSubject}.`}
+          </p>
+          <div className="pt-2">
             <button
-              disabled={filteredPool.length === 0}
-              onClick={startSession}
-              className="px-5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
+              onClick={handleBackToUnits}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium rounded-lg cursor-pointer"
             >
-              <span>Begin Practice</span>
-              <ArrowRight className="w-4 h-4 text-cyan-400" />
+              ← Back to Units List
             </button>
           </div>
         </div>
@@ -448,29 +597,22 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
     );
   }
 
-  // Active Practice Question Screen
   return (
     <div className="max-w-3xl mx-auto py-6 space-y-5">
-      <title>Practice Mode | MedLab QBank</title>
+      <title>{currentQ.subject} Practice | Prayogshala Academy</title>
       <meta
         name="description"
-        content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
+        content="Interactive practice question with immediate clinical rationale and references."
       />
       <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/practice`} />
-      <meta property="og:title" content="Practice Mode | MedLab QBank" />
-      <meta
-        property="og:description"
-        content="Interactive practice mode with instant clinical rationales, difficulty filters, and question bookmarking for medical lab exams."
-      />
-      <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/practice`} />
 
       {/* Session Header */}
       <div className="glass-panel rounded-xl p-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <button
-            onClick={handleEndSession}
+            onClick={handleBackToUnits}
             className="p-1.5 rounded text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
-            title="End Session"
+            title="Back to Units list"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -479,20 +621,14 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
               Question {currentIndex + 1} of {sessionQuestions.length}
             </span>
             <span aria-hidden="true" className="mx-1.5">·</span>
-            <span>{currentQ.unit}</span>
+            <span className="inline-flex items-center gap-1 font-medium text-slate-800">
+              <SubjectIcon name={currentQ.subject} className="w-3.5 h-3.5 text-slate-500" />
+              {currentQ.subject}
+            </span>
+            <span aria-hidden="true" className="mx-1.5">·</span>
+            <span className="font-medium text-slate-700">{currentQ.unit}</span>
             <span aria-hidden="true" className="mx-1.5">·</span>
             <span className="text-slate-500">{currentQ.difficulty}</span>
-            {currentQ.isHighYield && (
-              <span className="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-semibold align-middle">
-                <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                High-Yield
-              </span>
-            )}
-            {currentQ.pastPaper && (
-              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 font-medium align-middle">
-                {currentQ.pastPaper}
-              </span>
-            )}
           </div>
         </div>
 
@@ -512,8 +648,8 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
             </button>
             <button
               onClick={() => onReportQuestion(currentQ)}
-              className="p-1.5 rounded text-slate-500 hover:text-rose-700 transition-colors cursor-pointer"
-              title="Report issue"
+              className="p-1.5 rounded text-slate-500 hover:text-rose-600 transition-colors cursor-pointer"
+              title="Report question error"
             >
               <Flag className="w-4 h-4" />
             </button>
@@ -521,282 +657,209 @@ export const PracticeMode: React.FC<PracticeModeProps> = ({
         </div>
       </div>
 
-      {/* Main Question Paper Card */}
-      <div className="glass-panel rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-        <div className="text-xs text-slate-500 font-medium">
-          {currentQ.code} · {currentQ.subject} · {currentQ.topic}
-          {currentQ.subtopic ? ` · ${currentQ.subtopic}` : ''}
+      {/* Screen Reader Live Region */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {ariaAnnouncement}
+      </div>
+
+      {/* Question Card */}
+      <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-6">
+        <div className="flex items-center justify-between text-xs text-slate-500 pb-2 border-b border-slate-100">
+          <span className="font-semibold text-slate-900">{currentQ.code}</span>
+          <span>Topic: {currentQ.topic}</span>
         </div>
 
-        {/* Clinical Vignette if applicable */}
+        {/* Clinical Vignette */}
         {currentQ.clinicalCase && (
-          <div className="glass-card border-l-4 border-l-cyan-600 p-4 rounded-xl text-xs sm:text-sm text-slate-800 leading-relaxed shadow-xs">
-            <span className="font-semibold text-slate-900 block mb-1">Clinical Presentation:</span>
+          <div className="p-3.5 bg-cyan-50/50 border-l-3 border-cyan-600 rounded-r-lg text-xs leading-relaxed text-slate-800">
+            <span className="font-semibold text-cyan-900 block mb-0.5">Clinical Case Vignette:</span>
             {currentQ.clinicalCase}
           </div>
         )}
 
-        {/* Clinical Table if applicable */}
-        {currentQ.tableData && (
-          <div className="overflow-x-auto rounded border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  {currentQ.tableData.headers.map((h, idx) => (
-                    <th key={idx} className="px-3.5 py-2 font-semibold">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white text-slate-800">
-                {currentQ.tableData.rows.map((row, rIdx) => (
-                  <tr key={rIdx}>
-                    {row.map((cell, cIdx) => (
-                      <td key={cIdx} className="px-3.5 py-1.5 font-mono">
-                        {cell}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Question Stem */}
+        <h2 className="text-sm sm:text-base font-medium text-slate-900 leading-relaxed">
+          {currentQ.questionText}
+        </h2>
 
-        {/* Diagnostic Image if applicable */}
-        {getSafeImageUrl(currentQ.imageUrl) && (
-          <div className="bg-slate-50 p-3 rounded border border-slate-200">
+        {/* Question Image */}
+        {currentQ.imageUrl && getSafeImageUrl(currentQ.imageUrl) && (
+          <div className="rounded-xl overflow-hidden border border-slate-200/80 bg-slate-50 max-h-72 flex items-center justify-center">
             <img
-              src={getSafeImageUrl(currentQ.imageUrl)!}
-              alt={currentQ.code ? `Image for question ${currentQ.code}` : 'Image for question'}
-              className="max-h-64 rounded object-contain mx-auto"
+              src={getSafeImageUrl(currentQ.imageUrl) || ''}
+              alt="Clinical laboratory specimen, smear, or chart"
+              className="max-h-72 object-contain"
             />
           </div>
         )}
 
-        {/* Question Stem */}
-        <div id="practice-question-stem" className="text-base sm:text-lg font-medium text-slate-900 leading-relaxed">
-          {currentQ.questionText}
-        </div>
+        {/* Options */}
+        <div className="space-y-2.5 pt-2" role="radiogroup" aria-label="Question options">
+          {currentQ.options.map((opt) => {
+            const isSelected = selectedAnswers[currentQ.id] === opt.id;
+            const res = checkResults[currentQ.id];
+            const isCorrectAnswer = res && res.correctAnswer === opt.id;
+            const isWrongSelection = isRevealed && isSelected && !isCorrectAnswer;
 
-        {/* Error Alert with Retry Button */}
-        {checkError && !checkError.isPaywall && (
-          <div role="alert" className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{checkError.message}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleSelectOption(checkError.optionId)}
-              className="px-4 py-2 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-medium text-xs transition-colors cursor-pointer"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Paywall: free per-unit quota exhausted */}
-        {checkError?.isPaywall && (
-          <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2">
-              <Crown className="w-4 h-4 text-amber-600 shrink-0" />
-              <span className="font-medium">{checkError.message}</span>
-            </div>
-            <Link
-              to="/pricing"
-              className="px-4 py-2 min-h-[44px] inline-flex items-center bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition-colors"
-            >
-              View Plans &amp; Unlock
-            </Link>
-          </div>
-        )}
-
-        {/* Aria-live announcement for screen readers */}
-        <div className="sr-only" aria-live="polite" aria-atomic="true">
-          {ariaAnnouncement}
-        </div>
-
-        {/* Option Choices */}
-        <div
-          role="radiogroup"
-          aria-labelledby="practice-question-stem"
-          aria-busy={isChecking}
-          className="space-y-2.5"
-        >
-          {currentQ.options.map((option) => {
-            const isSelected = selectedAnswers[currentQ.id] === option.id;
-            const currentResult = checkResults[currentQ.id];
-            const isCorrectAnswer =
-              isRevealed &&
-              currentResult &&
-              option.id.toUpperCase() === currentResult.correctAnswer.toUpperCase();
-
-            let cardStyles = 'glass-card hover:bg-white hover:border-cyan-300 text-slate-800 hover:shadow-xs';
-
+            let btnStyle = 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60 text-slate-900 bg-white/70';
             if (isRevealed) {
               if (isCorrectAnswer) {
-                cardStyles = 'bg-emerald-50/90 border-emerald-400 text-emerald-950 font-medium shadow-xs';
-              } else if (isSelected && !isCorrectAnswer) {
-                cardStyles = 'bg-rose-50/90 border-rose-300 text-rose-950 shadow-xs';
+                btnStyle = 'border-emerald-500 bg-emerald-50/70 text-emerald-950 font-medium ring-1 ring-emerald-500';
+              } else if (isWrongSelection) {
+                btnStyle = 'border-rose-400 bg-rose-50/70 text-rose-950 ring-1 ring-rose-400';
               } else {
-                cardStyles = 'bg-slate-50/40 border-slate-200/60 text-slate-400 opacity-60';
+                btnStyle = 'border-slate-200 text-slate-400 opacity-60 bg-white/40';
               }
-            } else if (isSelected && isChecking) {
-              cardStyles = 'bg-cyan-50 border-cyan-500 text-slate-900 ring-2 ring-cyan-500/50 shadow-xs animate-pulse';
             } else if (isSelected) {
-              cardStyles = 'bg-cyan-50/80 backdrop-blur-xs border-cyan-500 text-slate-900 ring-1 ring-cyan-500 shadow-xs';
+              btnStyle = 'border-cyan-600 bg-cyan-50 text-cyan-950 font-medium ring-1 ring-cyan-600';
             }
-
-            const stateText = isRevealed
-              ? isCorrectAnswer
-                ? ' (Correct Answer)'
-                : isSelected
-                ? ' (Incorrect Selection)'
-                : ''
-              : isSelected
-              ? ' (Selected)'
-              : '';
 
             return (
               <button
-                key={option.id}
-                type="button"
+                key={opt.id}
                 role="radio"
-                disabled={isRevealed || isChecking}
                 aria-checked={isSelected}
-                aria-label={`Option ${option.id}: ${option.text}${stateText}`}
-                onClick={() => handleSelectOption(option.id)}
-                className={`w-full text-left p-3.5 min-h-[48px] rounded-xl border transition-all flex items-start gap-3 cursor-pointer ${cardStyles}`}
+                disabled={isRevealed || isChecking}
+                onClick={() => handleSelectOption(opt.id)}
+                className={`w-full p-3.5 rounded-xl border text-left text-xs sm:text-sm flex items-start justify-between gap-3 transition-all cursor-pointer disabled:cursor-default ${btnStyle}`}
               >
-                <span
-                  aria-hidden="true"
-                  className={`inline-flex items-center justify-center w-7 h-7 min-w-[1.75rem] rounded text-xs font-semibold shrink-0 mt-0.5 ${
-                    isRevealed && isCorrectAnswer
-                      ? 'bg-emerald-700 text-white'
-                      : isRevealed && isSelected && !isCorrectAnswer
-                      ? 'bg-rose-700 text-white'
-                      : isSelected
-                      ? 'bg-cyan-700 text-white'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {isChecking && isSelected ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    option.id
+                <div className="flex items-start gap-3">
+                  <span
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md text-xs font-semibold shrink-0 mt-0.5 ${
+                      isRevealed && isCorrectAnswer
+                        ? 'bg-emerald-600 text-white'
+                        : isRevealed && isWrongSelection
+                        ? 'bg-rose-600 text-white'
+                        : isSelected
+                        ? 'bg-cyan-700 text-white'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {opt.id}
+                  </span>
+                  <span className="leading-relaxed">{opt.text}</span>
+                </div>
+
+                <div className="shrink-0 mt-0.5">
+                  {isChecking && isSelected && (
+                    <Loader2 className="w-4 h-4 text-cyan-700 animate-spin" />
                   )}
-                </span>
-                <span className="text-xs sm:text-sm leading-relaxed flex-1">{option.text}</span>
-                {stateText && <span className="sr-only">{stateText}</span>}
+                  {isRevealed && isCorrectAnswer && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
+                  {isRevealed && isWrongSelection && (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                </div>
               </button>
             );
           })}
         </div>
 
-        {/* Clinical Rationale & Reference Box */}
-        {isRevealed && checkResults[currentQ.id] && (
-          <div className="p-4.5 rounded border bg-slate-50 border-slate-200 space-y-3">
-            <div className="flex items-center gap-2">
-              {checkResults[currentQ.id].correct ? (
-                <div className="flex items-center gap-1.5 text-emerald-800 font-semibold text-xs sm:text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Correct: Option {checkResults[currentQ.id].correctAnswer}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-rose-800 font-semibold text-xs sm:text-sm">
-                  <AlertCircle className="w-4 h-4 text-rose-600" />
-                  <span>Incorrect. The correct answer is Option {checkResults[currentQ.id].correctAnswer}.</span>
-                </div>
-              )}
-            </div>
-
-            <div className="text-xs sm:text-sm text-slate-700 leading-relaxed space-y-2">
-              <div>
-                <strong className="text-slate-900 font-semibold block mb-0.5">Clinical Rationale:</strong>
-                <p>{checkResults[currentQ.id].explanation}</p>
-              </div>
-
-              {checkResults[currentQ.id].reference && (
-                <div className="pt-2.5 border-t border-slate-200 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-600">Reference: </span>
-                  {checkResults[currentQ.id].reference}
+        {/* Check Error / Rate Limit Warning */}
+        {checkError && (
+          <div
+            className={`p-3 rounded-lg border text-xs flex items-start gap-2 ${
+              checkError.isPaywall
+                ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                : checkError.isRateLimit
+                ? 'bg-amber-50 border-amber-200 text-amber-900'
+                : 'bg-rose-50 border-rose-200 text-rose-900'
+            }`}
+          >
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span className="font-semibold block">
+                {checkError.isPaywall ? 'Free Tier Limit Reached' : 'Unable to verify answer'}
+              </span>
+              <p className="mt-0.5 leading-relaxed">{checkError.message}</p>
+              {checkError.isPaywall && (
+                <div className="mt-2.5 flex items-center gap-2">
+                  <Link
+                    to="/pricing"
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md shadow-2xs"
+                  >
+                    <Crown className="w-3.5 h-3.5" />
+                    <span>Upgrade to Full Access</span>
+                  </Link>
+                  <span className="text-[11px] text-amber-800">Unlimited questions across all subjects</span>
                 </div>
               )}
             </div>
           </div>
         )}
-      </div>
 
-      {/* Navigation Footer */}
-      <div className="glass-panel rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap shadow-xs">
-        <button
-          disabled={currentIndex === 0}
-          onClick={handlePrev}
-          className="px-4 py-2.5 min-h-[44px] rounded border border-slate-300 hover:bg-slate-100 disabled:opacity-30 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Previous</span>
-        </button>
+        {/* Rationale & Explanation (Revealed after check) */}
+        {isRevealed && checkResults[currentQ.id] && (
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div
+              className={`p-4 rounded-xl border space-y-2 ${
+                checkResults[currentQ.id].correct
+                  ? 'bg-emerald-50/40 border-emerald-200/80 text-emerald-950'
+                  : 'bg-slate-50 border-slate-200 text-slate-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {checkResults[currentQ.id].correct ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-slate-600" />
+                )}
+                <span className="font-semibold text-xs uppercase tracking-wider">
+                  {checkResults[currentQ.id].correct ? 'Correct Diagnostic Rationale' : 'Clinical Explanation'}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm leading-relaxed text-slate-800">
+                {checkResults[currentQ.id].explanation}
+              </p>
+            </div>
 
-        {/* Question indicator for mobile devices */}
-        <div className="sm:hidden text-xs font-semibold text-slate-700">
-          Q {currentIndex + 1} of {sessionQuestions.length}
-        </div>
-
-        {/* Question navigator bubbles */}
-        <div className="hidden sm:flex items-center gap-1.5 flex-wrap justify-center max-w-md">
-          {sessionQuestions.map((q, idx) => {
-            const isCurr = idx === currentIndex;
-            const isAnsweredQ = revealedStatus[q.id];
-            const isCorrectQ = isAnsweredQ && checkResults[q.id]?.correct;
-
-            let dotStyles = 'bg-white border-slate-200 text-slate-600';
-            if (isAnsweredQ) {
-              dotStyles = isCorrectQ ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-rose-100 text-rose-800 border-rose-300';
-            }
-            if (isCurr) {
-              dotStyles += ' ring-2 ring-cyan-600 font-bold';
-            }
-
-            return (
-              <button
-                key={q.id}
-                onClick={() => setCurrentIndex(idx)}
-                aria-label={`Question ${idx + 1}, ${
-                  !isAnsweredQ
-                    ? 'unanswered'
-                    : isCorrectQ
-                    ? 'answered correctly'
-                    : 'answered incorrectly'
-                }${isCurr ? ', current' : ''}`}
-                aria-current={isCurr ? 'step' : undefined}
-                className={`w-9 h-9 min-w-[36px] min-h-[36px] rounded border text-xs transition-all cursor-pointer flex items-center justify-center ${dotStyles}`}
-              >
-                {idx + 1}
-              </button>
-            );
-          })}
-        </div>
-
-        {currentIndex < sessionQuestions.length - 1 ? (
-          <button
-            onClick={handleNext}
-            className="px-4 py-2.5 min-h-[44px] rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <span>Next</span>
-            <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
-          </button>
-        ) : (
-          <button
-            onClick={handleEndSession}
-            className="px-4 py-2.5 min-h-[44px] rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <span>Complete session</span>
-            <CheckCircle2 className="w-3.5 h-3.5" />
-          </button>
+            {/* Reference Citation */}
+            {checkResults[currentQ.id].reference && (
+              <div className="text-[11px] text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100">
+                <span className="font-semibold text-slate-700">Reference: </span>
+                {checkResults[currentQ.id].reference}
+              </div>
+            )}
+          </div>
         )}
+
+        {/* Footer Navigation */}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+          <button
+            disabled={currentIndex === 0}
+            onClick={handlePrev}
+            className="px-4 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Previous</span>
+          </button>
+
+          <span className="text-xs text-slate-500">
+            {currentIndex + 1} / {sessionQuestions.length}
+          </span>
+
+          {currentIndex < sessionQuestions.length - 1 ? (
+            <button
+              onClick={handleNext}
+              className="px-4 py-2 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <span>Next</span>
+              <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+            </button>
+          ) : (
+            <button
+              onClick={handleBackToUnits}
+              className="px-4 py-2 text-xs font-medium text-white bg-cyan-700 hover:bg-cyan-800 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <span>Finish & Return to Units</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

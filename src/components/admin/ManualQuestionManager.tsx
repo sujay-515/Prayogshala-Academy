@@ -18,6 +18,7 @@ import { MCQQuestion, UnitCategory, QuestionStatus, ExamCategory, DifficultyLeve
 import { QuestionFormModal } from './QuestionFormModal';
 import { generateNextQuestionCode } from '../../utils/mcqParser';
 import { GENERAL_EXAM_LABEL, normalizeExamCategories, questionMatchesExamCategory } from '../../utils/examCategories';
+import { SubjectIcon } from '../SubjectIcon';
 import { Modal } from '../common/Modal';
 
 interface ManualQuestionManagerProps {
@@ -46,8 +47,8 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   onClearInitialEditingQuestion,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUnit, setSelectedUnit] = useState('All');
   const [selectedSubject, setSelectedSubject] = useState('All');
+  const [selectedUnit, setSelectedUnit] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState<string>('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState('All');
   const [selectedExam, setSelectedExam] = useState('All');
@@ -56,8 +57,8 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(20);
 
-  const [bulkCategoryUnit, setBulkCategoryUnit] = useState<string>('');
   const [bulkCategorySubject, setBulkCategorySubject] = useState<string>('');
+  const [bulkCategoryUnit, setBulkCategoryUnit] = useState<string>('');
   const [bulkCategoryTopic, setBulkCategoryTopic] = useState<string>('');
   const [bulkCategoryDifficulty, setBulkCategoryDifficulty] = useState<string>('');
   const [bulkCategoryExams, setBulkCategoryExams] = useState<ExamCategory[]>([]);
@@ -112,15 +113,15 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedUnit, selectedSubject, selectedStatus, selectedDifficulty, selectedExam]);
+  }, [searchQuery, selectedSubject, selectedUnit, selectedStatus, selectedDifficulty, selectedExam]);
 
-  const filterUnitObj = categories.find((c) => c.name === selectedUnit);
-  const filterSubjectsList = filterUnitObj?.subjects || [];
+  const filterSubjectObj = categories.find((c) => c.name === selectedSubject);
+  const filterUnitsList = filterSubjectObj?.units || filterSubjectObj?.subjects || [];
 
   const filtered = useMemo(() => {
     return questions.filter((q) => {
-      if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
       if (selectedSubject !== 'All' && q.subject !== selectedSubject) return false;
+      if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
       if (selectedStatus !== 'All' && q.status !== selectedStatus) return false;
       if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
       if (selectedExam !== 'All' && !questionMatchesExamCategory(q.examCategories, selectedExam as ExamCategory)) return false;
@@ -131,13 +132,14 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
           q.questionText.toLowerCase().includes(query) ||
           q.code.toLowerCase().includes(query) ||
           q.subject.toLowerCase().includes(query) ||
+          (q.unit || '').toLowerCase().includes(query) ||
           q.topic.toLowerCase().includes(query) ||
           (q.subtopic || '').toLowerCase().includes(query)
         );
       }
       return true;
     });
-  }, [questions, selectedUnit, selectedSubject, selectedStatus, selectedDifficulty, selectedExam, searchQuery]);
+  }, [questions, selectedSubject, selectedUnit, selectedStatus, selectedDifficulty, selectedExam, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
@@ -239,8 +241,8 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
   const handleBulkCategorizeSelected = () => {
     if (selectedIds.size === 0) return;
     if (
-      !bulkCategoryUnit &&
       !bulkCategorySubject &&
+      !bulkCategoryUnit &&
       !bulkCategoryTopic &&
       !bulkCategoryDifficulty &&
       bulkCategoryExams.length === 0 &&
@@ -249,14 +251,15 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       return;
 
     const timestamp = new Date().toISOString();
-    const targetUnitObj = categories.find((c) => c.name === bulkCategoryUnit);
+    const targetSubjectObj = categories.find((c) => c.name === bulkCategorySubject);
+    const targetUnits = targetSubjectObj?.units || targetSubjectObj?.subjects || [];
     const updatedItems: MCQQuestion[] = questions
       .filter((q) => selectedIds.has(q.id))
       .map((q) => {
-        let nextSubject = bulkCategorySubject || q.subject;
-        // Keep the subject consistent with the newly assigned unit
-        if (!bulkCategorySubject && targetUnitObj && !targetUnitObj.subjects.some((s) => s.name === q.subject)) {
-          nextSubject = targetUnitObj.subjects[0]?.name || q.subject;
+        let nextUnit = bulkCategoryUnit || q.unit;
+        // Keep unit consistent with newly assigned subject
+        if (!bulkCategoryUnit && targetSubjectObj && !targetUnits.some((u) => u.name === q.unit)) {
+          nextUnit = targetUnits[0]?.name || q.unit;
         }
 
         let nextExams = normalizeExamCategories(q.examCategories);
@@ -270,8 +273,8 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
 
         return {
           ...q,
-          unit: bulkCategoryUnit || q.unit,
-          subject: nextSubject,
+          subject: bulkCategorySubject || q.subject,
+          unit: nextUnit,
           topic: bulkCategoryTopic || q.topic,
           difficulty: (bulkCategoryDifficulty as DifficultyLevel) || q.difficulty,
           examCategories: nextExams,
@@ -288,18 +291,18 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
       });
     onBulkSaveQuestions(updatedItems);
     setSelectedIds(new Set());
-    setBulkCategoryUnit('');
     setBulkCategorySubject('');
+    setBulkCategoryUnit('');
     setBulkCategoryTopic('');
     setBulkCategoryDifficulty('');
     setBulkCategoryExams([]);
     setBulkClearCategoryExams(false);
   };
 
-  const bulkUnitObj = categories.find((c) => c.name === bulkCategoryUnit);
-  const bulkSubjectsList = bulkUnitObj?.subjects || [];
-  const bulkSubjectObj = bulkSubjectsList.find((s) => s.name === bulkCategorySubject);
-  const bulkTopicsList = bulkSubjectObj?.topics || [];
+  const bulkSubjectObj = categories.find((c) => c.name === bulkCategorySubject);
+  const bulkUnitsList = bulkSubjectObj?.units || bulkSubjectObj?.subjects || [];
+  const bulkUnitItem = bulkUnitsList.find((u) => u.name === bulkCategoryUnit);
+  const bulkTopicsList = bulkUnitItem?.topics || [];
 
   return (
     <div className="space-y-5">
@@ -339,16 +342,16 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Unit</label>
+            <label className="block font-semibold text-slate-700 mb-1">Specialty Subject</label>
             <select
-              value={selectedUnit}
+              value={selectedSubject}
               onChange={(e) => {
-                setSelectedUnit(e.target.value);
-                setSelectedSubject('All');
+                setSelectedSubject(e.target.value);
+                setSelectedUnit('All');
               }}
               className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-800 focus:bg-white"
             >
-              <option value="All">All Units</option>
+              <option value="All">All Subjects</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.name}>
                   {c.name}
@@ -358,19 +361,19 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Subject</label>
+            <label className="block font-semibold text-slate-700 mb-1">Unit / Section</label>
             <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              value={selectedUnit}
+              onChange={(e) => setSelectedUnit(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-md p-1.5 text-xs text-slate-800 focus:bg-white"
             >
-              <option value="All">All Subjects</option>
-              {(selectedUnit === 'All'
-                ? categories.flatMap((c) => c.subjects)
-                : filterSubjectsList
-              ).map((s) => (
-                <option key={s.id} value={s.name}>
-                  {s.name}
+              <option value="All">All Units</option>
+              {(selectedSubject === 'All'
+                ? categories.flatMap((c) => c.units || c.subjects || [])
+                : filterUnitsList
+              ).map((u) => (
+                <option key={u.id} value={u.name}>
+                  {u.name}
                 </option>
               ))}
             </select>
@@ -473,15 +476,15 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <span className="text-xs font-semibold text-slate-500">Bulk Re-categorize:</span>
               <select
-                value={bulkCategoryUnit}
+                value={bulkCategorySubject}
                 onChange={(e) => {
-                  setBulkCategoryUnit(e.target.value);
-                  setBulkCategorySubject('');
+                  setBulkCategorySubject(e.target.value);
+                  setBulkCategoryUnit('');
                   setBulkCategoryTopic('');
                 }}
                 className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800"
               >
-                <option value="">Assign Unit...</option>
+                <option value="">Assign Subject...</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.name}>
                     {c.name}
@@ -489,19 +492,19 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                 ))}
               </select>
 
-              {bulkSubjectsList.length > 0 && (
+              {bulkUnitsList.length > 0 && (
                 <select
-                  value={bulkCategorySubject}
+                  value={bulkCategoryUnit}
                   onChange={(e) => {
-                    setBulkCategorySubject(e.target.value);
+                    setBulkCategoryUnit(e.target.value);
                     setBulkCategoryTopic('');
                   }}
                   className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-800"
                 >
-                  <option value="">Assign Subject...</option>
-                  {bulkSubjectsList.map((s) => (
-                    <option key={s.id} value={s.name}>
-                      {s.name}
+                  <option value="">Assign Unit...</option>
+                  {bulkUnitsList.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name}
                     </option>
                   ))}
                 </select>
@@ -713,7 +716,7 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                 </th>
                 <th className="px-3 py-2.5">Code</th>
                 <th className="px-3 py-2.5">Question Stem</th>
-                <th className="px-3 py-2.5">Unit & Subject</th>
+                <th className="px-3 py-2.5">Subject &amp; Unit</th>
                 <th className="px-3 py-2.5">Status</th>
                 <th className="px-3 py-2.5 text-right">Actions</th>
               </tr>
@@ -771,8 +774,11 @@ export const ManualQuestionManager: React.FC<ManualQuestionManagerProps> = ({
                         </div>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="font-medium text-slate-800 block">{q.unit}</span>
-                        <span className="text-xs text-slate-500">{q.subject}</span>
+                        <span className="font-medium text-slate-800 flex items-center gap-1.5">
+                          <SubjectIcon name={q.subject} className="w-3.5 h-3.5 text-slate-500" />
+                          {q.subject}
+                        </span>
+                        <span className="text-xs text-slate-500 block">{q.unit}</span>
                       </td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <span className={`text-xs ${statusText}`}>{q.status}</span>

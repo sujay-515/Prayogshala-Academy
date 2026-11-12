@@ -9,6 +9,7 @@ import { MCQQuestion, UnitCategory, QuestionStatus, QuestionReport, UserAccount 
 import { AdminDashboard } from './AdminDashboard';
 import { ManualQuestionManager } from './ManualQuestionManager';
 import { CategoryManager } from './CategoryManager';
+import { MockSetManager } from './MockSetManager';
 import { BulkImportExport } from './BulkImportExport';
 import { ReportsManager } from './ReportsManager';
 import { UserManager } from './UserManager';
@@ -68,21 +69,38 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   }, [isAdminAuthenticated]);
 
   const [activeSubtab, setActiveSubtab] = useState<
-    'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports' | 'users'
+    'dashboard' | 'pdf' | 'manual' | 'categories' | 'mock-sets' | 'bulk' | 'reports' | 'users'
   >(() => {
     try {
-      const saved = localStorage.getItem('medlab_admin_subtab');
-      if (saved && ['dashboard', 'pdf', 'manual', 'categories', 'bulk', 'reports', 'users'].includes(saved)) {
+      const saved = localStorage.getItem('prayogshala_admin_subtab');
+      if (saved && ['dashboard', 'pdf', 'manual', 'categories', 'mock-sets', 'bulk', 'reports', 'users'].includes(saved)) {
         return saved as any;
       }
     } catch {}
     return 'dashboard';
   });
 
-  const handleSubtabChange = (subtab: 'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports' | 'users') => {
-    setActiveSubtab(subtab);
+  const [uploadMode, setUploadMode] = useState<'mock' | 'subject'>(() => {
     try {
-      localStorage.setItem('medlab_admin_subtab', subtab);
+      const saved = localStorage.getItem('prayogshala_admin_upload_mode');
+      if (saved === 'mock' || saved === 'subject') return saved;
+    } catch {}
+    return 'mock';
+  });
+
+  const handleSubtabChange = (
+    subtab: 'dashboard' | 'pdf' | 'manual' | 'categories' | 'mock-sets' | 'bulk' | 'reports' | 'users',
+    targetUploadMode?: 'mock' | 'subject'
+  ) => {
+    setActiveSubtab(subtab);
+    if (targetUploadMode) {
+      setUploadMode(targetUploadMode);
+      try {
+        localStorage.setItem('prayogshala_admin_upload_mode', targetUploadMode);
+      } catch {}
+    }
+    try {
+      localStorage.setItem('prayogshala_admin_subtab', subtab);
     } catch {}
   };
   const [editingQuestionFromReport, setEditingQuestionFromReport] = useState<MCQQuestion | null>(null);
@@ -144,7 +162,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-        <title>Admin Portal | MedLab QBank</title>
+        <title>Admin Portal | Prayogshala Academy</title>
         <meta name="robots" content="noindex,nofollow" />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="w-full max-w-sm p-6 sm:p-7 glass-panel rounded-2xl shadow-2xl space-y-4 relative z-10 border border-white/80">
@@ -227,7 +245,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
-      <title>Admin Portal | MedLab QBank</title>
+      <title>Admin Portal | Prayogshala Academy</title>
       <meta name="robots" content="noindex,nofollow" />
       {/* Dedicated Standalone Admin Top Navbar */}
       <header className="bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800/80 sticky top-0 z-40 w-full">
@@ -236,7 +254,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-semibold text-xs sm:text-sm tracking-tight text-white">
-                MedLab QBank Admin Console
+                Prayogshala Academy Admin Console
               </h1>
               <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
                 SQLite Connected
@@ -315,6 +333,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </button>
 
             <button
+              onClick={() => handleSubtabChange('mock-sets')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                activeSubtab === 'mock-sets'
+                  ? 'bg-cyan-700 text-white font-semibold shadow-2xs'
+                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+              }`}
+            >
+              Mock Test Sets
+            </button>
+
+            <button
               onClick={() => handleSubtabChange('bulk')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                 activeSubtab === 'bulk'
@@ -378,6 +407,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             onImportApprovedQuestions={onImportBulkQuestions}
             authToken={authToken}
             onCompareModeChange={setIsPdfCompareMode}
+            initialUploadMode={uploadMode}
           />
         </React.Suspense>
       )}
@@ -404,12 +434,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         />
       )}
 
+      {activeSubtab === 'mock-sets' && (
+        <MockSetManager
+          questions={questions}
+          authToken={authToken}
+        />
+      )}
+
       {activeSubtab === 'bulk' && (
         <BulkImportExport
           questions={questions}
           categories={categories}
           onImportBulkQuestions={onImportBulkQuestions}
           authToken={authToken}
+          initialUploadMode={uploadMode}
         />
       )}
 

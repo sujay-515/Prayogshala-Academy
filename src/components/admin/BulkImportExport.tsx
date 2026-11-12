@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Download,
   Upload,
@@ -11,8 +11,14 @@ import {
   X,
   FileCheck,
   AlertCircle,
+  GraduationCap,
+  Layers,
+  FileSpreadsheet,
+  FileCode,
+  Tag,
+  BookOpen,
 } from 'lucide-react';
-import { MCQQuestion, ExtractedMCQDraft, UnitCategory, DifficultyLevel } from '../../types';
+import { MCQQuestion, ExtractedMCQDraft, UnitCategory, DifficultyLevel, ExamCategory } from '../../types';
 import {
   generateCSVTemplate,
   parseCSVToMCQ,
@@ -28,6 +34,7 @@ interface BulkImportExportProps {
   categories?: UnitCategory[];
   onImportBulkQuestions: (newQuestions: MCQQuestion[]) => void;
   authToken?: string | null;
+  initialUploadMode?: 'mock' | 'subject';
 }
 
 export const BulkImportExport: React.FC<BulkImportExportProps> = ({
@@ -35,7 +42,45 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
   categories = [],
   onImportBulkQuestions,
   authToken,
+  initialUploadMode = 'mock',
 }) => {
+  const [uploadMode, setUploadMode] = useState<'mock' | 'subject'>(initialUploadMode);
+
+  // Mock Test Mode parameters
+  const [mockExamCategory, setMockExamCategory] = useState<string>('CEE-UG');
+  const [mockPaperTitle, setMockPaperTitle] = useState<string>('CEE-UG Entrance Mock 2026');
+
+  // Subject-Wise Mode parameters
+  const [targetSubject, setTargetSubject] = useState<string>(categories[0]?.name || 'Clinical Chemistry');
+  const activeSubjectObj = categories.find((c) => c.name === targetSubject) || categories[0];
+  const subjectUnits = activeSubjectObj?.units || activeSubjectObj?.subjects || [];
+  const [targetUnit, setTargetUnit] = useState<string>(subjectUnits[0]?.name || 'Clinical Enzymology & Hepatic Function');
+  const activeUnitObj = subjectUnits.find((u) => u.name === targetUnit) || subjectUnits[0];
+  const unitTopics = activeUnitObj?.topics || [];
+  const [targetTopic, setTargetTopic] = useState<string>(unitTopics[0] || '');
+
+  // Keep targetUnit and targetTopic in sync when subject changes
+  const handleSubjectChange = (newSub: string) => {
+    setTargetSubject(newSub);
+    const sObj = categories.find((c) => c.name === newSub);
+    const units = sObj?.units || sObj?.subjects || [];
+    const firstUnit = units[0]?.name || '';
+    setTargetUnit(firstUnit);
+    setTargetTopic(units[0]?.topics?.[0] || '');
+  };
+
+  const handleUnitChange = (newUnit: string) => {
+    setTargetUnit(newUnit);
+    const uObj = subjectUnits.find((u) => u.name === newUnit);
+    setTargetTopic(uObj?.topics?.[0] || '');
+  };
+
+  useEffect(() => {
+    if (initialUploadMode) {
+      setUploadMode(initialUploadMode);
+    }
+  }, [initialUploadMode]);
+
   const [importedDrafts, setImportedDrafts] = useState<ExtractedMCQDraft[]>([]);
   const [importSummary, setImportSummary] = useState<string | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
@@ -53,54 +98,85 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
 
   const buildAuthHeaders = (): Record<string, string> => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+    const token = authToken || localStorage.getItem('prayogshala_auth_token_v1');
     if (token) headers.Authorization = `Bearer ${token}`;
     return headers;
   };
 
-  const handleDownloadCSVTemplate = () => {
-    const csvContent = generateCSVTemplate();
+  const handleDownloadCSVTemplate = (mode: 'all' | 'mock' | 'subject' = uploadMode) => {
+    const csvContent = generateCSVTemplate(mode);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', 'medlab_mcq_import_template.csv');
+    const filename =
+      mode === 'mock'
+        ? 'prayogshala_mock_exam_template.csv'
+        : mode === 'subject'
+        ? 'prayogshala_subject_wise_template.csv'
+        : 'prayogshala_mcq_import_template.csv';
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const handleDownloadJSONTemplate = () => {
-    const jsonTemplate = [
-      {
-        questionText:
-          'A 52-year-old male with acute right upper quadrant pain presents with jaundice. Serum alkaline phosphatase (ALP) is 450 U/L and total bilirubin is 6.2 mg/dL. Which enzyme test is most specific to differentiate hepatobiliary from osseous elevation?',
-        options: [
-          { id: 'A', text: 'Aspartate aminotransferase (AST)' },
-          { id: 'B', text: 'Gamma-glutamyl transferase (GGT)' },
-          { id: 'C', text: 'Creatine kinase (CK-MB)' },
-          { id: 'D', text: 'Lactate dehydrogenase (LDH)' },
-        ],
-        correctAnswer: 'B',
-        explanation:
-          'GGT is markedly elevated in biliary tract disorders and hepatobiliary obstruction but is absent in bone tissue. It is the primary test to confirm hepatic origin of elevated alkaline phosphatase.',
-        reference: 'Tietz Textbook of Clinical Chemistry and Molecular Diagnostics, 7th Ed.',
-        clinicalCase: '52-year-old male presenting with acute biliary symptoms.',
-        unit: 'Clinical Chemistry',
-        subject: 'Clinical Enzymology & Hepatic Function',
-        topic: 'Alkaline Phosphatase & GGT',
-        subtopic: 'Hepatobiliary vs Bone Isoenzymes',
-        difficulty: 'Conceptual',
-        examCategories: ['ASCP', 'NHPC', 'PSC', 'DHA', 'AIMS'],
-        isHighYield: true,
-        pastPaper: 'ASCP 2024',
-      },
-    ];
+  const handleDownloadJSONTemplate = (mode: 'mock' | 'subject' = uploadMode) => {
+    const jsonTemplate =
+      mode === 'mock'
+        ? [
+            {
+              questionText:
+                'A 52-year-old male with acute right upper quadrant pain presents with jaundice. Serum alkaline phosphatase (ALP) is 450 U/L and total bilirubin is 6.2 mg/dL. Which enzyme test is most specific to differentiate hepatobiliary from osseous elevation?',
+              options: [
+                { id: 'A', text: 'Aspartate aminotransferase (AST)' },
+                { id: 'B', text: 'Gamma-glutamyl transferase (GGT)' },
+                { id: 'C', text: 'Creatine kinase (CK-MB)' },
+                { id: 'D', text: 'Lactate dehydrogenase (LDH)' },
+              ],
+              correctAnswer: 'B',
+              explanation:
+                'GGT is markedly elevated in biliary tract disorders and hepatobiliary obstruction but is absent in bone tissue. It confirms hepatic origin of elevated alkaline phosphatase.',
+              reference: 'Tietz Textbook of Clinical Chemistry and Molecular Diagnostics, 7th Ed.',
+              examCategories: [mockExamCategory !== 'General' ? mockExamCategory : 'CEE-UG'],
+              pastPaper: mockPaperTitle.trim() || 'CEE-UG Entrance Mock 2026',
+              difficulty: 'Conceptual',
+              subject: 'Clinical Chemistry',
+              unit: 'Clinical Enzymology & Hepatic Function',
+              topic: 'Alkaline Phosphatase & GGT',
+              isHighYield: true,
+            },
+          ]
+        : [
+            {
+              questionText:
+                'What is the primary indicator of acute coronary syndrome that rises within 3-6 hours and remains elevated for up to 10-14 days?',
+              options: [
+                { id: 'A', text: 'Cardiac Troponin I / T' },
+                { id: 'B', text: 'Myoglobin' },
+                { id: 'C', text: 'Creatine Kinase-MB' },
+                { id: 'D', text: 'Lactate Dehydrogenase-1' },
+              ],
+              correctAnswer: 'A',
+              explanation:
+                'Cardiac troponins (cTnI and cTnT) are gold standard biomarkers for myocardial infarction with high cardiac specificity.',
+              reference: 'Tietz Textbook of Clinical Chemistry and Molecular Diagnostics, 6th Ed.',
+              subject: targetSubject,
+              unit: targetUnit,
+              topic: targetTopic || 'High-Sensitivity Troponin',
+              difficulty: 'Conceptual',
+              examCategories: [],
+              isHighYield: true,
+            },
+          ];
+
     const blob = new Blob([JSON.stringify(jsonTemplate, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', 'medlab_mcq_import_template.json');
+    const filename =
+      mode === 'mock' ? 'prayogshala_mock_test_template.json' : 'prayogshala_subject_wise_template.json';
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -115,7 +191,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.setAttribute('href', url);
-        link.setAttribute('download', `medlab_qbank_backup_${new Date().toISOString().slice(0, 10)}.json`);
+        link.setAttribute('download', `prayogshala_backup_${new Date().toISOString().slice(0, 10)}.json`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -129,7 +205,7 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `medlab_qbank_export_${new Date().toISOString().slice(0, 10)}.json`);
+    link.setAttribute('download', `prayogshala_export_${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -190,6 +266,33 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
 
           if (itemsArray) {
             const drafts: ExtractedMCQDraft[] = itemsArray.map((item: any, idx: number) => {
+              const rawExams = normalizeExamCategories(item.examCategories);
+              const resolvedExams =
+                rawExams.length > 0
+                  ? rawExams
+                  : uploadMode === 'mock' && mockExamCategory !== 'General'
+                  ? [mockExamCategory as ExamCategory]
+                  : [];
+
+              const resolvedPastPaper =
+                typeof item.pastPaper === 'string' && item.pastPaper.trim()
+                  ? item.pastPaper.trim()
+                  : uploadMode === 'mock'
+                  ? mockPaperTitle.trim() || undefined
+                  : undefined;
+
+              const resolvedSubject =
+                item.subject?.trim() ||
+                (uploadMode === 'subject' ? targetSubject : 'Clinical Chemistry');
+              const resolvedUnit =
+                item.unit?.trim() ||
+                (uploadMode === 'subject'
+                  ? targetUnit
+                  : `${mockExamCategory} Mock Examination`);
+              const resolvedTopic =
+                item.topic?.trim() ||
+                (uploadMode === 'subject' ? targetTopic || 'General Topic' : 'Mock Paper');
+
               const draft: ExtractedMCQDraft = {
                 id: `json-${Date.now()}-${idx}`,
                 tempCode: `JSON-${String(idx + 1).padStart(4, '0')}`,
@@ -201,14 +304,14 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
                 clinicalCase: item.clinicalCase,
                 tableData: item.tableData,
                 imageUrl: item.imageUrl,
-                unit: item.unit || 'Clinical Chemistry',
-                subject: item.subject || 'Clinical Enzymology & Hepatic Function',
-                topic: item.topic || 'Transaminases (ALT/AST)',
+                subject: resolvedSubject,
+                unit: resolvedUnit,
+                topic: resolvedTopic,
                 subtopic: item.subtopic,
                 difficulty: item.difficulty || 'Conceptual',
-                examCategories: normalizeExamCategories(item.examCategories),
+                examCategories: resolvedExams,
                 isHighYield: Boolean(item.isHighYield),
-                pastPaper: typeof item.pastPaper === 'string' ? item.pastPaper : undefined,
+                pastPaper: resolvedPastPaper,
                 sourceDocument: file.name,
                 confidenceScore: 1.0,
                 validationErrors: [],
@@ -226,7 +329,13 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
               return draft;
             });
             setImportedDrafts(drafts);
-            setImportSummary(`Parsed ${drafts.length} questions from ${file.name}. Review and approve below before saving.`);
+            setImportSummary(
+              `Parsed ${drafts.length} questions from ${file.name} for ${
+                uploadMode === 'mock'
+                  ? `Mock Test (${mockExamCategory})`
+                  : `Subject-Wise (${targetSubject} > ${targetUnit})`
+              }. Review and approve below before saving.`
+            );
           } else {
             setErrorBanner('JSON file must contain an array of questions or a { questions: [...] } object.');
           }
@@ -237,13 +346,65 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
       reader.readAsText(file);
     } else {
       reader.onload = () => {
-        const drafts = parseCSVToMCQ(reader.result as string, file.name, questions);
+        const defaults =
+          uploadMode === 'mock'
+            ? {
+                examCategories:
+                  mockExamCategory !== 'General' ? [mockExamCategory as ExamCategory] : [],
+                pastPaper: mockPaperTitle.trim() || undefined,
+                unit: 'Clinical Chemistry',
+                subject: `${mockExamCategory} Mock Examination`,
+                topic: 'Mock Paper',
+              }
+            : {
+                unit: targetUnit,
+                subject: targetSubject,
+                topic: targetTopic.trim() || undefined,
+              };
+        const drafts = parseCSVToMCQ(reader.result as string, file.name, questions, defaults);
         setImportedDrafts(drafts);
-        setImportSummary(`Parsed ${drafts.length} questions from ${file.name}. Review and approve below before saving.`);
+        setImportSummary(
+          `Parsed ${drafts.length} questions from ${file.name} for ${
+            uploadMode === 'mock'
+              ? `Mock Test (${mockExamCategory})`
+              : `Subject-Wise (${targetSubject} > ${targetUnit})`
+          }. Review and approve below before saving.`
+        );
       };
       reader.readAsText(file);
     }
     if (e.target) e.target.value = '';
+  };
+
+  const handleApplyCurrentModeToAllStaged = () => {
+    if (importedDrafts.length === 0) return;
+    setImportedDrafts((prev) =>
+      prev.map((d) => {
+        if (uploadMode === 'mock') {
+          const nextExams =
+            mockExamCategory !== 'General' ? [mockExamCategory as ExamCategory] : [];
+          return {
+            ...d,
+            examCategories: nextExams,
+            pastPaper: mockPaperTitle.trim() || d.pastPaper,
+          };
+        } else {
+          return {
+            ...d,
+            subject: targetSubject,
+            unit: targetUnit,
+            topic: targetTopic.trim() || d.topic,
+          };
+        }
+      })
+    );
+    setImportSummary(
+      `Updated all ${importedDrafts.length} staged questions with current ${
+        uploadMode === 'mock'
+          ? `Mock Test (${mockExamCategory} - ${mockPaperTitle})`
+          : `Subject-Wise (${targetSubject} > ${targetUnit})`
+      } settings.`
+    );
   };
 
   const handleToggleSelectDraft = (id: string) => {
@@ -301,8 +462,8 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
         clinicalCase: d.clinicalCase,
         tableData: d.tableData,
         imageUrl: d.imageUrl,
-        unit: d.unit || 'Clinical Chemistry',
-        subject: d.subject || 'Clinical Enzymology & Hepatic Function',
+        subject: d.subject || 'Clinical Chemistry',
+        unit: d.unit || 'Clinical Enzymology & Hepatic Function',
         topic: d.topic || 'General Diagnostic Parameters',
         subtopic: d.subtopic,
         difficulty: d.difficulty || 'Conceptual',
@@ -358,130 +519,372 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
       <div>
         <h2 className="text-base font-semibold text-slate-900">Bulk Upload & Database Archival</h2>
         <p className="text-xs text-slate-500">
-          Download standardized import spreadsheets, backup current records, or review and stage bulk questions before saving.
-          Exam categories (ASCP, NHPC, PSC, DHA, AIMS) are optional — leave them blank to import General questions.
+          Upload bulk questions via CSV or JSON spreadsheets, backup database records, or review and stage questions before saving.
         </p>
       </div>
 
-      {/* Templates & Backup */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2 flex flex-col justify-between">
-          <div className="space-y-1">
-            <h4 className="font-semibold text-slate-900 text-xs">CSV Import Template</h4>
-            <p className="text-xs text-slate-500">
-              Columns for QuestionStem, Options A-D, AnswerKey, Rationale, and Categories.
-            </p>
-          </div>
-          <button
-            onClick={handleDownloadCSVTemplate}
-            className="w-full py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download CSV Template</span>
-          </button>
+      {/* 2-Option Upload Pathway Selector */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+        <div>
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+            Select Upload Pathway
+          </span>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Choose whether you are uploading a complete mock test examination paper or subject-wise curriculum questions.
+          </p>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2 flex flex-col justify-between">
-          <div className="space-y-1">
-            <h4 className="font-semibold text-slate-900 text-xs">JSON Import Template</h4>
-            <p className="text-xs text-slate-500">
-              Structured JSON supporting vignettes, tables, and optional exam tags.
-            </p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Option 1: Mock Test */}
           <button
-            onClick={handleDownloadJSONTemplate}
-            className="w-full py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+            type="button"
+            onClick={() => setUploadMode('mock')}
+            className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+              uploadMode === 'mock'
+                ? 'bg-cyan-50/60 border-cyan-600 ring-2 ring-cyan-600/30 shadow-xs'
+                : 'bg-slate-50/50 border-slate-200 hover:border-slate-300 hover:bg-slate-100/50'
+            }`}
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Download JSON Template</span>
-          </button>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2 flex flex-col justify-between">
-          <div className="space-y-1">
-            <h4 className="font-semibold text-slate-900 text-xs">Backup & Restore Database</h4>
-            <p className="text-xs text-slate-500">
-              Export or restore all {questions.length} question records, categories, and audit histories.
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={handleExportDatabaseJSON}
-              className="flex-1 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded text-xs font-medium flex items-center justify-center gap-1 cursor-pointer"
+            <div
+              className={`p-2.5 rounded-lg shrink-0 ${
+                uploadMode === 'mock' ? 'bg-cyan-700 text-white shadow-xs' : 'bg-slate-200 text-slate-700'
+              }`}
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export</span>
-            </button>
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-slate-900">1. Mock Test Upload</span>
+                {uploadMode === 'mock' && (
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-cyan-700 text-white tracking-wide">
+                    Active Mode
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Upload complete mock examination papers (e.g. CEE-UG 200Q, ASCP, NHPC, PSC, DHA, Grand Tests).
+                Automatically sets exam categories and past paper names.
+              </p>
+            </div>
+          </button>
+
+          {/* Option 2: Subject Wise */}
+          <button
+            type="button"
+            onClick={() => setUploadMode('subject')}
+            className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3.5 ${
+              uploadMode === 'subject'
+                ? 'bg-teal-50/60 border-teal-600 ring-2 ring-teal-600/30 shadow-xs'
+                : 'bg-slate-50/50 border-slate-200 hover:border-slate-300 hover:bg-slate-100/50'
+            }`}
+          >
+            <div
+              className={`p-2.5 rounded-lg shrink-0 ${
+                uploadMode === 'subject' ? 'bg-teal-700 text-white shadow-xs' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              <Layers className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-slate-900">2. Subject-Wise Upload</span>
+                {uploadMode === 'subject' && (
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-teal-700 text-white tracking-wide">
+                    Active Mode
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Upload questions organized by Laboratory Unit and Subject for curriculum-based topic practice, chapter quizzes, and deep revision.
+              </p>
+            </div>
+          </button>
+        </div>
+
+        {/* Dynamic Mode Configuration & Templates */}
+        {uploadMode === 'mock' ? (
+          <div className="p-4 bg-cyan-50/40 border border-cyan-200 rounded-xl space-y-3.5">
+            <div className="flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-cyan-800" />
+              <h4 className="text-xs font-semibold text-cyan-950 uppercase tracking-wider">
+                Mock Test Parameters &amp; Template
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Target Examination Board</label>
+                <select
+                  value={mockExamCategory}
+                  onChange={(e) => setMockExamCategory(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-cyan-600"
+                >
+                  <option value="CEE-UG">CEE-UG Entrance Mock (200 Questions / 180 min)</option>
+                  <option value="ASCP">ASCP Board of Certification Mock</option>
+                  <option value="NHPC">NHPC Licensure Mock</option>
+                  <option value="PSC">PSC Medical Lab Technology Mock</option>
+                  <option value="DHA">DHA Prometric Mock</option>
+                  <option value="AIMS">AIMS Professional Mock</option>
+                  <option value="General">General / Comprehensive Grand Test Mock</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Mock Paper Title / Source Name</label>
+                <input
+                  type="text"
+                  value={mockPaperTitle}
+                  onChange={(e) => setMockPaperTitle(e.target.value)}
+                  placeholder="e.g. CEE-UG Entrance Mock 2026, ASCP Model Paper 1"
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-cyan-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-cyan-200/60">
+              <span className="text-[11px] text-cyan-900 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-cyan-700" />
+                <span>
+                  Uploaded questions will be tagged as <strong>{mockExamCategory}</strong> past paper:{' '}
+                  <strong>"{mockPaperTitle || 'Untitled Paper'}"</strong>
+                </span>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadCSVTemplate('mock')}
+                  className="px-3 py-1.5 bg-white hover:bg-cyan-50 text-cyan-900 border border-cyan-300 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-cyan-700" />
+                  <span>Download Mock Test CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadJSONTemplate('mock')}
+                  className="px-3 py-1.5 bg-white hover:bg-cyan-50 text-cyan-900 border border-cyan-300 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-cyan-700" />
+                  <span>Download Mock Test JSON</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-teal-50/40 border border-teal-200 rounded-xl space-y-3.5">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-teal-800" />
+              <h4 className="text-xs font-semibold text-teal-950 uppercase tracking-wider">
+                Subject-Wise Parameters &amp; Template
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Target Specialty Subject</label>
+                <select
+                  value={targetSubject}
+                  onChange={(e) => handleSubjectChange(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Target Unit / Module</label>
+                <select
+                  value={targetUnit}
+                  onChange={(e) => handleUnitChange(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                >
+                  {subjectUnits.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Default Topic (Optional)</label>
+                <input
+                  type="text"
+                  value={targetTopic}
+                  onChange={(e) => setTargetTopic(e.target.value)}
+                  placeholder="e.g. Transaminases, Troponin"
+                  className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-teal-200/60">
+              <span className="text-[11px] text-teal-900 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-teal-700" />
+                <span>
+                  Uploaded questions will be mapped to <strong>{targetSubject}</strong> &gt;{' '}
+                  <strong>{targetUnit}</strong>
+                </span>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadCSVTemplate('subject')}
+                  className="px-3 py-1.5 bg-white hover:bg-teal-50 text-teal-900 border border-teal-300 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Download Subject-Wise CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadJSONTemplate('subject')}
+                  className="px-3 py-1.5 bg-white hover:bg-teal-50 text-teal-900 border border-teal-300 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Download Subject-Wise JSON</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload Zone */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+              Upload {uploadMode === 'mock' ? 'Mock Test' : 'Subject-Wise'} Batch File
+            </h3>
+            <span className="text-[11px] text-slate-500">Supports .csv and .json</span>
+          </div>
+
+          <div
+            className={`border-2 border-dashed rounded-xl p-7 text-center space-y-3 transition-colors ${
+              uploadMode === 'mock'
+                ? 'border-cyan-300 hover:border-cyan-500 bg-cyan-50/20'
+                : 'border-teal-300 hover:border-teal-500 bg-teal-50/20'
+            }`}
+          >
             <input
               type="file"
-              ref={restoreInputRef}
-              onChange={handleRestoreDatabaseJSON}
-              accept=".json"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".csv,.json"
               className="hidden"
             />
+
+            <div className="flex justify-center">
+              <div
+                className={`p-3 rounded-full ${
+                  uploadMode === 'mock' ? 'bg-cyan-100 text-cyan-800' : 'bg-teal-100 text-teal-800'
+                }`}
+              >
+                <Upload className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-900">
+                Choose a batch file to upload for{' '}
+                <span className={uploadMode === 'mock' ? 'text-cyan-800' : 'text-teal-800'}>
+                  {uploadMode === 'mock' ? `Mock Test (${mockExamCategory})` : `Subject Wise (${targetSubject})`}
+                </span>
+              </p>
+              <p className="text-xs text-slate-500">
+                CSV rows and JSON records will be parsed, checked for duplicates, and staged for review before publishing.
+              </p>
+            </div>
+
             <button
-              onClick={() => restoreInputRef.current?.click()}
-              className="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium flex items-center justify-center gap-1 cursor-pointer"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`px-5 py-2 text-white rounded-lg text-xs font-semibold shadow-xs cursor-pointer transition-all ${
+                uploadMode === 'mock'
+                  ? 'bg-cyan-700 hover:bg-cyan-800'
+                  : 'bg-teal-700 hover:bg-teal-800'
+              }`}
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Restore</span>
+              Select Batch File ({uploadMode === 'mock' ? 'Mock Test' : 'Subject-Wise'})
             </button>
           </div>
+
+          {errorBanner && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorBanner}</span>
+            </div>
+          )}
+
+          {importSummary && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{importSummary}</span>
+              </div>
+              {importedDrafts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleApplyCurrentModeToAllStaged}
+                  className="px-2 py-1 text-[11px] font-medium rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 cursor-pointer"
+                  title="Re-tag all currently staged questions with the active upload settings above"
+                >
+                  Apply Current Settings to Staged
+                </button>
+              )}
+            </div>
+          )}
+
+          {importReport && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
+              <div className="font-semibold text-emerald-900 flex items-center gap-1.5">
+                <FileCheck className="w-4 h-4 text-emerald-700" />
+                <span>Import Verification Receipt</span>
+              </div>
+              <div className="text-emerald-800 flex flex-wrap gap-4 pt-1">
+                <span>Successfully Imported: <strong>{importReport.importedCount}</strong></span>
+                <span>Skipped / Excluded: <strong>{importReport.skippedCount}</strong></span>
+                <span>Remaining in Staging: <strong>{importReport.stagedRemaining}</strong></span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Upload Zone */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-          Upload Filled Batch File
-        </h3>
-
-        <div className="border border-dashed border-slate-300 rounded-lg p-6 text-center space-y-2 bg-slate-50/50">
+      {/* Database Backup & Restore Utility */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div>
+          <h4 className="font-semibold text-slate-900">Full Database Backup &amp; Restore</h4>
+          <p className="text-slate-500 text-[11px] mt-0.5">
+            Export a full JSON snapshot of all {questions.length} questions or restore from an archival backup file.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleExportDatabaseJSON}
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-medium flex items-center gap-1 cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export Backup</span>
+          </button>
           <input
             type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".csv,.json"
+            ref={restoreInputRef}
+            onChange={handleRestoreDatabaseJSON}
+            accept=".json"
             className="hidden"
           />
-          <p className="text-xs text-slate-600">
-            Select a CSV or JSON file containing MCQs to stage and review before importing
-          </p>
           <button
-            onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded text-xs font-medium shadow-xs cursor-pointer"
+            onClick={() => restoreInputRef.current?.click()}
+            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-md font-medium flex items-center gap-1 cursor-pointer"
           >
-            Select Batch File
+            <Upload className="w-3.5 h-3.5" />
+            <span>Restore Backup</span>
           </button>
         </div>
-
-        {errorBanner && (
-          <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{errorBanner}</span>
-          </div>
-        )}
-
-        {importSummary && (
-          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{importSummary}</span>
-          </div>
-        )}
-
-        {importReport && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
-            <div className="font-semibold text-emerald-900 flex items-center gap-1.5">
-              <FileCheck className="w-4 h-4 text-emerald-700" />
-              <span>Import Verification Receipt</span>
-            </div>
-            <div className="text-emerald-800 flex flex-wrap gap-4 pt-1">
-              <span>Successfully Imported: <strong>{importReport.importedCount}</strong></span>
-              <span>Skipped / Excluded: <strong>{importReport.skippedCount}</strong></span>
-              <span>Remaining in Staging: <strong>{importReport.stagedRemaining}</strong></span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Staged Review & Correction Area (app.pdf Section 1.D) */}
@@ -590,9 +993,25 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
                       </button>
                       <span className="font-semibold text-slate-800">{draft.tempCode}</span>
                       <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">{draft.unit}</span>
+                      <span className="text-slate-700 font-medium">{draft.subject}</span>
                       <span className="text-slate-400">·</span>
-                      <span className="text-slate-600">{draft.subject}</span>
+                      <span className="text-slate-600">{draft.unit}</span>
+                      {draft.examCategories && draft.examCategories.length > 0 && (
+                        <>
+                          <span className="text-slate-400">·</span>
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-800 border border-cyan-200 font-semibold text-[10px]">
+                            {draft.examCategories.join(', ')}
+                          </span>
+                        </>
+                      )}
+                      {draft.pastPaper && (
+                        <>
+                          <span className="text-slate-400">·</span>
+                          <span className="text-slate-500 italic text-[11px] truncate max-w-[180px]" title={draft.pastPaper}>
+                            {draft.pastPaper}
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -732,10 +1151,10 @@ export const BulkImportExport: React.FC<BulkImportExportProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Unit</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Specialty Subject</label>
                   <select
-                    value={editingDraft.unit}
-                    onChange={(e) => setEditingDraft({ ...editingDraft, unit: e.target.value })}
+                    value={editingDraft.subject}
+                    onChange={(e) => setEditingDraft({ ...editingDraft, subject: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-300 rounded p-1.5 text-slate-900"
                   >
                     {categories.map((c) => (

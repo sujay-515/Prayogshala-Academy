@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark';
 
-export const THEME_STORAGE_KEY = 'medlab_theme_v1';
+export const THEME_STORAGE_KEY = 'prayogshala_theme_v1';
 
 /** Resolve the initial theme: explicit ?theme= override, saved choice, then OS preference. */
 export function getPreferredTheme(): Theme {

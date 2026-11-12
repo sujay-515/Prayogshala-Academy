@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * MedLab QBank Production Smoke Test Script
+ * Prayogshala Academy Production Smoke Test Script
  * Verifies key security, SEO, route handling, and anti-leak protections against a running instance.
  *
  * Usage:
@@ -33,7 +33,7 @@ function warn(msg) {
 }
 
 async function run() {
-  console.log(`Running MedLab QBank smoke tests against: ${BASE_URL}\n`);
+  console.log(`Running Prayogshala Academy smoke tests against: ${BASE_URL}\n`);
 
   // 1. GET /api/health returns 200 and JSON with status "ok"
   try {
@@ -154,7 +154,7 @@ async function run() {
 
   // 5. Protected server files check: do not return sqlite header, env text, or TS source
   const sensitivePaths = [
-    '/data/medlab_qbank.sqlite',
+    '/data/prayogshala_academy.sqlite',
     '/.env',
     '/server.ts',
     '/src/App.tsx',

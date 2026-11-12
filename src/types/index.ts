@@ -46,8 +46,11 @@ export interface MCQQuestion {
   clinicalCase?: string;
   tableData?: TableData;
   imageUrl?: string;
-  unit: string;
+  /** Primary medical laboratory specialty subject, e.g. "Clinical Chemistry", "Hematology & Hemostasis". */
   subject: string;
+  /** Unit or module under the specialty subject, e.g. "Clinical Enzymology & Hepatic Function". */
+  unit: string;
+  /** Specific clinical topic under the unit, e.g. "Transaminases (ALT/AST)". */
   topic: string;
   subtopic?: string;
   difficulty: DifficultyLevel;
@@ -73,8 +76,11 @@ export interface PublicMCQQuestion {
   clinicalCase?: string;
   tableData?: TableData;
   imageUrl?: string;
-  unit: string;
+  /** Primary medical laboratory specialty subject, e.g. "Clinical Chemistry", "Hematology & Hemostasis". */
   subject: string;
+  /** Unit or module under the specialty subject, e.g. "Clinical Enzymology & Hepatic Function". */
+  unit: string;
+  /** Specific clinical topic under the unit, e.g. "Transaminases (ALT/AST)". */
   topic: string;
   subtopic?: string;
   difficulty: DifficultyLevel;
@@ -151,8 +157,11 @@ export interface ExtractedMCQDraft {
   clinicalCase?: string;
   tableData?: TableData;
   imageUrl?: string;
-  unit: string;
+  /** Primary medical laboratory specialty subject, e.g. "Clinical Chemistry", "Hematology & Hemostasis". */
   subject: string;
+  /** Unit or module under the specialty subject, e.g. "Clinical Enzymology & Hepatic Function". */
+  unit: string;
+  /** Specific clinical topic under the unit, e.g. "Transaminases (ALT/AST)". */
   topic: string;
   subtopic?: string;
   difficulty: DifficultyLevel;
@@ -172,16 +181,26 @@ export interface ExtractedMCQDraft {
   status: 'Staged' | 'Approved' | 'Rejected';
 }
 
-export interface UnitCategory {
+export interface SubjectUnit {
+  id: string;
+  name: string;
+  topics: string[];
+}
+
+export interface SubjectCategory {
   id: string;
   name: string;
   description: string;
-  subjects: {
-    id: string;
-    name: string;
-    topics: string[];
-  }[];
+  /** Lucide icon identifier (e.g. "FlaskConical", "Droplets", "Microscope") */
+  icon?: string;
+  /** Units / modules belonging to this subject */
+  units: SubjectUnit[];
+  /** Backwards compatibility alias for units */
+  subjects: SubjectUnit[];
 }
+
+/** Backwards-compatibility alias for SubjectCategory */
+export type UnitCategory = SubjectCategory;
 
 export interface ExamSession {
   id: string;

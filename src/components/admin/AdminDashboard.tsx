@@ -6,6 +6,7 @@ import {
   Search,
   ChevronDown,
   ChevronRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { MCQQuestion, UnitCategory } from '../../types';
 import {
@@ -19,7 +20,10 @@ import { questionMatchesExamCategory } from '../../utils/examCategories';
 interface AdminDashboardProps {
   questions: MCQQuestion[];
   categories: UnitCategory[];
-  onNavigateSubtab: (subtab: 'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports') => void;
+  onNavigateSubtab: (
+    subtab: 'dashboard' | 'pdf' | 'manual' | 'categories' | 'bulk' | 'reports' | 'users' | 'mock-sets',
+    uploadMode?: 'mock' | 'subject'
+  ) => void;
   pendingReportsCount: number;
 }
 
@@ -204,6 +208,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <Layers className="w-3.5 h-3.5 text-slate-600" />
             <span>Taxonomy Hierarchy</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateSubtab('mock-sets')}
+            className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded text-xs font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
+            <span>Mock Test Sets</span>
           </button>
         </div>
       </div>

@@ -14,8 +14,13 @@ import {
   Loader2,
   GraduationCap,
   Crown,
+  Layers,
+  Award,
+  Check,
+  BookOpen,
+  SlidersHorizontal,
 } from 'lucide-react';
-import { MCQQuestion, ExamCategory, DifficultyLevel } from '../../types';
+import { MCQQuestion, ExamCategory } from '../../types';
 import { ExamScoreResult, DEFAULT_PENALTY_PER_WRONG } from '../../utils/scoring';
 import { formatCountdown, formatNepalTime } from '../../utils/examWindow';
 import { computePacing, formatPacingTime, PacingSummary } from '../../utils/pacing';
@@ -33,6 +38,161 @@ import { SITE_CONFIG } from '../../config/site';
 import { Modal } from '../common/Modal';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
 import { questionMatchesExamCategory } from '../../utils/examCategories';
+
+export interface ExamSyllabusInfo {
+  code: ExamCategory | 'All';
+  title: string;
+  fullName: string;
+  subtitle: string;
+  description: string;
+  standardQuestionCount: number;
+  durationMinutes: number;
+  penaltyPerWrong: number;
+  passingPercentage: number;
+  totalSets: number;
+}
+
+export const EXAM_SYLLABI: ExamSyllabusInfo[] = [
+  {
+    code: 'ASCP',
+    title: 'ASCP MLS / MLT',
+    fullName: 'American Society for Clinical Pathology',
+    subtitle: 'Generalist & Specialist Licensure',
+    description: 'Gold-standard international clinical laboratory licensure examination covering Clinical Chemistry, Hematology, Microbiology, Immunohematology, and Urinalysis.',
+    standardQuestionCount: 50,
+    durationMinutes: 50,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 70,
+    totalSets: 5,
+  },
+  {
+    code: 'NHPC',
+    title: 'NHPC Licensure',
+    fullName: 'Nepal Health Professional Council',
+    subtitle: 'Medical Laboratory Technologist / MLT Licensure',
+    description: 'Official national licensure examination blueprint administered by NHPC for professional registration of Medical Laboratory Technologists and Technicians.',
+    standardQuestionCount: 50,
+    durationMinutes: 50,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 70,
+    totalSets: 5,
+  },
+  {
+    code: 'PSC',
+    title: 'PSC Medical Lab',
+    fullName: 'Public Service Commission (Lok Sewa)',
+    subtitle: 'Public Service Commission Syllabus',
+    description: 'Government civil service competitive examination for Laboratory Technicians and Technologists under the Ministry of Health and Population.',
+    standardQuestionCount: 50,
+    durationMinutes: 50,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 70,
+    totalSets: 5,
+  },
+  {
+    code: 'DHA',
+    title: 'DHA Technologist',
+    fullName: 'Dubai Health Authority',
+    subtitle: 'Dubai Health Authority Clinical Exam',
+    description: 'Prometric-style clinical laboratory licensure test for medical laboratory technologists practicing in Dubai/UAE healthcare facilities.',
+    standardQuestionCount: 50,
+    durationMinutes: 50,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 70,
+    totalSets: 5,
+  },
+  {
+    code: 'AIMS',
+    title: 'AIMS Professional',
+    fullName: 'Australian Institute of Medical Scientists',
+    subtitle: 'Australian Institute of Medical Scientists',
+    description: 'Professional assessment examination for Medical Laboratory Scientists seeking certification and migration assessment in Australia.',
+    standardQuestionCount: 50,
+    durationMinutes: 50,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 70,
+    totalSets: 5,
+  },
+  {
+    code: 'CEE-UG',
+    title: 'CEE-UG Entrance',
+    fullName: 'Medical Education Commission (MEC)',
+    subtitle: 'MECEE-BL Medical Entrance Mock',
+    description: 'Full-length 200-question medical entrance mock based on the official CEE-UG blueprint: 3 hours, 200 marks, −0.25 negative marking.',
+    standardQuestionCount: 200,
+    durationMinutes: 180,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 50,
+    totalSets: 5,
+  },
+  {
+    code: 'All',
+    title: 'Comprehensive Mock',
+    fullName: 'Multi-Board Laboratory Medicine',
+    subtitle: 'All Syllabi Combined Practice Paper',
+    description: 'Cross-disciplinary mock test drawing questions across all examination boards and laboratory specialties for full-spectrum assessment.',
+    standardQuestionCount: 50,
+    durationMinutes: 50,
+    penaltyPerWrong: 0.25,
+    passingPercentage: 70,
+    totalSets: 5,
+  },
+];
+
+export interface SetExamConfig {
+  durationMinutes: number;
+  negativeMarking: boolean;
+  penaltyPerWrong: number;
+}
+
+export function getSetStorageKey(syllabusCode: string, setNum: number): string {
+  return `prayogshala_mock_set_cfg_${syllabusCode}_set_${setNum}`;
+}
+
+export function loadSetExamConfig(
+  syllabusCode: string,
+  setNum: number,
+  defaultDuration: number,
+  defaultPenalty: number
+): SetExamConfig {
+  try {
+    const raw = localStorage.getItem(getSetStorageKey(syllabusCode, setNum));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const duration =
+        typeof parsed.durationMinutes === 'number' && parsed.durationMinutes >= 5 && parsed.durationMinutes <= 300
+          ? Math.round(parsed.durationMinutes)
+          : defaultDuration;
+      const neg = typeof parsed.negativeMarking === 'boolean' ? parsed.negativeMarking : defaultPenalty > 0;
+      const pen =
+        typeof parsed.penaltyPerWrong === 'number' && parsed.penaltyPerWrong >= 0
+          ? Number(parsed.penaltyPerWrong.toFixed(2))
+          : defaultPenalty;
+      return { durationMinutes: duration, negativeMarking: neg, penaltyPerWrong: pen };
+    }
+  } catch {}
+  return {
+    durationMinutes: defaultDuration,
+    negativeMarking: defaultPenalty > 0,
+    penaltyPerWrong: defaultPenalty,
+  };
+}
+
+export function saveSetExamConfig(
+  syllabusCode: string,
+  setNum: number,
+  config: SetExamConfig
+): void {
+  try {
+    localStorage.setItem(getSetStorageKey(syllabusCode, setNum), JSON.stringify(config));
+  } catch {}
+}
+
+export function clearSetExamConfig(syllabusCode: string, setNum: number): void {
+  try {
+    localStorage.removeItem(getSetStorageKey(syllabusCode, setNum));
+  } catch {}
+}
 
 interface ExamModeProps {
   questions: MCQQuestion[];
@@ -74,15 +234,71 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 }) => {
   const isCeeUg = preset === 'cee-ug';
   const passMark = typeof passingPercentage === 'number' ? passingPercentage : 70;
-  const [examCategory, setExamCategory] = useState<ExamCategory | 'All'>(
-    isCeeUg ? 'CEE-UG' : initialExamCategory || 'All'
+  const [selectedSyllabus, setSelectedSyllabus] = useState<(ExamCategory | 'All') | null>(
+    isCeeUg ? 'CEE-UG' : (initialExamCategory || null)
   );
-  const [selectedUnit, setSelectedUnit] = useState<string>('All');
-  const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel | 'All'>('All');
-  const [questionCount, setQuestionCount] = useState<number>(isCeeUg ? CEE_UG_TOTAL_QUESTIONS : 10);
-  const [durationMinutes, setDurationMinutes] = useState<number>(isCeeUg ? CEE_UG_DURATION_MINUTES : 15);
+  const [examCategory, setExamCategory] = useState<ExamCategory | 'All'>(
+    isCeeUg ? 'CEE-UG' : (initialExamCategory || 'ASCP')
+  );
+  const [selectedSet, setSelectedSet] = useState<number>(1);
+  const [startingSetNumber, setStartingSetNumber] = useState<number | null>(null);
+  const [editingSetNumber, setEditingSetNumber] = useState<number | null>(null);
+  const [setConfigs, setSetConfigs] = useState<Record<string, SetExamConfig>>({});
+
+  const getEffectiveSetConfig = (
+    category: string,
+    setNum: number,
+    defaultDuration: number,
+    defaultPenalty: number
+  ): SetExamConfig => {
+    const key = `${category}_set_${setNum}`;
+    if (setConfigs[key]) return setConfigs[key];
+    return loadSetExamConfig(category, setNum, defaultDuration, defaultPenalty);
+  };
+
+  const handleUpdateSetConfig = (
+    category: string,
+    setNum: number,
+    defaultDuration: number,
+    defaultPenalty: number,
+    partial: Partial<SetExamConfig>
+  ) => {
+    const key = `${category}_set_${setNum}`;
+    const current = getEffectiveSetConfig(category, setNum, defaultDuration, defaultPenalty);
+    const updated: SetExamConfig = {
+      ...current,
+      ...partial,
+      durationMinutes:
+        typeof partial.durationMinutes === 'number'
+          ? Math.max(5, Math.min(300, Math.round(partial.durationMinutes)))
+          : current.durationMinutes,
+      penaltyPerWrong:
+        typeof partial.penaltyPerWrong === 'number'
+          ? Math.max(0, Number(partial.penaltyPerWrong.toFixed(2)))
+          : current.penaltyPerWrong,
+    };
+    saveSetExamConfig(category, setNum, updated);
+    setSetConfigs((prev) => ({ ...prev, [key]: updated }));
+  };
+
+  const handleResetSetConfig = (
+    category: string,
+    setNum: number,
+    defaultDuration: number,
+    defaultPenalty: number
+  ) => {
+    const key = `${category}_set_${setNum}`;
+    clearSetExamConfig(category, setNum);
+    setSetConfigs((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const [durationMinutes, setDurationMinutes] = useState<number>(isCeeUg ? CEE_UG_DURATION_MINUTES : 50);
   const [shuffleOptions, setShuffleOptions] = useState<boolean>(true);
-  const [negativeMarking, setNegativeMarking] = useState<boolean>(isCeeUg);
+  const [negativeMarking, setNegativeMarking] = useState<boolean>(true);
   const [examWindow, setExamWindow] = useState<{
     isOpen: boolean;
     opensAt: string;
@@ -130,6 +346,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
 
   useEffect(() => {
     if (!isCeeUg && initialExamCategory) {
+      setSelectedSyllabus(initialExamCategory);
       setExamCategory(initialExamCategory);
     }
   }, [initialExamCategory, isCeeUg]);
@@ -201,25 +418,8 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     return questions.filter((q) => isVisibleQuestion(q));
   }, [questions]);
 
-  const units = useMemo(() => {
-    return ['All', ...Array.from(new Set(publishedQuestions.map((q) => q.unit)))];
-  }, [publishedQuestions]);
-
-  const filteredPool = useMemo(() => {
-    return publishedQuestions.filter((q) => {
-      if (examCategory !== 'All' && !questionMatchesExamCategory(q.examCategories, examCategory)) return false;
-      if (selectedUnit !== 'All' && q.unit !== selectedUnit) return false;
-      if (selectedDifficulty !== 'All' && q.difficulty !== selectedDifficulty) return false;
-      return true;
-    });
-  }, [publishedQuestions, examCategory, selectedUnit, selectedDifficulty]);
-
-  const isGrandTestConfig = !isCeeUg && questionCount >= 200 && durationMinutes >= 180 && negativeMarking;
-  const servedCount = Math.min(questionCount, filteredPool.length);
-
   const windowOpensAt = examWindow ? Date.parse(examWindow.opensAt) : 0;
   const windowClosesAt = examWindow ? Date.parse(examWindow.closesAt) : 0;
-  // Until the status loads we defer to the server, which rejects out-of-window starts.
   const isWindowOpen = examWindow
     ? clockTick >= windowOpensAt && clockTick <= windowClosesAt
     : true;
@@ -228,58 +428,53 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     : isWindowOpen
       ? `Open now · closes in ${formatCountdown(windowClosesAt - clockTick)}`
       : `Closed · opens ${formatNepalTime(new Date(windowOpensAt))} (in ${formatCountdown(windowOpensAt - clockTick)})`;
-  const grandTestBlocked = isGrandTestConfig && !isWindowOpen;
-
-  const applyGrandTestPreset = () => {
-    setExamCategory('All');
-    setSelectedUnit('All');
-    setSelectedDifficulty('All');
-    setQuestionCount(200);
-    setDurationMinutes(180);
-    setShuffleOptions(true);
-    setNegativeMarking(true);
-    setStartError(null);
-  };
-
-  // Restores the quick-mock defaults, so the control always does something visible
-  // even when the Grand Test rules are already applied.
-  const resetExamDefaults = () => {
-    setExamCategory(initialExamCategory || 'All');
-    setSelectedUnit('All');
-    setSelectedDifficulty('All');
-    setQuestionCount(10);
-    setDurationMinutes(15);
-    setShuffleOptions(true);
-    setNegativeMarking(false);
-    setStartError(null);
-  };
 
   const formatScore = (value: number) =>
     Number.isInteger(value) ? String(value) : value.toFixed(2);
 
-  const startExam = async () => {
+  const startExamWithSet = async (category: ExamCategory | 'All', setNum: number) => {
     setStartError(null);
     setPaywallNotice(null);
     setIsStarting(true);
+    setStartingSetNumber(setNum);
+    setSelectedSet(setNum);
+
+    const isCeeUgMock = category === 'CEE-UG' || isCeeUg;
+    const syllabusSpec = EXAM_SYLLABI.find((s) => s.code === category) || EXAM_SYLLABI[0];
+    const defaultDuration = isCeeUgMock ? CEE_UG_DURATION_MINUTES : syllabusSpec.durationMinutes;
+    const defaultPenalty = isCeeUgMock ? CEE_UG_PENALTY_PER_WRONG : syllabusSpec.penaltyPerWrong;
+    const targetCount = isCeeUgMock ? CEE_UG_TOTAL_QUESTIONS : syllabusSpec.standardQuestionCount;
+
+    const setCfg = getEffectiveSetConfig(category, setNum, defaultDuration, defaultPenalty);
+    const targetDuration = setCfg.durationMinutes;
+    const targetNegative = setCfg.negativeMarking;
+    const targetPenalty = targetNegative ? setCfg.penaltyPerWrong : 0;
+
     try {
-      const token = localStorage.getItem('medlab_qbank_auth_token_v1') || localStorage.getItem('medlab_auth_token');
+      const token = localStorage.getItem('prayogshala_auth_token_v1') || localStorage.getItem('prayogshala_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(isCeeUg ? '/api/cee-ug/exams/start' : '/api/exams/start', {
+      const res = await fetch(isCeeUgMock ? '/api/cee-ug/exams/start' : '/api/exams/start', {
         method: 'POST',
         headers,
         body: JSON.stringify(
-          isCeeUg
-            ? { shuffleOptions }
+          isCeeUgMock
+            ? {
+                shuffleOptions: true,
+                setNumber: setNum,
+                durationMinutes: targetDuration,
+                negativeMarking: targetNegative,
+                penaltyPerWrong: targetPenalty,
+              }
             : {
-                examCategory,
-                unit: selectedUnit,
-                difficulty: selectedDifficulty,
-                questionCount,
-                durationMinutes,
-                shuffleOptions,
-                negativeMarking,
+                examCategory: category,
+                setNumber: setNum,
+                questionCount: targetCount,
+                durationMinutes: targetDuration,
+                shuffleOptions: true,
+                negativeMarking: targetNegative,
+                penaltyPerWrong: targetPenalty,
               }
         ),
       });
@@ -302,14 +497,21 @@ export const ExamMode: React.FC<ExamModeProps> = ({
       }
       if (res.ok && data?.success && Array.isArray(data.questions) && data.questions.length > 0) {
         setActiveExamId(data.examId);
-        setExamTitle(data.title || '');
+        setExamTitle(data.title || `${category === 'All' ? 'Comprehensive' : category} Mock Exam · Set ${setNum}`);
         setExamQuestions(data.questions);
-        if (typeof data.negativeMarking === 'boolean') setNegativeMarking(data.negativeMarking);
+        setExamCategory(category);
+        if (typeof data.negativeMarking === 'boolean') {
+          setNegativeMarking(data.negativeMarking);
+        } else {
+          setNegativeMarking(targetNegative);
+        }
         setCurrentIndex(0);
         setUserAnswers({});
         setQuestionTimings({});
         setFlaggedIds(new Set());
-        setSecondsRemaining((typeof data.durationMinutes === 'number' ? data.durationMinutes : durationMinutes) * 60);
+        const dur = typeof data.durationMinutes === 'number' ? data.durationMinutes : targetDuration;
+        setDurationMinutes(dur);
+        setSecondsRemaining(dur * 60);
         setIsReviewScreenOpen(false);
         setShowConfirmModal(false);
         setExamResult(null);
@@ -317,13 +519,16 @@ export const ExamMode: React.FC<ExamModeProps> = ({
         setIsExamRunning(true);
         return;
       }
-      setStartError(data?.error || 'Failed to start examination session. Please check question filters.');
+      setStartError(data?.error || 'Failed to start examination session. Please check question availability.');
     } catch {
       setStartError('Network error connecting to exam server. Please check your connection and retry.');
     } finally {
       setIsStarting(false);
+      setStartingSetNumber(null);
     }
   };
+
+  const startExam = () => startExamWithSet(selectedSyllabus || 'ASCP', selectedSet);
 
   useEffect(() => {
     if (!isExamRunning || examResult) return;
@@ -371,7 +576,7 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     setIsSubmitting(true);
 
     try {
-      const token = localStorage.getItem('medlab_qbank_auth_token_v1') || localStorage.getItem('medlab_auth_token');
+      const token = localStorage.getItem('prayogshala_auth_token_v1') || localStorage.getItem('prayogshala_auth_token');
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -510,7 +715,12 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               <span>Retake Exam</span>
             </button>
             <button
-              onClick={() => setExamResult(null)}
+              onClick={() => {
+                setExamResult(null);
+                if (!isCeeUg) {
+                  setSelectedSyllabus(null);
+                }
+              }}
               className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium text-xs rounded transition-colors cursor-pointer"
             >
               New exam
@@ -696,159 +906,29 @@ export const ExamMode: React.FC<ExamModeProps> = ({
     );
   }
 
-  // Screen 2a: CEE-UG fixed-paper briefing (blueprint, bank readiness, start)
-  if (!isExamRunning && isCeeUg) {
-    const availability = computeCeeUgAvailability(publishedQuestions, () => true);
-    const canStart = availability.totalAvailable > 0 && !isStarting;
-
+  // Screen 2A: Exam Types Selection (Overview)
+  if (!isExamRunning && !selectedSyllabus && !isCeeUg) {
     return (
-      <div className="max-w-3xl mx-auto py-6 space-y-4">
-        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-4 shadow-xs">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-slate-900">Sit the CEE-UG mock</h2>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                {CEE_UG_TOTAL_QUESTIONS} questions · {CEE_UG_DURATION_MINUTES} minutes · −
-                {CEE_UG_PENALTY_PER_WRONG} per wrong answer · {CEE_UG_PASSING_PERCENTAGE}% pass mark
-              </p>
-            </div>
-            <span className="text-xs font-medium px-2 py-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-800">
-              Available anytime
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <span className="text-xs text-slate-500 block">Total Questions</span>
-              <span className="text-lg font-bold text-slate-900">{CEE_UG_TOTAL_QUESTIONS} Qs</span>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <span className="text-xs text-slate-500 block">Available in Bank</span>
-              <span className={`text-lg font-bold ${availability.isShort ? 'text-amber-700' : 'text-emerald-700'}`}>
-                {availability.totalAvailable}
-              </span>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <span className="text-xs text-slate-500 block">Time Duration</span>
-              <span className="text-lg font-bold text-slate-900">{CEE_UG_DURATION_MINUTES} min</span>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-              <span className="text-xs text-slate-500 block">Negative Marking</span>
-              <span className="text-lg font-bold text-rose-700">−{CEE_UG_PENALTY_PER_WRONG}</span>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-slate-700">Question Bank Readiness</span>
-              <span className="font-semibold text-slate-900">
-                {availability.totalAvailable} / {availability.totalRequired} Questions
-              </span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${
-                  availability.totalAvailable >= availability.totalRequired ? 'bg-emerald-600' : 'bg-amber-500'
-                }`}
-                style={{
-                  width: `${Math.min(100, Math.round((availability.totalAvailable / availability.totalRequired) * 100))}%`,
-                }}
-              />
-            </div>
-          </div>
-
-          {availability.totalAvailable === 0 ? (
-            <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
-              No CEE-UG questions are published yet. An administrator can bulk upload the 200 questions from the admin console.
-            </div>
-          ) : (
-            availability.isShort && (
-              <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
-                {availability.totalAvailable} of {availability.totalRequired} questions are available in the bank. You can start this mock now with the available questions, or bulk upload the remaining questions to reach the full 200-question paper.
-              </div>
-            )
-          )}
-
-          {paywallNotice && (
-            <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-center gap-2">
-                <Crown className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="font-medium">{paywallNotice.message}</span>
-              </div>
-              <Link
-                to="/pricing"
-                className="px-4 py-2 min-h-[44px] inline-flex items-center bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition-colors shrink-0"
-              >
-                View Plans &amp; Unlock
-              </Link>
-            </div>
-          )}
-
-          {startError && (
-            <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{startError}</span>
-              </div>
-              <button
-                type="button"
-                onClick={startExam}
-                className="px-3.5 py-1.5 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded font-medium text-xs transition-colors cursor-pointer"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">
-              Randomised paper · one sitting = one server session · answers revealed after submission.
-            </p>
-            <button
-              disabled={!canStart}
-              onClick={startExam}
-              className="px-5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
-            >
-              {isStarting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                  <span>Preparing Examination...</span>
-                </>
-              ) : (
-                <>
-                  <span>Start CEE-UG Mock</span>
-                  <ArrowRight className="w-4 h-4 text-cyan-400" />
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Screen 2: Configuration / Start
-  if (!isExamRunning) {
-    return (
-      <div className="max-w-3xl mx-auto py-6 space-y-6">
-        <title>Mock Examination Simulation | MedLab QBank</title>
+      <div className="max-w-4xl mx-auto py-6 space-y-7">
+        <title>Mock Examination Simulation | {SITE_CONFIG.SITE_NAME}</title>
         <meta
           name="description"
-          content="Timed exam simulation adhering to ASCP, NHPC, PSC, DHA, and AIMS blueprints with server-verified scoring and answer review."
+          content="Timed exam simulation adhering to ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG blueprints with standardized model question sets."
         />
         <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/exam`} />
-        <meta property="og:title" content="Mock Examination Simulation | MedLab QBank" />
-        <meta
-          property="og:description"
-          content="Timed exam simulation adhering to ASCP, NHPC, PSC, DHA, and AIMS blueprints with server-verified scoring and answer review."
-        />
-        <meta property="og:url" content={`${SITE_CONFIG.SITE_URL}/exam`} />
 
-        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-2">
+        {/* Header Hero */}
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
-              Laboratory Medicine Mock Examination
-            </h1>
+            <div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-cyan-800 bg-cyan-50 border border-cyan-200 rounded-full px-2.5 py-1 mb-2">
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-700" />
+                Standardized Licensure &amp; Entrance Simulation
+              </span>
+              <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">
+                Mock Examination
+              </h1>
+            </div>
             <Link
               to="/leaderboard"
               className="text-xs font-medium text-cyan-800 hover:text-cyan-950 hover:underline shrink-0"
@@ -856,207 +936,238 @@ export const ExamMode: React.FC<ExamModeProps> = ({
               Grand Test leaderboard →
             </Link>
           </div>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            Timed mock examination with server-side answer key protection, question review grid, and subject telemetry.
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl">
+            Select an examination board or syllabus below to view its official blueprint specifications and choose from 5 standardized model paper sets.
           </p>
+
+          <div className="pt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500 border-t border-slate-100">
+            <span className="flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-cyan-700" />
+              Standard Timed Sittings
+            </span>
+            <span>•</span>
+            <span>Negative Marking Simulation</span>
+            <span>•</span>
+            <span>Protected Server Answer Keys</span>
+            <span>•</span>
+            <span className="text-emerald-700 font-medium">Instant Scorecard &amp; Rationales</span>
+          </div>
         </div>
 
-        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-3">
-            <h2 className="text-sm font-semibold text-slate-900">Exam Parameters</h2>
-            <Link
-              to="/cee-ug"
-              className="text-xs font-medium text-cyan-800 hover:text-cyan-950 hover:underline flex items-center gap-1"
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-cyan-700" />
-              <span>Sit CEE-UG entrance mock (200 Qs · 3 hr) →</span>
-            </Link>
-          </div>
-
-          <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <span className="text-xs font-semibold text-cyan-950 flex items-center gap-1.5">
-                Grand Test simulation
-                {isGrandTestConfig && (
-                  <span className="px-1.5 py-0.5 rounded bg-cyan-700 text-white text-[10px] font-bold uppercase tracking-wide">
-                    Active
-                  </span>
-                )}
-              </span>
-              <p className="text-xs text-cyan-900 mt-0.5">
-                200 questions · 180 minutes · −{DEFAULT_PENALTY_DISPLAY} per wrong answer · all syllabi
-              </p>
-              <p className={`text-[11px] mt-1 font-medium ${isWindowOpen ? 'text-emerald-700' : 'text-amber-700'}`}>
-                Weekly window: {windowStatusLabel}
+        {/* Exam Types Grid */}
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
+            <div className="space-y-0.5">
+              <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-cyan-700" />
+                <span>Select Examination Type</span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Click any exam to view test blueprint details and access its model paper sets
               </p>
             </div>
-            <button
-              type="button"
-              onClick={isGrandTestConfig ? resetExamDefaults : applyGrandTestPreset}
-              className="px-3 py-1.5 rounded-md bg-cyan-700 hover:bg-cyan-800 text-white text-xs font-medium cursor-pointer shrink-0"
-            >
-              {isGrandTestConfig ? 'Reset to default settings' : 'Load Grand Test preset'}
-            </button>
+            <span className="text-xs font-medium text-cyan-900 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded">
+              {EXAM_SYLLABI.length} Syllabi Available
+            </span>
           </div>
 
-          {examCategory === 'CEE-UG' && (
-            <div className="rounded-xl border border-cyan-200 bg-cyan-50/90 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-xs font-semibold text-cyan-950 flex items-center gap-1.5">
-                  <GraduationCap className="w-4 h-4 text-cyan-700" />
-                  CEE-UG Entrance Examination (200 Questions · 3 Hours · −0.25 Negative Marking)
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {EXAM_SYLLABI.map((s) => {
+              const count = publishedQuestions.filter((q) =>
+                s.code === 'All' ? true : questionMatchesExamCategory(q.examCategories, s.code as ExamCategory)
+              ).length;
+
+              return (
+                <div
+                  key={s.code}
+                  onClick={() => {
+                    setSelectedSyllabus(s.code);
+                    setSelectedSet(1);
+                    setStartError(null);
+                    setPaywallNotice(null);
+                  }}
+                  className="glass-panel glass-panel-hover rounded-xl p-5 cursor-pointer flex flex-col justify-between space-y-4 border border-slate-200/80 hover:border-cyan-400 hover:shadow-xs transition-all duration-200 group text-left"
+                >
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold px-2 py-0.5 rounded text-xs uppercase tracking-wider bg-slate-100 text-slate-800 group-hover:bg-cyan-100 group-hover:text-cyan-900 transition-colors">
+                        {s.code}
+                      </span>
+                      <span className="text-xs font-medium text-slate-500">
+                        {count} questions
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-cyan-800 transition-colors">
+                        {s.title}
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-snug mt-1">
+                        {s.subtitle}
+                      </p>
+                    </div>
+
+                    <div className="text-xs text-slate-600 bg-slate-50 rounded-lg p-2.5 border border-slate-200/60 flex items-center justify-between">
+                      <span>{s.standardQuestionCount} MCQs · {s.durationMinutes} min</span>
+                      <span className="text-[11px] font-medium text-slate-500">
+                        {s.penaltyPerWrong > 0 ? `−${s.penaltyPerWrong}` : 'No'} penalty
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold text-cyan-800 group-hover:text-cyan-950">
+                    <span className="flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>{s.totalSets} Model Sets</span>
+                    </span>
+                    <span className="flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                      <span>View Sets</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Screen 2B: Dedicated Exam Set Paper Page
+  if (!isExamRunning && (selectedSyllabus || isCeeUg)) {
+    const activeCode = selectedSyllabus || (isCeeUg ? 'CEE-UG' : 'ASCP');
+    const activeSpec = EXAM_SYLLABI.find((s) => s.code === activeCode) || EXAM_SYLLABI[0];
+    const availableQuestionsForActive = publishedQuestions.filter((q) =>
+      activeSpec.code === 'All' ? true : questionMatchesExamCategory(q.examCategories, activeSpec.code as ExamCategory)
+    ).length;
+    const servedForActive = Math.min(activeSpec.standardQuestionCount, availableQuestionsForActive);
+    const ceeUgAvailability = computeCeeUgAvailability(publishedQuestions, () => true);
+
+    return (
+      <div className="max-w-4xl mx-auto py-6 space-y-6">
+        <title>{activeSpec.title} Model Sets | {SITE_CONFIG.SITE_NAME}</title>
+        <meta
+          name="description"
+          content={`Timed model paper sets for ${activeSpec.title}. Calibrated to official blueprint with server-verified scoring.`}
+        />
+        <link rel="canonical" href={`${SITE_CONFIG.SITE_URL}/exam`} />
+
+        {/* Top Back Navigation Bar */}
+        {!isCeeUg && (
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSyllabus(null);
+                setStartError(null);
+                setPaywallNotice(null);
+              }}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-cyan-900 bg-white/90 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-lg px-3.5 py-2 transition-all cursor-pointer shadow-2xs group"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform text-slate-500 group-hover:text-cyan-900" />
+              <span>Back to Exam Types</span>
+            </button>
+            <span className="text-xs font-medium text-slate-500">
+              {activeSpec.code} Licensure Simulation
+            </span>
+          </div>
+        )}
+
+        {/* Exam Detail Header Card (Consolidated Blueprint & Specs) */}
+        <div className="glass-panel rounded-2xl p-6 sm:p-7 space-y-5 border border-slate-200/90 shadow-xs">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-cyan-800 bg-cyan-50 border border-cyan-200 rounded-full px-2.5 py-0.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-700" />
+                {activeSpec.code} Blueprint Specification
+              </span>
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+                {activeSpec.title}
+              </h1>
+              <p className="text-xs font-medium text-slate-600">
+                {activeSpec.fullName} · {activeSpec.subtitle}
+              </p>
+            </div>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 shrink-0">
+              {activeSpec.totalSets} Model Sets
+            </span>
+          </div>
+
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            {activeSpec.description}
+          </p>
+
+          {/* Blueprint Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div className="bg-slate-50/90 p-3.5 rounded-xl border border-slate-200">
+              <span className="text-xs text-slate-500 block mb-0.5">Total Questions</span>
+              <span className="text-lg font-bold text-slate-900">
+                {servedForActive} <span className="text-xs text-slate-400 font-normal">/ {activeSpec.standardQuestionCount} Qs</span>
+              </span>
+            </div>
+            <div className="bg-slate-50/90 p-3.5 rounded-xl border border-slate-200">
+              <span className="text-xs text-slate-500 block mb-0.5">Time Duration</span>
+              <span className="text-lg font-bold text-slate-900">{activeSpec.durationMinutes} min</span>
+            </div>
+            <div className="bg-slate-50/90 p-3.5 rounded-xl border border-slate-200">
+              <span className="text-xs text-slate-500 block mb-0.5">Negative Marking</span>
+              <span className={`text-lg font-bold ${activeSpec.penaltyPerWrong > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+                {activeSpec.penaltyPerWrong > 0 ? `−${activeSpec.penaltyPerWrong}` : '0'} <span className="text-xs text-slate-500 font-normal">per wrong</span>
+              </span>
+            </div>
+            <div className="bg-slate-50/90 p-3.5 rounded-xl border border-slate-200">
+              <span className="text-xs text-slate-500 block mb-0.5">Passing Standard</span>
+              <span className="text-lg font-bold text-emerald-700">{activeSpec.passingPercentage}%</span>
+            </div>
+          </div>
+
+          {/* CEE-UG Readiness Progress Bar */}
+          {activeSpec.code === 'CEE-UG' && (
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700">Question Bank Readiness</span>
+                <span className="font-bold text-slate-900">
+                  {ceeUgAvailability.totalAvailable} / {ceeUgAvailability.totalRequired} Questions
                 </span>
-                <p className="text-xs text-cyan-900 mt-1">
-                  CEE-UG entrance mock paper consists of 200 questions with 3 hours duration and −0.25 negative marking.
-                </p>
               </div>
-              <Link
-                to="/cee-ug"
-                className="px-3.5 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium cursor-pointer shrink-0 inline-flex items-center gap-1.5 shadow-xs"
-              >
-                <span>Open CEE-UG Mock Exam</span>
-                <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
-              </Link>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    ceeUgAvailability.totalAvailable >= ceeUgAvailability.totalRequired ? 'bg-emerald-600' : 'bg-amber-500'
+                  }`}
+                  style={{
+                    width: `${Math.min(100, Math.round((ceeUgAvailability.totalAvailable / ceeUgAvailability.totalRequired) * 100))}%`,
+                  }}
+                />
+              </div>
+              {ceeUgAvailability.totalAvailable === 0 ? (
+                <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
+                  No CEE-UG questions are published yet. An administrator can bulk upload the 200 questions from the admin console.
+                </div>
+              ) : (
+                ceeUgAvailability.isShort && (
+                  <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
+                    {ceeUgAvailability.totalAvailable} of {ceeUgAvailability.totalRequired} questions are available in the bank. You can start this mock now with the available questions, or bulk upload the remaining questions to reach the full 200-question paper.
+                  </div>
+                )
+              )}
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Examination Category
-              </label>
-              <select
-                value={examCategory}
-                onChange={(e) => setExamCategory(e.target.value as any)}
-                className="w-full bg-white/70 border border-slate-200/90 rounded-md px-3 py-2 text-xs text-slate-900 shadow-2xs focus:outline-none focus:border-cyan-500 transition-all"
-              >
-                <option value="All">Comprehensive (All Syllabi)</option>
-                <option value="ASCP">ASCP (MLS / MLT)</option>
-                <option value="NHPC">NHPC Licensure</option>
-                <option value="PSC">PSC Medical Lab</option>
-                <option value="DHA">DHA Technologist</option>
-                <option value="AIMS">AIMS Professional</option>
-                <option value="CEE-UG">CEE-UG Entrance (200 Qs · 3 hr)</option>
-              </select>
+          {/* General Empty Question Bank Warning */}
+          {activeSpec.code !== 'CEE-UG' && availableQuestionsForActive === 0 && (
+            <div role="status" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs">
+              No questions are currently published for {activeSpec.title}. Please import questions from the Admin Console.
             </div>
+          )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Specialty Coverage
-              </label>
-              <select
-                value={selectedUnit}
-                onChange={(e) => setSelectedUnit(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900"
-              >
-                {units.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Cognitive Difficulty
-              </label>
-              <select
-                value={selectedDifficulty}
-                onChange={(e) => setSelectedDifficulty(e.target.value as any)}
-                className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 text-xs text-slate-900"
-              >
-                <option value="All">All Difficulties</option>
-                <option value="Memory-based">Memory-based</option>
-                <option value="Conceptual">Conceptual</option>
-                <option value="Advanced">Advanced</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Question Count
-              </label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[10, 25, 50, 100, 200].map((cnt) => (
-                  <button
-                    key={cnt}
-                    onClick={() => setQuestionCount(cnt)}
-                    className={`flex-1 min-w-[58px] py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
-                      questionCount === cnt
-                        ? 'bg-cyan-700 text-white border-cyan-700 font-semibold'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-cyan-50/40'
-                    }`}
-                  >
-                    {cnt} Qs
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Time Limit
-              </label>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[15, 30, 60, 120, 180].map((mins) => (
-                  <button
-                    key={mins}
-                    onClick={() => setDurationMinutes(mins)}
-                    className={`flex-1 min-w-[62px] py-1.5 text-xs font-medium rounded border transition-colors cursor-pointer ${
-                      durationMinutes === mins
-                        ? 'bg-cyan-700 text-white border-cyan-700 font-semibold'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-cyan-50/40'
-                    }`}
-                  >
-                    {mins} Min
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
-            <div>
-              <span className="text-xs font-semibold text-slate-800 block">
-                Randomize Question & Option Order
-              </span>
-              <span className="text-xs text-slate-500">
-                Shuffle both question sequence and A–D answer options for exam security
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={shuffleOptions}
-              onChange={(e) => setShuffleOptions(e.target.checked)}
-              className="w-4 h-4 text-cyan-700 rounded border-slate-300 focus:ring-cyan-500 cursor-pointer"
-            />
-          </div>
-
-          <div
-            className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-              negativeMarking ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'
-            }`}
-          >
-            <div>
-              <span className="text-xs font-semibold text-slate-800 block">
-                Negative marking (−{DEFAULT_PENALTY_DISPLAY} per wrong answer)
-              </span>
-              <span className="text-xs text-slate-500">
-                Incorrect answers lose marks; unanswered questions are not penalised
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              aria-label="Negative marking"
-              checked={negativeMarking}
-              onChange={(e) => setNegativeMarking(e.target.checked)}
-              className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer"
-            />
-          </div>
-
+          {/* Paywall Notice */}
           {paywallNotice && (
-            <div role="alert" className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div
+              role="alert"
+              className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-xs"
+            >
               <div className="flex items-center gap-2">
                 <Crown className="w-4 h-4 text-amber-600 shrink-0" />
                 <span className="font-medium">{paywallNotice.message}</span>
@@ -1070,63 +1181,320 @@ export const ExamMode: React.FC<ExamModeProps> = ({
             </div>
           )}
 
+          {/* Start Error */}
           {startError && (
-            <div role="alert" className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+            <div
+              role="alert"
+              className="p-3.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-950 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs"
+            >
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{startError}</span>
               </div>
               <button
                 type="button"
-                onClick={startExam}
+                onClick={() => startExamWithSet(activeSpec.code, selectedSet)}
                 className="px-3.5 py-1.5 min-h-[44px] bg-rose-700 hover:bg-rose-800 text-white rounded font-medium text-xs transition-colors cursor-pointer"
               >
                 Retry
               </button>
             </div>
           )}
+        </div>
 
-          {grandTestBlocked && (
-            <div role="alert" className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                Grand Tests only run inside the weekly window (Friday 11:00 → Tuesday 23:59 Nepal time).
-                {examWindow && ` Next opening: ${formatNepalTime(new Date(windowOpensAt))}.`}
-              </span>
+        {/* Model Paper Sets Section */}
+        <div className="space-y-4">
+          <div className="flex items-baseline justify-between border-b border-slate-200/70 pb-2">
+            <div className="space-y-0.5">
+              <h2 className="text-xs font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Award className="w-3.5 h-3.5 text-cyan-700" />
+                <span>Select Model Paper Set</span>
+              </h2>
+              <p className="text-xs text-slate-500">
+                Choose a standardized test paper to begin your timed mock simulation
+              </p>
             </div>
-          )}
-
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-xs text-slate-500">
-              Available pool: <strong className="text-slate-900">{filteredPool.length}</strong> questions ·{' '}
-              <strong className="text-slate-900">{servedCount}</strong> served · {durationMinutes} min
-              {negativeMarking && (
-                <span className="text-rose-700 font-medium"> · −{DEFAULT_PENALTY_DISPLAY} per wrong</span>
-              )}
-              {questionCount > filteredPool.length && (
-                <span className="block text-amber-700 mt-0.5">
-                  Only {filteredPool.length} question{filteredPool.length === 1 ? '' : 's'} match these
-                  filters; the paper will use all of them.
-                </span>
-              )}
+            <span className="text-xs font-medium text-cyan-900 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded">
+              {activeSpec.totalSets} Standard Sets
             </span>
-            <button
-              disabled={filteredPool.length === 0 || isStarting || grandTestBlocked}
-              onClick={startExam}
-              className="px-5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs sm:text-sm rounded-md transition-colors flex items-center gap-2 cursor-pointer shadow-xs"
-            >
-              {isStarting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                  <span>Preparing Examination...</span>
-                </>
-              ) : (
-                <>
-                  <span>{isGrandTestConfig ? 'Start Grand Test' : 'Start Examination'}</span>
-                  <ArrowRight className="w-4 h-4 text-cyan-400" />
-                </>
-              )}
-            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: activeSpec.totalSets }, (_, idx) => idx + 1).map((setNum) => {
+              const isThisSetStarting = isStarting && startingSetNumber === setNum;
+              const canStartPaper =
+                (activeSpec.code === 'CEE-UG' ? ceeUgAvailability.totalAvailable > 0 : availableQuestionsForActive > 0) &&
+                !isStarting;
+
+              const defaultDuration = activeSpec.code === 'CEE-UG' ? CEE_UG_DURATION_MINUTES : activeSpec.durationMinutes;
+              const defaultPenalty = activeSpec.code === 'CEE-UG' ? CEE_UG_PENALTY_PER_WRONG : activeSpec.penaltyPerWrong;
+              const setCfg = getEffectiveSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty);
+
+              const isCustomized =
+                setCfg.durationMinutes !== defaultDuration ||
+                setCfg.negativeMarking !== (defaultPenalty > 0) ||
+                (setCfg.negativeMarking && setCfg.penaltyPerWrong !== defaultPenalty);
+              const isEditing = editingSetNumber === setNum;
+
+              return (
+                <div
+                  key={setNum}
+                  className={`glass-panel rounded-xl p-5 flex flex-col justify-between space-y-4 border transition-all ${
+                    isEditing
+                      ? 'border-cyan-400 ring-2 ring-cyan-100 shadow-md'
+                      : isCustomized
+                      ? 'border-cyan-300 shadow-2xs hover:shadow-xs'
+                      : 'border-slate-200/90 shadow-2xs hover:shadow-xs'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold uppercase tracking-wider text-cyan-900 bg-cyan-100/70 border border-cyan-200 rounded-md px-2.5 py-0.5">
+                          Set {setNum}
+                        </span>
+                        {isCustomized && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5">
+                            Customized
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                        Model Paper
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">
+                        {activeSpec.title} · Set {setNum}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Full-length paper sitting with server-calibrated question distribution and instant scorecard.
+                      </p>
+                    </div>
+
+                    {/* Current Set Parameters & Modify Button */}
+                    <div className="flex items-center justify-between text-xs bg-slate-50/90 rounded-lg p-2.5 border border-slate-200/70">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="flex items-center gap-1 font-semibold text-slate-800" title="Time duration for this set">
+                          <Clock className="w-3.5 h-3.5 text-cyan-700" />
+                          <span>{setCfg.durationMinutes} min</span>
+                        </span>
+                        <span className="text-slate-300">|</span>
+                        <span
+                          className={`flex items-center gap-1 font-semibold ${
+                            setCfg.negativeMarking ? 'text-rose-700' : 'text-slate-600'
+                          }`}
+                          title="Negative marking rule for this set"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>{setCfg.negativeMarking ? `−${setCfg.penaltyPerWrong} penalty` : 'No penalty'}</span>
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingSetNumber(isEditing ? null : setNum)}
+                        className="text-[11px] font-bold text-cyan-800 hover:text-cyan-950 px-2 py-1 rounded bg-white hover:bg-cyan-50 border border-slate-200 hover:border-cyan-300 flex items-center gap-1 transition-colors cursor-pointer shrink-0 shadow-2xs"
+                        aria-label={`Modify time and negative marking for Set ${setNum}`}
+                      >
+                        <SlidersHorizontal className="w-3 h-3 text-cyan-700" />
+                        <span>{isEditing ? 'Hide' : 'Modify'}</span>
+                      </button>
+                    </div>
+
+                    {/* Expandable Configuration Drawer */}
+                    {isEditing && (
+                      <div className="p-3 bg-white rounded-lg border border-cyan-300/80 shadow-xs space-y-3 text-xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                            <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-700" />
+                            Set {setNum} Custom Settings
+                          </span>
+                          {isCustomized && (
+                            <button
+                              type="button"
+                              onClick={() => handleResetSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty)}
+                              className="text-[11px] font-medium text-slate-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                              title="Reset to official blueprint defaults"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Reset Default</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Time Duration */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="font-semibold text-slate-700 flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              Time Duration
+                            </label>
+                            <span className="text-[11px] font-bold text-cyan-900 bg-cyan-50 px-2 py-0.5 rounded border border-cyan-200">
+                              {setCfg.durationMinutes} min
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {[15, 30, 45, 50, 60, 90, 120, 180].map((mins) => (
+                              <button
+                                key={mins}
+                                type="button"
+                                onClick={() =>
+                                  handleUpdateSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty, {
+                                    durationMinutes: mins,
+                                  })
+                                }
+                                className={`px-2 py-0.5 text-[11px] font-semibold rounded border cursor-pointer transition-colors ${
+                                  setCfg.durationMinutes === mins
+                                    ? 'bg-cyan-700 text-white border-cyan-700 shadow-2xs'
+                                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                }`}
+                              >
+                                {mins}m
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1">
+                            <input
+                              type="range"
+                              min={5}
+                              max={300}
+                              step={5}
+                              value={setCfg.durationMinutes}
+                              onChange={(e) =>
+                                handleUpdateSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty, {
+                                  durationMinutes: parseInt(e.target.value, 10) || 50,
+                                })
+                              }
+                              className="w-full accent-cyan-700 h-1.5 bg-slate-200 rounded cursor-pointer"
+                              aria-label={`Time duration slider for Set ${setNum}`}
+                            />
+                            <div className="flex items-center gap-1 shrink-0">
+                              <input
+                                type="number"
+                                min={5}
+                                max={300}
+                                value={setCfg.durationMinutes}
+                                onChange={(e) =>
+                                  handleUpdateSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty, {
+                                    durationMinutes: parseInt(e.target.value, 10) || 5,
+                                  })
+                                }
+                                className="w-14 text-center py-0.5 px-1 text-xs border border-slate-300 rounded font-semibold text-slate-800"
+                                aria-label={`Time duration in minutes for Set ${setNum}`}
+                              />
+                              <span className="text-[11px] text-slate-500">min</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Negative Marking */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between">
+                            <label className="font-semibold text-slate-700 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3 text-slate-500" />
+                              Negative Marking
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleUpdateSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty, {
+                                  negativeMarking: !setCfg.negativeMarking,
+                                })
+                              }
+                              className={`px-2.5 py-0.5 text-[11px] font-bold rounded cursor-pointer transition-colors ${
+                                setCfg.negativeMarking
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
+                              }`}
+                            >
+                              {setCfg.negativeMarking ? 'Enabled' : 'Disabled'}
+                            </button>
+                          </div>
+
+                          {setCfg.negativeMarking && (
+                            <div className="space-y-1.5 pl-2 border-l-2 border-rose-200">
+                              <div className="flex items-center justify-between text-[11px] text-slate-600">
+                                <span>Penalty per wrong answer</span>
+                                <span className="font-bold text-rose-700">−{setCfg.penaltyPerWrong} mark</span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {[0.2, 0.25, 0.33, 0.5, 1.0].map((p) => (
+                                  <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() =>
+                                      handleUpdateSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty, {
+                                        penaltyPerWrong: p,
+                                      })
+                                    }
+                                    className={`px-2 py-0.5 text-[11px] font-semibold rounded border cursor-pointer transition-colors ${
+                                      setCfg.penaltyPerWrong === p
+                                        ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                                    }`}
+                                  >
+                                    −{p}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2 pt-0.5">
+                                <span className="text-[11px] text-slate-500">Custom penalty:</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={5}
+                                  step={0.05}
+                                  value={setCfg.penaltyPerWrong}
+                                  onChange={(e) =>
+                                    handleUpdateSetConfig(activeSpec.code, setNum, defaultDuration, defaultPenalty, {
+                                      penaltyPerWrong: parseFloat(e.target.value) || 0,
+                                    })
+                                  }
+                                  className="w-16 text-center py-0.5 px-1 text-xs border border-slate-300 rounded font-semibold text-slate-800"
+                                  aria-label={`Custom penalty per wrong answer for Set ${setNum}`}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingSetNumber(null)}
+                            className="px-3 py-1 bg-cyan-700 hover:bg-cyan-800 text-white text-[11px] font-semibold rounded cursor-pointer transition-colors shadow-2xs"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    disabled={!canStartPaper}
+                    onClick={() => startExamWithSet(activeSpec.code, setNum)}
+                    className="w-full py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-white font-medium text-xs rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                  >
+                    {isThisSetStarting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                        <span>Preparing Set {setNum}...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Start Set {setNum}</span>
+                        <ArrowRight className="w-4 h-4 text-cyan-400" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

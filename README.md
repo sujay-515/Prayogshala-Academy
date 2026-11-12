@@ -1,4 +1,4 @@
-# MedLab QBank
+# Prayogshala Academy
 
 Clinical Laboratory Medicine and Pathology question bank with PDF ingestion, multi-tier taxonomy, interactive practice, and timed mock examinations for licensing preparation (ASCP, NHPC, PSC, DHA, and AIMS), plus a standalone CEE-UG (MECEE-BL) medical entrance mock: 200 questions, 3 hours, −0.25 negative marking, Biology 80 (Botany 40 + Zoology 40) · Chemistry 50 · Physics 50 · Mental Ability 20.
 
@@ -31,7 +31,7 @@ Open `http://localhost:3000` in your browser.
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4, Lucide icons.
 - **Backend**: Express on Node.js with built-in SQLite (`DatabaseSync` in WAL mode).
-- **Database File**: Stored at `data/medlab_qbank.sqlite`.
+- **Database File**: Stored at `data/prayogshala_academy.sqlite`.
 - **Primary Entities**:
   - `questions`: Question stem, choices, correct answer, rationale, reference, taxonomy keys, and audit log.
   - `categories`: Units, subjects, and topics.
@@ -84,7 +84,7 @@ npm run backup
 ```
 - **Consistent Copy**: Executes SQLite's native `VACUUM INTO` to create a clean, consistent snapshot without locking ongoing queries.
 - **Location**: Snapshots are saved to `BACKUP_DIR` (defaults to `DATA_DIR/backups/`). Backups are never written to any publicly served directory.
-- **Naming**: Files use an ISO timestamp: `medlab_qbank_backup_YYYY-MM-DDTHH-mm-ss-SSSZ.sqlite`.
+- **Naming**: Files use an ISO timestamp: `prayogshala_academy_backup_YYYY-MM-DDTHH-mm-ss-SSSZ.sqlite`.
 - **Rotation**: Automatically retains the newest `BACKUP_KEEP` files (default: 7) and deletes older files.
 - **In-Process Scheduler**: Set `BACKUP_INTERVAL_HOURS=24` (or any positive number of hours) in your environment to run automated backups at that interval. The scheduler shuts down cleanly on SIGTERM/SIGINT.
 
@@ -93,11 +93,11 @@ npm run backup
 2. Locate the desired backup file in `data/backups/`.
 3. Overwrite the primary database file with the backup:
    ```bash
-   cp data/backups/medlab_qbank_backup_<timestamp>.sqlite data/medlab_qbank.sqlite
+   cp data/backups/prayogshala_academy_backup_<timestamp>.sqlite data/prayogshala_academy.sqlite
    ```
-4. If temporary SQLite WAL files exist (`data/medlab_qbank.sqlite-wal` or `data/medlab_qbank.sqlite-shm`), remove them so the restored database starts from a fresh state:
+4. If temporary SQLite WAL files exist (`data/prayogshala_academy.sqlite-wal` or `data/prayogshala_academy.sqlite-shm`), remove them so the restored database starts from a fresh state:
    ```bash
-   rm -f data/medlab_qbank.sqlite-wal data/medlab_qbank.sqlite-shm
+   rm -f data/prayogshala_academy.sqlite-wal data/prayogshala_academy.sqlite-shm
    ```
 5. Restart the server:
    ```bash
@@ -110,7 +110,7 @@ npm run backup
 - **UI Export**: Admin Console -> Bulk CSV/JSON -> Export Database (JSON).
 - **API Export**: `GET /api/backup/export`.
 - **API Restore**: `POST /api/backup/restore`.
-- **Database File Copy**: Archive `data/medlab_qbank.sqlite` directly.
+- **Database File Copy**: Archive `data/prayogshala_academy.sqlite` directly.
 
 ## Deployment
 
@@ -146,7 +146,7 @@ npm run backup
 | `INITIAL_ADMIN_PASSWORD` | Password (min 12 chars) for initial superadmin bootstrapping. | Required for 1st boot | None |
 | `RESEND_API_KEY` | Transactional email delivery key for password resets and staff invites. | Optional (prominent warning if missing) | Mock delivery |
 | `EMAIL_VERIFICATION_REQUIRED` | Explicitly enforce or disable transactional email verification (`true` or `false`). When `false`, candidate accounts are verified upon registration without email delivery. | Optional | `true` if `RESEND_API_KEY` is present, `false` otherwise |
-| `EMAIL_FROM` | Sender display name and email address for transactional mail. | Optional | `MedLab QBank <onboarding@resend.dev>` |
+| `EMAIL_FROM` | Sender display name and email address for transactional mail. | Optional | `Prayogshala Academy <onboarding@resend.dev>` |
 | `APP_URL` | Base public URL used in email reset links. | Optional | `http://localhost:3000` |
 | `GEMINI_API_KEY` | Google Gemini API key for administrative OCR of question documents. | Optional | Rule-based parser |
 | `SUPABASE_SYNC_ENABLED` | Opt-in flag for Supabase cloud synchronization (`"true"` to enable). | Optional | Unset (disabled) |
@@ -172,11 +172,11 @@ npm run backup
 
 > [!IMPORTANT]
 > **Persistent Volume Requirement for SQLite**:
-> MedLab QBank stores relational state, sessions, accounts, and examination history in SQLite (`data/medlab_qbank.sqlite`). In containerized or serverless hosting environments, `DATA_DIR` must be mounted on a persistent disk volume. Ephemeral containers will lose all data upon restart without persistent storage.
+> Prayogshala Academy stores relational state, sessions, accounts, and examination history in SQLite (`data/prayogshala_academy.sqlite`). In containerized or serverless hosting environments, `DATA_DIR` must be mounted on a persistent disk volume. Ephemeral containers will lose all data upon restart without persistent storage.
 
 ### Answer Protection Architecture
 
-MedLab QBank protects question answer keys, clinical rationales, and explanations from bulk scraping and client-side inspection through an allowlist serialization architecture:
+Prayogshala Academy protects question answer keys, clinical rationales, and explanations from bulk scraping and client-side inspection through an allowlist serialization architecture:
 
 1. **Allowlist Field Serialization**:
    - Non-administrative endpoints (`/api/bootstrap`, `GET /api/questions`, `GET /api/questions/:id`, `POST /api/exams/start`, and `/api/auth/export`) strictly serialize questions using `toPublicQuestion()`.
@@ -219,7 +219,7 @@ npm run build
 BASE_URL=http://localhost:3001 npm run smoke
 
 # Test remote deployment target
-BASE_URL=https://qbank.example.com npm run smoke
+BASE_URL=https://prayogshala.example.com npm run smoke
 ```
 
 ### Known Limitations and Accepted Risks

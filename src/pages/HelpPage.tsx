@@ -38,7 +38,7 @@ const HELP_SECTIONS: HelpSection[] = [
     icon: Rocket,
     items: [
       {
-        q: 'What is MedLab QBank?',
+        q: 'What is Prayogshala Academy?',
         a: 'A question bank and timed mock-exam platform for laboratory medicine. It covers clinical chemistry, hematology, microbiology, blood banking, immunology, molecular biology, urinalysis and laboratory operations, with explanations and textbook references for every published question.',
       },
       {

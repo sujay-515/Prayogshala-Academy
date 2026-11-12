@@ -6,32 +6,32 @@ import { Cookie, HardDrive, ShieldCheck, Settings2, Mail } from 'lucide-react';
 
 const STORAGE_ROWS: Array<{ key: string; purpose: string; lifetime: string }> = [
   {
-    key: 'medlab_theme_v1',
+    key: 'prayogshala_theme_v1',
     purpose: 'Remembers whether you chose the light or dark theme.',
     lifetime: 'Until you clear site data.',
   },
   {
-    key: 'medlab_qbank_auth_token_v1',
+    key: 'prayogshala_auth_token_v1',
     purpose: 'Bearer token used to authenticate your API requests. Sent in the Authorization header, not as a cookie.',
     lifetime: 'Until you sign out, or until the server-side session expires after 7 days.',
   },
   {
-    key: 'medlab_qbank_current_user_v1',
+    key: 'prayogshala_current_user_v1',
     purpose: 'Caches your display name, username and role so the interface can render immediately.',
     lifetime: 'Until you sign out.',
   },
   {
-    key: 'medlab_qbank_stats_v2',
+    key: 'prayogshala_stats_v2',
     purpose: 'Offline copy of your progress (answers, bookmarks, personal notes, mistakes, completed exam attempt history) so the app still works if the network drops. In-progress active exams are held only while taking an exam and purged upon submission.',
     lifetime: 'Until you sign out; the server copy remains while your account exists.',
   },
   {
-    key: 'medlab_qbank_questions_v2, medlab_qbank_categories_v2',
+    key: 'prayogshala_questions_v2, prayogshala_categories_v2',
     purpose: 'Public cache of published question stems and the syllabus tree to reduce repeat downloads.',
     lifetime: 'Until cleared; stale or unsafe entries are discarded automatically.',
   },
   {
-    key: 'medlab_admin_subtab',
+    key: 'prayogshala_admin_subtab',
     purpose: 'Remembers the last administration console tab you used.',
     lifetime: 'Until you sign out.',
   },
@@ -45,13 +45,13 @@ export const CookiesPage: React.FC = () => {
       <title>{`Cookie & Storage Policy | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="How MedLab QBank uses cookies and browser storage, which keys are stored, why, and how to clear them."
+        content="How Prayogshala Academy uses cookies and browser storage, which keys are stored, why, and how to clear them."
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Cookie & Storage Policy | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="How MedLab QBank uses cookies and browser storage, which keys are stored, why, and how to clear them."
+        content="How Prayogshala Academy uses cookies and browser storage, which keys are stored, why, and how to clear them."
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -88,7 +88,7 @@ export const CookiesPage: React.FC = () => {
               using the platform.
             </p>
             <p>
-              Additionally, our service worker utilizes the browser <strong>Cache Storage</strong> API (cache name <code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">medlab-shell-v2</code>) solely to pre-cache the static application shell (HTML, compiled JavaScript, CSS stylesheets, and icons) for fast page loading and offline resilience. Cache Storage never stores API responses, question data, personal statistics, or authorization headers, and can be cleared at any time via browser settings.
+              Additionally, our service worker utilizes the browser <strong>Cache Storage</strong> API (cache name <code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">prayogshala-shell-v1</code>) solely to pre-cache the static application shell (HTML, compiled JavaScript, CSS stylesheets, and icons) for fast page loading and offline resilience. Cache Storage never stores API responses, question data, personal statistics, or authorization headers, and can be cleared at any time via browser settings.
             </p>
           </section>
 
@@ -198,7 +198,7 @@ export const CookiesPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to MedLab QBank
+            ← Return to Prayogshala Academy
           </Link>
           <div className="flex flex-wrap gap-4">
             <Link to="/privacy" className="hover:underline">Privacy</Link>

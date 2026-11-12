@@ -12,13 +12,13 @@ export const TermsPage: React.FC = () => {
       <title>{`Terms of Service | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="Terms of Service for MedLab QBank governing account access, acceptable use, intellectual property, and service limitations."
+        content="Terms of Service for Prayogshala Academy governing account access, acceptable use, intellectual property, and service limitations."
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Terms of Service | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="Terms of Service for MedLab QBank governing account access, acceptable use, and service limitations."
+        content="Terms of Service for Prayogshala Academy governing account access, acceptable use, and service limitations."
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -126,7 +126,7 @@ export const TermsPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to MedLab QBank
+            ← Return to Prayogshala Academy
           </Link>
           <div className="flex gap-4">
             <Link to="/privacy" className="hover:underline">Privacy</Link>

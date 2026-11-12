@@ -369,7 +369,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
             <ShieldCheck className="w-4 h-4 text-cyan-600" />
           </div>
           <div className="text-2xl font-bold text-cyan-950 mt-1">{staffCount}</div>
-          <div className="text-[11px] text-cyan-700 mt-0.5">Full QBank & ingestion access</div>
+          <div className="text-[11px] text-cyan-700 mt-0.5">Full Academy & ingestion access</div>
         </div>
 
         <div className="p-4 bg-white border border-slate-200/90 rounded-xl shadow-2xs">
@@ -704,7 +704,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ currentUser, authToken
                   onChange={(e) => setInviteRole(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:bg-white focus:outline-none focus:border-cyan-500 cursor-pointer"
                 >
-                  <option value="admin">Staff Administrator (Manage QBank & Reports)</option>
+                  <option value="admin">Staff Administrator (Manage Academy & Reports)</option>
                   <option value="student">Student Candidate (Read & Attempt Only)</option>
                 </select>
               </div>

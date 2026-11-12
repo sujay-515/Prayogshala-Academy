@@ -56,7 +56,7 @@ export const MistakesRecovery: React.FC<MistakesRecoveryProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto py-6 space-y-6">
-      <title>Mistakes Recovery | MedLab QBank</title>
+      <title>Mistakes Recovery | Prayogshala Academy</title>
       <meta
         name="description"
         content="Review missed laboratory medicine questions. Each mistake clears only after two consecutive correct answers."

@@ -77,9 +77,9 @@ function request(
   });
 }
 
-describe('MedLab QBank API Hardening Test Suite', () => {
+describe('Prayogshala Academy API Hardening Test Suite', () => {
   before(async () => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-api-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prayogshala-api-test-'));
 
     serverProcess = spawn('npx', ['tsx', 'server.ts'], {
       env: {
@@ -503,7 +503,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     // To reliably test late submission flag without waiting 120s, start with duration 0 or wait
     // Let's test late submission by creating a session with started_at in the past via DB or testing endpoint
     const { DatabaseSync } = await import('node:sqlite');
-    const dbPath = path.join(tempDir, 'medlab_qbank.sqlite');
+    const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
     const localDb = new DatabaseSync(dbPath);
     localDb.prepare('UPDATE active_exams SET started_at = ? WHERE id = ?').run(
       new Date(Date.now() - 600 * 1000).toISOString(), // 10 minutes ago (exceeds clamped 5m duration + 120s grace)
@@ -521,7 +521,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
   it('SEC-10: Session and reset tokens are hashed with SHA-256 at rest and invalidated cleanly', async () => {
     const crypto = await import('node:crypto');
     const { DatabaseSync } = await import('node:sqlite');
-    const dbPath = path.join(tempDir, 'medlab_qbank.sqlite');
+    const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
 
     // 1. Login user to get raw token
     const loginRes = await request('POST', '/api/auth/login', {
@@ -2010,7 +2010,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
   it('Grand Test fairness: same weekly paper, one ranked attempt, late attempt unranked, and current display name shown', async () => {
     const { DatabaseSync } = await import('node:sqlite');
     const dbOp = <T>(fn: (db: InstanceType<typeof DatabaseSync>) => T): T => {
-      const db = new DatabaseSync(path.join(tempDir, 'medlab_qbank.sqlite'));
+      const db = new DatabaseSync(path.join(tempDir, 'prayogshala_academy.sqlite'));
       try {
         return fn(db);
       } finally {
@@ -2122,7 +2122,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
   it('Leaderboard privacy: anonymous access rejected with 401, opt-out hides user from public list and drops totalParticipants, preserves private rank in me, export includes flag', async () => {
     const { DatabaseSync } = await import('node:sqlite');
     const dbOp = <T>(fn: (db: InstanceType<typeof DatabaseSync>) => T): T => {
-      const db = new DatabaseSync(path.join(tempDir, 'medlab_qbank.sqlite'));
+      const db = new DatabaseSync(path.join(tempDir, 'prayogshala_academy.sqlite'));
       try {
         return fn(db);
       } finally {
@@ -2238,7 +2238,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
 
     // Check DB email_verified is 1 without manual update
     const { DatabaseSync } = await import('node:sqlite');
-    const db = new DatabaseSync(path.join(tempDir, 'medlab_qbank.sqlite'));
+    const db = new DatabaseSync(path.join(tempDir, 'prayogshala_academy.sqlite'));
     try {
       const row = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(regRes.body.user.id) as any;
       assert.equal(row.email_verified, 1);
@@ -2265,7 +2265,7 @@ describe('MedLab QBank API Hardening Test Suite', () => {
     // 2. When EMAIL_VERIFICATION_REQUIRED=true and email delivery fails:
     // Registration must succeed with 200, user authenticated, emailSent: false
     const failPort = 5100 + Math.floor(Math.random() * 200);
-    const failTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-fail-email-'));
+    const failTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prayogshala-fail-email-'));
     const failProc = spawn('npx', ['tsx', 'server.ts'], {
       env: {
         ...process.env,
@@ -2378,5 +2378,73 @@ describe('MedLab QBank API Hardening Test Suite', () => {
         } catch {}
       }
     }
+  });
+
+  it('admin mock set config: PUT, GET, and DELETE /api/mock-sets/configs enforces admin auth and stores set parameters', async () => {
+    // 1. Anonymous request to PUT /api/mock-sets/configs returns 401
+    const unauthPut = await request('PUT', '/api/mock-sets/configs', {
+      body: { syllabusCode: 'ASCP', setNumber: 1, durationMinutes: 90, negativeMarking: true, penaltyPerWrong: 0.5 },
+    });
+    assert.equal(unauthPut.status, 401, 'Anonymous user must be rejected with 401');
+
+    // 2. Student request to PUT returns 403
+    const studUser = `stud_cfg_${Date.now()}`;
+    const studReg = await request('POST', '/api/auth/register', {
+      body: { username: studUser, email: `${studUser}@example.com`, password: 'StudentPass123!' },
+    });
+    const studToken = studReg.body.token;
+
+    const studentPut = await request('PUT', '/api/mock-sets/configs', {
+      token: studToken,
+      body: { syllabusCode: 'ASCP', setNumber: 1, durationMinutes: 90, negativeMarking: true, penaltyPerWrong: 0.5 },
+    });
+    assert.equal(studentPut.status, 403, 'Non-admin student must be rejected with 403');
+
+    // 3. Admin successfully saves custom configuration for ASCP Set 1
+    const adminLogin = await request('POST', '/api/auth/login', {
+      body: { identifier: 'bootstrap_superadmin@example.com', password: 'BootstrapPassword123!' },
+    });
+    assert.equal(adminLogin.status, 200);
+    const adminToken = adminLogin.body.token;
+
+    const adminPut = await request('PUT', '/api/mock-sets/configs', {
+      token: adminToken,
+      body: {
+        syllabusCode: 'ASCP',
+        setNumber: 1,
+        durationMinutes: 75,
+        negativeMarking: false,
+        penaltyPerWrong: 0,
+        passingPercentage: 75,
+      },
+    });
+    assert.equal(adminPut.status, 200);
+    assert.equal(adminPut.body.success, true);
+    assert.equal(adminPut.body.config.durationMinutes, 75);
+    assert.equal(adminPut.body.config.negativeMarking, false);
+
+    // 4. GET /api/mock-sets/configs returns the saved config
+    const getRes = await request('GET', '/api/mock-sets/configs');
+    assert.equal(getRes.status, 200);
+    assert.equal(getRes.body.success, true);
+    const found = getRes.body.configs.find(
+      (c: any) => c.syllabusCode === 'ASCP' && c.setNumber === 1
+    );
+    assert.ok(found, 'Should find saved ASCP Set 1 config');
+    assert.equal(found.durationMinutes, 75);
+    assert.equal(found.negativeMarking, false);
+
+    // 5. Admin DELETE /api/mock-sets/configs/ASCP/1 resets the set
+    const delRes = await request('DELETE', '/api/mock-sets/configs/ASCP/1', {
+      token: adminToken,
+    });
+    assert.equal(delRes.status, 200);
+    assert.equal(delRes.body.success, true);
+
+    const getAfterDel = await request('GET', '/api/mock-sets/configs');
+    const stillFound = getAfterDel.body.configs.find(
+      (c: any) => c.syllabusCode === 'ASCP' && c.setNumber === 1
+    );
+    assert.equal(stillFound, undefined, 'Deleted config should no longer exist');
   });
 });

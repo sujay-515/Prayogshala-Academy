@@ -12,13 +12,13 @@ export const DisclaimerPage: React.FC = () => {
       <title>{`Medical & Educational Disclaimer | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="Medical and educational disclaimer for MedLab QBank detailing non-affiliation with ASCP, NHPC, PSC, DHA, and AIMS, and content attribution."
+        content="Medical and educational disclaimer for Prayogshala Academy detailing non-affiliation with ASCP, NHPC, PSC, DHA, and AIMS, and content attribution."
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Medical & Educational Disclaimer | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="Educational disclaimer for MedLab QBank detailing non-affiliation with examination boards and content attribution."
+        content="Educational disclaimer for Prayogshala Academy detailing non-affiliation with examination boards and content attribution."
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -114,7 +114,7 @@ export const DisclaimerPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to MedLab QBank
+            ← Return to Prayogshala Academy
           </Link>
           <div className="flex gap-4">
             <Link to="/privacy" className="hover:underline">Privacy</Link>

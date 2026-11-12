@@ -84,7 +84,7 @@ describe('CEE-UG Entrance Mock Suite', () => {
   let adminToken = '';
 
   before(async () => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-ceeug-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prayogshala-ceeug-test-'));
     serverProcess = spawn('npx', ['tsx', 'server.ts'], {
       env: {
         ...process.env,

@@ -1,5 +1,5 @@
 // ============================================================================
-// MedLab QBank — Transactional Email Service via Resend
+// Prayogshala Academy — Transactional Email Service via Resend
 // ============================================================================
 
 function getAppUrl(): string {
@@ -35,7 +35,7 @@ export async function sendEmail({
   html: string;
 }): Promise<{ success: boolean; id?: string; error?: string }> {
   const apiKey = (process.env.RESEND_API_KEY || '').trim();
-  const from = (process.env.EMAIL_FROM || 'MedLab QBank <onboarding@resend.dev>').trim();
+  const from = (process.env.EMAIL_FROM || 'Prayogshala Academy <onboarding@resend.dev>').trim();
 
   if (!apiKey) {
     console.log(`[Resend Mock Email] To: ${to} | Subject: "${subject}" | (Configure RESEND_API_KEY in .env to deliver real emails)`);
@@ -94,12 +94,12 @@ export async function sendWelcomeEmail(to: string, displayName: string) {
       <body>
         <div class="card">
           <div class="header">
-            <h1 class="title">MedLab QBank</h1>
+            <h1 class="title">Prayogshala Academy</h1>
             <div class="badge">Laboratory Medicine & Pathology Licensing</div>
           </div>
           <div class="content">
             <p>Hello <strong>${escapeHtml(displayName)}</strong>,</p>
-            <p>Welcome to MedLab QBank. Your student candidate profile is now active and ready for your certification preparation.</p>
+            <p>Welcome to Prayogshala Academy. Your student candidate profile is now active and ready for your certification preparation.</p>
             <p>With your account, your progress, timed mock exams, bookmarks, and subject mastery analytics will automatically sync across devices.</p>
             <a href="${escapeHtml(appUrl)}" class="button" style="color: #ffffff;">Launch Question Bank</a>
           </div>
@@ -114,7 +114,7 @@ export async function sendWelcomeEmail(to: string, displayName: string) {
 
   return sendEmail({
     to,
-    subject: 'Welcome to MedLab QBank — Clinical Pathology Repository',
+    subject: 'Welcome to Prayogshala Academy — Clinical Pathology Repository',
     html,
   });
 }
@@ -150,12 +150,12 @@ export async function sendStaffInviteEmail(
       <body>
         <div class="card">
           <div class="header">
-            <h1 class="title">MedLab QBank Staff Console</h1>
+            <h1 class="title">Prayogshala Academy Staff Console</h1>
             <div class="badge">Administrative Invitation</div>
           </div>
           <div class="content">
             <p>Hello <strong>${escapeHtml(displayName)}</strong>,</p>
-            <p>You have been granted <strong>${escapeHtml(roleLabel)}</strong> access to the MedLab QBank pathology management system.</p>
+            <p>You have been granted <strong>${escapeHtml(roleLabel)}</strong> access to the Prayogshala Academy pathology management system.</p>
             <p>You can now manage the question bank repository, review student-reported errors, import PDF exams, and configure syllabus hierarchies.</p>
             ${
               tempPassword
@@ -169,7 +169,7 @@ export async function sendStaffInviteEmail(
             <a href="${escapeHtml(appUrl)}/admin" class="button" style="color: #ffffff;">Access Staff Console</a>
           </div>
           <div class="footer">
-            MedLab QBank Pathology Review & Ingestion System.<br>
+            Prayogshala Academy Pathology Review & Ingestion System.<br>
             Authorized medical staff access only.
           </div>
         </div>
@@ -179,7 +179,7 @@ export async function sendStaffInviteEmail(
 
   return sendEmail({
     to,
-    subject: `Staff Access Granted — MedLab QBank (${roleLabel})`,
+    subject: `Staff Access Granted — Prayogshala Academy (${roleLabel})`,
     html,
   });
 }
@@ -214,11 +214,11 @@ export async function sendVerificationEmail(to: string, displayName: string, ver
       <body>
         <div class="card">
           <div class="header">
-            <h1 class="title">MedLab QBank</h1>
+            <h1 class="title">Prayogshala Academy</h1>
           </div>
           <div class="content">
             <p>Hello ${escapeHtml(displayName || 'there')},</p>
-            <p>Confirm the email address for your MedLab QBank account so it can be used for password recovery and Grand Test leaderboard ranking.</p>
+            <p>Confirm the email address for your Prayogshala Academy account so it can be used for password recovery and Grand Test leaderboard ranking.</p>
             <p>This link is valid for 24 hours.</p>
             <a href="${escapeHtml(verifyLink)}" class="button" style="color: #ffffff;">Verify Email</a>
             <p style="margin-top: 24px; font-size: 12px; color: #64748b;">
@@ -236,7 +236,7 @@ export async function sendVerificationEmail(to: string, displayName: string, ver
 
   return sendEmail({
     to,
-    subject: 'Verify your MedLab QBank email address',
+    subject: 'Verify your Prayogshala Academy email address',
     html,
   });
 }
@@ -265,11 +265,11 @@ export async function sendPasswordResetEmail(to: string, resetToken: string) {
       <body>
         <div class="card">
           <div class="header">
-            <h1 class="title">MedLab QBank</h1>
+            <h1 class="title">Prayogshala Academy</h1>
           </div>
           <div class="content">
             <p>Hello,</p>
-            <p>We received a request to reset the password for your MedLab QBank account associated with <strong>${escapeHtml(to)}</strong>.</p>
+            <p>We received a request to reset the password for your Prayogshala Academy account associated with <strong>${escapeHtml(to)}</strong>.</p>
             <p>Click the link below to set a new password. This link is valid for 1 hour.</p>
             <a href="${escapeHtml(resetLink)}" class="button" style="color: #ffffff;">Reset Password</a>
             <p style="margin-top: 24px; font-size: 12px; color: #64748b;">
@@ -287,7 +287,7 @@ export async function sendPasswordResetEmail(to: string, resetToken: string) {
 
   return sendEmail({
     to,
-    subject: 'Reset your MedLab QBank password',
+    subject: 'Reset your Prayogshala Academy password',
     html,
   });
 }

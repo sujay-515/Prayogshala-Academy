@@ -224,7 +224,7 @@ export const BookmarksLibrary: React.FC<BookmarksLibraryProps> = ({
 
   return (
     <div className="max-w-4xl mx-auto py-6 space-y-6">
-      <title>Bookmarks & Notes | MedLab QBank</title>
+      <title>Bookmarks & Notes | Prayogshala Academy</title>
       <meta
         name="description"
         content="Saved laboratory medicine questions with personal study notes, folders and bookmark-only practice."
@@ -266,14 +266,14 @@ export const BookmarksLibrary: React.FC<BookmarksLibraryProps> = ({
           <Bookmark className="w-9 h-9 text-slate-400 mx-auto" />
           <h2 className="text-base font-semibold text-slate-900">No bookmarks yet</h2>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Tap the bookmark icon on any question in Browse, Practice, the daily question or a mock review
+            Tap the bookmark icon on any question in Practice, the daily question or a mock review
             to save it here with notes and folders.
           </p>
           <Link
-            to="/browse"
+            to="/practice"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium"
           >
-            Browse questions
+            Practice questions
             <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
           </Link>
         </div>

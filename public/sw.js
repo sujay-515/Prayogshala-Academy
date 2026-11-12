@@ -1,11 +1,11 @@
-/* MedLab QBank service worker — offline app shell.
+/* Prayogshala Academy service worker — offline app shell.
  *
  * Strategy:
  *  - navigations: network-first, fall back to the cached shell
  *  - same-origin static assets: stale-while-revalidate
  *  - /api/*: never cached, always network
  */
-const CACHE_NAME = 'medlab-shell-v3';
+const CACHE_NAME = 'prayogshala-shell-v1';
 const SHELL_URLS = [
   '/',
   '/index.html',

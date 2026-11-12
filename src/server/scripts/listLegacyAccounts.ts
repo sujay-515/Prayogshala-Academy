@@ -3,7 +3,7 @@ import fs from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 
 const DATA_DIR = path.resolve(process.cwd(), process.env.DATA_DIR || 'data');
-const DB_PATH = path.join(DATA_DIR, 'medlab_qbank.sqlite');
+const DB_PATH = path.join(DATA_DIR, 'prayogshala_academy.sqlite');
 
 if (!fs.existsSync(DB_PATH)) {
   console.log(`[Legacy Accounts Checker] No database file found at ${DB_PATH}`);
@@ -18,10 +18,10 @@ const LEGACY_IDENTIFIERS = [
   'student',
   'staff',
   'superadmin',
-  'student@medlab.local',
-  'staff@medlab.test',
-  'superadmin@medlab.test',
-  'admin@medlab.local',
+  'student@prayogshala.local',
+  'staff@prayogshala.test',
+  'superadmin@prayogshala.test',
+  'admin@prayogshala.local',
 ];
 
 const placeholders = LEGACY_IDENTIFIERS.map(() => '?').join(',');

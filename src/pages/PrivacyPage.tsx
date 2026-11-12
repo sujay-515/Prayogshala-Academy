@@ -12,13 +12,13 @@ export const PrivacyPage: React.FC = () => {
       <title>{`Privacy Policy | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="Privacy Policy for MedLab QBank detailing data collection, storage, third-party processors, localStorage usage, and user rights."
+        content="Privacy Policy for Prayogshala Academy detailing data collection, storage, third-party processors, localStorage usage, and user rights."
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Privacy Policy | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="Privacy Policy for MedLab QBank detailing data collection, storage, third-party processors, and user rights."
+        content="Privacy Policy for Prayogshala Academy detailing data collection, storage, third-party processors, and user rights."
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -119,7 +119,7 @@ export const PrivacyPage: React.FC = () => {
               {SITE_CONFIG.SITE_NAME} uses browser <code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">localStorage</code> exclusively for strictly necessary operational purposes:
             </p>
             <ul className="list-disc pl-5 space-y-1 text-sm mb-3">
-              <li>Authentication session token storage (<code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">medlab_qbank_auth_token_v1</code>).</li>
+              <li>Authentication session token storage (<code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">prayogshala_auth_token_v1</code>).</li>
               <li>Local visual display preferences (light/dark theme).</li>
             </ul>
             <p className="text-xs bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-900/50 text-blue-900 dark:text-blue-200">
@@ -179,7 +179,7 @@ export const PrivacyPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to MedLab QBank
+            ← Return to Prayogshala Academy
           </Link>
           <div className="flex gap-4">
             <Link to="/terms" className="hover:underline">Terms</Link>

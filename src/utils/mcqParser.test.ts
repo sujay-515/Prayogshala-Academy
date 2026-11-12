@@ -129,14 +129,14 @@ test('validateExtractedQuestion flags missing options, missing answer key, or du
   assert.ok(invalidWarnings.some((w) => w.includes('Missing or invalid correct answer key')));
 });
 
-test('inferCategoryFromContent maps questions to INITIAL_CATEGORIES units and subjects', () => {
+test('inferCategoryFromContent maps questions to INITIAL_CATEGORIES subjects and units', () => {
   const cat = inferCategoryFromContent(
     'Patient presents with elevated troponin, AST, ALT, and bilirubin on spectrophotometry.'
   );
-  const unitObj = INITIAL_CATEGORIES.find((u) => u.name === cat.unit);
-  assert.ok(unitObj, `Expected unit "${cat.unit}" to exist in INITIAL_CATEGORIES`);
-  const subjectObj = unitObj?.subjects.find((s) => s.name === cat.subject);
-  assert.ok(subjectObj, `Expected subject "${cat.subject}" to exist in unit "${cat.unit}"`);
+  const subjectObj = INITIAL_CATEGORIES.find((s) => s.name === cat.subject);
+  assert.ok(subjectObj, `Expected subject "${cat.subject}" to exist in INITIAL_CATEGORIES`);
+  const unitObj = subjectObj?.units.find((u) => u.name === cat.unit);
+  assert.ok(unitObj, `Expected unit "${cat.unit}" to exist in subject "${cat.subject}"`);
 });
 
 test('generateNextQuestionCode increments from highest existing LAB-XXXX code without collision', () => {

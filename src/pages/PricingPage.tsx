@@ -26,7 +26,7 @@ interface PricingPageProps {
 }
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('medlab_qbank_auth_token_v1');
+  const token = localStorage.getItem('prayogshala_auth_token_v1');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
@@ -127,10 +127,10 @@ export const PricingPage: React.FC<PricingPageProps> = ({ currentUser, onOpenAut
 
   return (
     <div className="max-w-5xl mx-auto py-8 space-y-8">
-      <title>Pricing &amp; Full Access | MedLab QBank</title>
+      <title>Pricing &amp; Full Access | Prayogshala Academy</title>
       <meta
         name="description"
-        content="Unlock the full 10,000+ laboratory medicine question bank, unlimited mock exams, and Grand Tests with a MedLab QBank subscription."
+        content="Unlock the full 10,000+ laboratory medicine question bank, unlimited mock exams, and Grand Tests with a Prayogshala Academy subscription."
       />
 
       <header className="text-center space-y-3">
@@ -250,7 +250,7 @@ export const PricingPage: React.FC<PricingPageProps> = ({ currentUser, onOpenAut
       )}
 
       <p className="text-center text-[11px] text-slate-500 leading-relaxed">
-        Payments are processed securely by eSewa and Khalti; MedLab QBank never sees your wallet
+        Payments are processed securely by eSewa and Khalti; Prayogshala Academy never sees your wallet
         credentials. Activation is instant after gateway confirmation. Manual activation via bank
         transfer is available on request — <Link to="/contact" className="underline text-cyan-700">contact us</Link>.
       </p>

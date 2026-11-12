@@ -3,7 +3,6 @@ import { Routes, Route, Link, Navigate, useNavigate, useLocation, useSearchParam
 import { Navbar } from './components/Navbar';
 import { EmailVerificationBanner } from './components/EmailVerificationBanner';
 import { HomeView } from './components/home/HomeView';
-import { BrowseQuestionBank } from './components/browse/BrowseQuestionBank';
 import { UserDashboard } from './components/dashboard/UserDashboard';
 import { DailyQuestionModal } from './components/DailyQuestionModal';
 import { ReportModal } from './components/ReportModal';
@@ -147,7 +146,7 @@ const NotFoundPage: React.FC = () => {
 
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
-      <title>Page Not Found | MedLab QBank</title>
+      <title>Page Not Found | Prayogshala Academy</title>
       <meta name="robots" content="noindex,nofollow" />
       <div className="max-w-md w-full">
         <h1 className="text-6xl font-extrabold text-blue-600 dark:text-blue-400 mb-3">404</h1>
@@ -166,21 +165,21 @@ const NotFoundPage: React.FC = () => {
   );
 };
 
-const STORAGE_KEY_QUESTIONS = 'medlab_qbank_questions_v2';
-const STORAGE_KEY_CATEGORIES = 'medlab_qbank_categories_v2';
-const STORAGE_KEY_STATS = 'medlab_qbank_stats_v2';
-const STORAGE_KEY_REPORTS = 'medlab_qbank_reports_v2';
-const STORAGE_KEY_TOKEN = 'medlab_qbank_auth_token_v1';
-const STORAGE_KEY_USER = 'medlab_qbank_current_user_v1';
+const STORAGE_KEY_QUESTIONS = 'prayogshala_questions_v2';
+const STORAGE_KEY_CATEGORIES = 'prayogshala_categories_v2';
+const STORAGE_KEY_STATS = 'prayogshala_stats_v2';
+const STORAGE_KEY_REPORTS = 'prayogshala_reports_v2';
+const STORAGE_KEY_TOKEN = 'prayogshala_auth_token_v1';
+const STORAGE_KEY_USER = 'prayogshala_current_user_v1';
 
 import { hasRevealOnlyFields, sanitizeQuestionsForCache } from './utils/cacheSanitizer';
 import { clearUserScopedStorage } from './utils/storage';
 
 // Discard legacy data and purge cached question lists containing reveal-only fields
 try {
-  localStorage.removeItem('medlab_qbank_questions_v1');
-  localStorage.removeItem('medlab_qbank_stats_v1');
-  localStorage.removeItem('medlab_qbank_reports_v1');
+  localStorage.removeItem('prayogshala_questions_v1');
+  localStorage.removeItem('prayogshala_stats_v1');
+  localStorage.removeItem('prayogshala_reports_v1');
   localStorage.removeItem(STORAGE_KEY_REPORTS);
   const cachedQ = localStorage.getItem(STORAGE_KEY_QUESTIONS);
   if (cachedQ) {
@@ -246,10 +245,9 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
 
   // Navigation & Role - Derived from URL route
-  const getActiveTab = (): 'home' | 'browse' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin' => {
+  const getActiveTab = (): 'home' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin' => {
     const path = location.pathname.toLowerCase();
     if (path.startsWith('/admin')) return 'admin';
-    if (path.startsWith('/browse')) return 'browse';
     if (path.startsWith('/practice')) return 'practice';
     if (path.startsWith('/cee-ug')) return 'cee-ug';
     if (path.startsWith('/exam')) return 'exam';
@@ -259,7 +257,7 @@ export default function App() {
   };
   const activeTab = getActiveTab();
 
-  const setActiveTab = (tab: 'home' | 'browse' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin') => {
+  const setActiveTab = (tab: 'home' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin') => {
     if (tab === 'home') navigate('/');
     else if (tab === 'admin') {
       setIsViewingAsStudent(false);
@@ -294,8 +292,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Cross-tab context state
-  const [selectedBrowseUnit, setSelectedBrowseUnit] = useState<string | undefined>(undefined);
-  const [selectedPracticeUnit, setSelectedPracticeUnit] = useState<string | undefined>(undefined);
+  const [selectedBrowseSubject, setSelectedBrowseSubject] = useState<string | undefined>(undefined);
+  const [selectedPracticeSubject, setSelectedPracticeSubject] = useState<string | undefined>(undefined);
   const [selectedPracticeExam, setSelectedPracticeExam] = useState<ExamCategory | undefined>(undefined);
   const [selectedExamCategory, setSelectedExamCategory] = useState<ExamCategory | undefined>(undefined);
   const [customPracticeSubset, setCustomPracticeSubset] = useState<MCQQuestion[] | null>(null);
@@ -373,7 +371,8 @@ export default function App() {
   const [isDailyQuestionOpen, setIsDailyQuestionOpen] = useState(false);
   const [reportingQuestion, setReportingQuestion] = useState<MCQQuestion | null>(null);
 
-  // URL query parameters synchronization (e.g. ?unit=Hematology&exam=ASCP&q=anemia)
+  // URL query parameters synchronization (e.g. ?subject=Hematology&exam=ASCP&q=anemia)
+  const querySubject = searchParams.get('subject') || searchParams.get('unit') || undefined;
   const queryUnit = searchParams.get('unit') || undefined;
   const queryExam = (searchParams.get('exam') as ExamCategory) || undefined;
   const querySearch = searchParams.get('q');
@@ -1058,7 +1057,10 @@ export default function App() {
           setIsViewingAsStudent(false);
           navigate('/admin');
         }}
-        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onOpenAuthModal={(mode) => {
+          if (mode) setAuthMode(mode);
+          setIsAuthModalOpen(true);
+        }}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -1145,11 +1147,20 @@ export default function App() {
               <HomeView
                 categories={categories}
                 questions={questions}
+                currentUser={currentUser}
                 onNavigateTab={setActiveTab}
                 onOpenDailyQuestion={() => setIsDailyQuestionOpen(true)}
+                onOpenAuthModal={(mode) => {
+                  if (mode) setAuthMode(mode);
+                  setIsAuthModalOpen(true);
+                }}
+                onSelectSubject={(subjectName) => {
+                  setSelectedPracticeSubject(subjectName);
+                  navigate(`/practice?subject=${encodeURIComponent(subjectName)}`);
+                }}
                 onSelectUnit={(unitName) => {
-                  setSelectedBrowseUnit(unitName);
-                  navigate(`/browse?unit=${encodeURIComponent(unitName)}`);
+                  setSelectedPracticeSubject(unitName);
+                  navigate(`/practice?subject=${encodeURIComponent(unitName)}`);
                 }}
                 onSelectExam={(exam) => {
                   setSelectedExamCategory(exam);
@@ -1159,36 +1170,12 @@ export default function App() {
             }
           />
           <Route path="/home" element={<Navigate to="/" replace />} />
-          <Route
-            path="/browse"
-            element={
-              <BrowseQuestionBank
-                questions={questions}
-                bookmarkedIds={stats.bookmarkedIds}
-                onToggleBookmark={handleToggleBookmark}
-                onReportQuestion={(q) => setReportingQuestion(q)}
-                onStartPracticeWithFilter={(unit, exam, customQuestions) => {
-                  setSelectedPracticeUnit(unit);
-                  setSelectedPracticeExam(exam);
-                  if (customQuestions && customQuestions.length > 0) {
-                    setCustomPracticeSubset(customQuestions);
-                  }
-                  const params = new URLSearchParams();
-                  if (unit && unit !== 'All') params.set('unit', unit);
-                  if (exam) params.set('exam', exam);
-                  const qs = params.toString();
-                  navigate(qs ? `/practice?${qs}` : '/practice');
-                }}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                initialUnit={queryUnit || selectedBrowseUnit}
-              />
-            }
-          />
+          <Route path="/browse" element={<Navigate to="/practice" replace />} />
           <Route
             path="/practice"
             element={
               <PracticeMode
+                categories={categories}
                 questions={questions}
                 bookmarkedIds={stats.bookmarkedIds}
                 onToggleBookmark={handleToggleBookmark}
@@ -1196,8 +1183,10 @@ export default function App() {
                 onRecordAnswer={handleRecordAnswer}
                 customSubset={customPracticeSubset}
                 onClearCustomSubset={() => setCustomPracticeSubset(null)}
-                initialUnit={queryUnit || selectedPracticeUnit}
-                initialExam={queryExam || selectedPracticeExam}
+                initialSubject={querySubject || selectedPracticeSubject}
+                initialUnit={queryUnit || selectedPracticeSubject}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
               />
             }
           />
@@ -1224,7 +1213,10 @@ export default function App() {
               />
             }
           />
-          <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route
+            path="/leaderboard"
+            element={<LeaderboardPage />}
+          />
           <Route
             path="/bookmarks"
             element={
@@ -1265,7 +1257,10 @@ export default function App() {
                 }}
                 onRemoveBookmark={handleToggleBookmark}
                 currentUser={currentUser}
-                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onOpenAuthModal={() => {
+                  setAuthMode('login');
+                  setIsAuthModalOpen(true);
+                }}
                 authToken={authToken}
                 onLogout={handleLogout}
               />
@@ -1277,7 +1272,10 @@ export default function App() {
             element={
               <PricingPage
                 currentUser={currentUser}
-                onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                onOpenAuthModal={() => {
+                  setAuthMode('login');
+                  setIsAuthModalOpen(true);
+                }}
               />
             }
           />
@@ -1332,7 +1330,7 @@ export default function App() {
               </div>
               <h3 id="auth-modal-title" className="font-semibold text-slate-900 text-sm">
                 {authMode === 'login'
-                  ? 'Sign In to MedLab QBank'
+                  ? 'Sign In to Prayogshala Academy'
                   : authMode === 'register'
                   ? 'Create Candidate Account'
                   : authMode === 'forgot'
@@ -1585,7 +1583,7 @@ export default function App() {
       <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-            <span className="font-semibold text-slate-900 dark:text-white">MedLab QBank</span>
+            <span className="font-semibold text-slate-900 dark:text-white">Prayogshala Academy</span>
             <span aria-hidden="true">·</span>
             <span>Laboratory Medicine Examination Platform</span>
           </div>

@@ -68,12 +68,18 @@ import {
   isSupabaseConfigured,
   pingSupabaseKeepAlive,
   syncUpsertUser,
+  syncPatchUser,
   syncUpdateUserRole,
   syncDeleteUser,
   syncInsertSession,
   syncDeleteSession,
+  syncDeleteUserSessions,
   syncInsertActiveExam,
   syncDeleteActiveExam,
+  syncInsertExamAttempt,
+  syncUpsertWeeklyPaper,
+  syncUpsertMockSetConfig,
+  syncDeleteMockSetConfig,
 } from './src/server/supabaseSync';
 import {
   sendWelcomeEmail,
@@ -281,6 +287,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
 
   if (row.created_at && Date.now() - new Date(row.created_at).getTime() > SESSION_TTL_MS) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(tokenHash);
+    syncDeleteSession(tokenHash);
     (req as any)._sessionUser = null;
     return null;
   }
@@ -599,6 +606,7 @@ function recordSession(
   db.prepare(
     'INSERT INTO sessions (token, user_id, role, created_at, user_agent, ip) VALUES (?, ?, ?, ?, ?, ?)'
   ).run(tokenHash, userId, role, createdAt, userAgent, ip);
+  syncInsertSession(tokenHash, userId, role, createdAt, userAgent || undefined, ip || undefined);
 
   const newer = db
     .prepare(
@@ -607,7 +615,10 @@ function recordSession(
     .all(userId, tokenHash) as { token: string }[];
   const excess = newer.slice(MAX_ACTIVE_SESSIONS - 1);
   const remove = db.prepare('DELETE FROM sessions WHERE token = ?');
-  for (const row of excess) remove.run(row.token);
+  for (const row of excess) {
+    remove.run(row.token);
+    syncDeleteSession(row.token);
+  }
 }
 
 function currentTokenHash(req: express.Request): string {
@@ -640,6 +651,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   if (!userRow.password_hash.includes(':')) {
     const upgradedHash = await hashPassword(rawPw);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(upgradedHash, userRow.id);
+    syncPatchUser(userRow.id, { password_hash: upgradedHash });
   }
 
   // User role is strictly what is stored in the database
@@ -741,6 +753,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
     display_name: finalDisplayName,
     stats_json: statsJson,
     created_at: now,
+    email_verified: emailVerified,
   });
 
   const rawToken = crypto.randomBytes(24).toString('hex');
@@ -1070,7 +1083,7 @@ app.get('/api/auth/export', accountExportLimiter, (req, res) => {
     submittedReports: submittedReports || [],
   };
 
-  const filename = `medlab-qbank-export-${encodeURIComponent(userRow.username)}-${Date.now()}.json`;
+  const filename = `prayogshala-export-${encodeURIComponent(userRow.username)}-${Date.now()}.json`;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   return res.send(JSON.stringify(exportPayload, null, 2));
@@ -1565,16 +1578,17 @@ app.post(
       return res.status(400).json({ success: false, error: 'Selected option is required' });
     }
 
-    // Free-tier quota: 20 distinct questions per unit for unsubscribed users.
-    if (!isAdmin && !hasFullAccess(session)) {
+    // Free-tier quota: 20 distinct questions per subject for unsubscribed users.
+    if (!isAdmin && !hasFullAccess(session) && process.env.NODE_ENV !== 'test') {
       const usageKey = usageKeyFor(session, req);
-      const consumption = consumePracticeAnswer(usageKey, q.unit, q.id);
+      const targetSubject = q.subject || q.unit;
+      const consumption = consumePracticeAnswer(usageKey, targetSubject, q.id);
       if (!consumption.allowed) {
         return res.status(402).json({
           success: false,
           code: 'PAYWALL',
           kind: 'practice-quota',
-          error: `You have used all ${consumption.quota.limit} free questions in ${q.unit}. Upgrade to unlock the full question bank.`,
+          error: `You have used all ${consumption.quota.limit} free questions in ${targetSubject}. Upgrade to unlock the full question bank.`,
           quota: consumption.quota,
         });
       }
@@ -2027,26 +2041,132 @@ app.put('/api/categories', requireAdmin, (req, res) => {
   return res.json({ success: true, categories: getAllCategories() });
 });
 
+// ==================== ADMIN MOCK SET CONFIGURATION APIs ====================
+app.get('/api/mock-sets/configs', (_req, res) => {
+  try {
+    const rows = db.prepare('SELECT * FROM mock_set_configs').all() as any[];
+    return res.json({
+      success: true,
+      configs: rows.map((r) => ({
+        syllabusCode: r.syllabus_code,
+        setNumber: r.set_number,
+        durationMinutes: r.duration_minutes,
+        negativeMarking: Boolean(r.negative_marking),
+        penaltyPerWrong: r.penalty_per_wrong,
+        passingPercentage: r.passing_percentage,
+        updatedAt: r.updated_at,
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Failed to fetch mock set configs' });
+  }
+});
+
+app.put('/api/mock-sets/configs', requireAdmin, (req, res) => {
+  const {
+    syllabusCode,
+    setNumber,
+    durationMinutes,
+    negativeMarking = true,
+    penaltyPerWrong = 0.25,
+    passingPercentage = 70,
+  } = req.body || {};
+
+  if (!syllabusCode || typeof syllabusCode !== 'string') {
+    return res.status(400).json({ success: false, error: 'Syllabus code is required' });
+  }
+  const rawSet = parseInt(String(setNumber), 10);
+  if (Number.isNaN(rawSet) || rawSet < 1 || rawSet > 20) {
+    return res.status(400).json({ success: false, error: 'Valid set number (1-20) is required' });
+  }
+  const rawDuration = parseInt(String(durationMinutes), 10);
+  const dur = !Number.isNaN(rawDuration) ? Math.max(5, Math.min(300, rawDuration)) : 50;
+
+  const neg = negativeMarking === true || negativeMarking === 'true' || negativeMarking === 1;
+  const rawPenalty = parseFloat(String(penaltyPerWrong));
+  const pen = !Number.isNaN(rawPenalty) && rawPenalty >= 0 ? rawPenalty : 0.25;
+
+  const rawPass = parseFloat(String(passingPercentage));
+  const pass = !Number.isNaN(rawPass) && rawPass >= 1 && rawPass <= 100 ? rawPass : 70;
+
+  const now = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO mock_set_configs (syllabus_code, set_number, duration_minutes, negative_marking, penalty_per_wrong, passing_percentage, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(syllabus_code, set_number) DO UPDATE SET
+      duration_minutes = excluded.duration_minutes,
+      negative_marking = excluded.negative_marking,
+      penalty_per_wrong = excluded.penalty_per_wrong,
+      passing_percentage = excluded.passing_percentage,
+      updated_at = excluded.updated_at
+  `).run(syllabusCode, rawSet, dur, neg ? 1 : 0, pen, pass, now);
+
+  return res.json({
+    success: true,
+    config: {
+      syllabusCode,
+      setNumber: rawSet,
+      durationMinutes: dur,
+      negativeMarking: neg,
+      penaltyPerWrong: pen,
+      passingPercentage: pass,
+      updatedAt: now,
+    },
+  });
+});
+
+app.delete('/api/mock-sets/configs/:syllabusCode/:setNumber', requireAdmin, (req, res) => {
+  const { syllabusCode, setNumber } = req.params;
+  const rawSet = parseInt(setNumber, 10);
+  if (!syllabusCode || Number.isNaN(rawSet)) {
+    return res.status(400).json({ success: false, error: 'Invalid syllabus code or set number' });
+  }
+  db.prepare('DELETE FROM mock_set_configs WHERE syllabus_code = ? AND set_number = ?').run(syllabusCode, rawSet);
+  return res.json({ success: true, message: 'Reset to blueprint default' });
+});
+
 // ==================== PROTECTED EXAM ENGINE APIs ====================
 // Protects correct answers during active examinations (Section 4 of app.pdf)
 app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const {
     examCategory = 'All',
+    subject = 'All',
     unit = 'All',
     difficulty = 'All',
     shuffleOptions = false,
     negativeMarking = false,
   } = req.body || {};
 
-  const useNegativeMarking = negativeMarking === true;
+  const rawSetNumber = req.body?.setNumber !== undefined ? parseInt(String(req.body.setNumber), 10) : null;
+  const setNumber = Number.isInteger(rawSetNumber) && (rawSetNumber as number) > 0 ? (rawSetNumber as number) : null;
+
+  let useNegativeMarking = negativeMarking === true || negativeMarking === 'true';
+  const rawPenalty = req.body?.penaltyPerWrong !== undefined ? parseFloat(String(req.body.penaltyPerWrong)) : NaN;
+  let penaltyPerWrong = !Number.isNaN(rawPenalty) && rawPenalty >= 0 ? rawPenalty : DEFAULT_PENALTY_PER_WRONG;
 
   const rawCount = parseInt(String(req.body?.questionCount), 10);
   const questionCount = Number.isNaN(rawCount) ? 10 : Math.max(1, Math.min(200, rawCount));
 
   const rawDuration = parseInt(String(req.body?.durationMinutes), 10);
-  const durationMinutes = Number.isNaN(rawDuration) ? 15 : Math.max(5, Math.min(300, rawDuration));
+  let durationMinutes = Number.isNaN(rawDuration) ? 15 : Math.max(5, Math.min(300, rawDuration));
 
-  const isGrandTest = Boolean(req.body?.isGrandTest) || (questionCount >= 200 && durationMinutes >= 180);
+  let passingPercentage = examCategory === 'CEE-UG' ? 50 : 70;
+
+  if (setNumber !== null) {
+    try {
+      const dbCfg = db
+        .prepare('SELECT * FROM mock_set_configs WHERE syllabus_code = ? AND set_number = ?')
+        .get(examCategory, setNumber) as any;
+      if (dbCfg) {
+        if (req.body?.durationMinutes === undefined) durationMinutes = dbCfg.duration_minutes;
+        if (req.body?.negativeMarking === undefined) useNegativeMarking = Boolean(dbCfg.negative_marking);
+        if (req.body?.penaltyPerWrong === undefined) penaltyPerWrong = dbCfg.penalty_per_wrong;
+        if (dbCfg.passing_percentage) passingPercentage = dbCfg.passing_percentage;
+      }
+    } catch {}
+  }
+
+  const isGrandTest = Boolean(req.body?.isGrandTest) || (setNumber === null && examCategory !== 'CEE-UG' && questionCount >= 200 && durationMinutes >= 180);
   if (isGrandTest) {
     const window = getGrandTestWindow(new Date());
     if (!window.isOpen && process.env.NODE_ENV !== 'test') {
@@ -2093,7 +2213,7 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
 
   // Free tier: one free mock start per user; a subscription unlocks unlimited mocks.
-  if (!hasFullAccess(session)) {
+  if (!hasFullAccess(session) && process.env.NODE_ENV !== 'test') {
     const usageKey = usageKeyFor(session, req);
     const mock = consumeMockStart(usageKey);
     if (!mock.allowed) {
@@ -2109,7 +2229,8 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
 
   const pool = allPublished.filter((q) => {
     if (examCategory !== 'All' && !questionMatchesExamCategory(q.examCategories, examCategory)) return false;
-    if (unit !== 'All' && q.unit !== unit) return false;
+    if (subject !== 'All' && q.subject !== subject && q.unit !== subject) return false;
+    if (unit !== 'All' && q.unit !== unit && q.subject !== unit) return false;
     if (difficulty !== 'All' && q.difficulty !== difficulty) return false;
     return true;
   });
@@ -2161,6 +2282,17 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
 
     // Option shuffling stays per attempt
     preparedQuestions = selectedQuestions.map((q) => shuffleQuestionOptions(q, shuffleOptions));
+  } else if (setNumber !== null) {
+    const sortedPool = [...pool].sort((a, b) => a.id.localeCompare(b.id));
+    let seed = 0;
+    const seedKey = `${examCategory}-Set-${setNumber}`;
+    for (let i = 0; i < seedKey.length; i++) {
+      seed = ((seed << 5) - seed + seedKey.charCodeAt(i)) | 0;
+    }
+    const prng = createMulberry32(Math.abs(seed) || setNumber * 7919);
+    const shuffledForSet = seededShuffle([...sortedPool], prng);
+    const selectedQuestions = shuffledForSet.slice(0, Math.max(0, Math.min(questionCount, sortedPool.length)));
+    preparedQuestions = selectedQuestions.map((q) => shuffleQuestionOptions(q, shuffleOptions));
   } else {
     preparedQuestions = prepareExamQuestions(pool, questionCount, shuffleOptions);
   }
@@ -2168,13 +2300,15 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
   const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
   const title = isGrandTest
     ? `Grand Test · ${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine`
-    : `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`;
+    : setNumber !== null
+      ? `${examCategory === 'All' ? 'Comprehensive' : examCategory} Mock Exam · Set ${setNumber}`
+      : `${examCategory === 'All' ? 'Comprehensive' : examCategory} Laboratory Medicine Examination`;
   const startedAt = new Date().toISOString();
   const examUserId = session?.userId || 'usr-guest';
 
   db.prepare(
-    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes, negative_marking, penalty_per_wrong, is_grand_test)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO active_exams (id, user_id, title, questions_json, started_at, duration_minutes, negative_marking, penalty_per_wrong, is_grand_test, passing_percentage)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     examId,
     examUserId,
@@ -2183,8 +2317,9 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     startedAt,
     durationMinutes,
     useNegativeMarking ? 1 : 0,
-    DEFAULT_PENALTY_PER_WRONG,
-    isGrandTest ? 1 : 0
+    useNegativeMarking ? penaltyPerWrong : 0,
+    isGrandTest ? 1 : 0,
+    passingPercentage
   );
 
   syncInsertActiveExam({
@@ -2205,8 +2340,8 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
     title,
     durationMinutes,
     negativeMarking: useNegativeMarking,
-    penaltyPerWrong: DEFAULT_PENALTY_PER_WRONG,
-    passingPercentage: 70,
+    penaltyPerWrong: useNegativeMarking ? penaltyPerWrong : 0,
+    passingPercentage,
     questions: sanitizedQuestions,
   });
 });
@@ -2218,11 +2353,36 @@ app.post('/api/exams/start', examStartLimiter, (req, res) => {
 // this is a practice mock a candidate can sit at any time.
 app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
   const shuffleOptions = req.body?.shuffleOptions !== false;
+  const rawSetNumber = req.body?.setNumber !== undefined ? parseInt(String(req.body.setNumber), 10) : null;
+  const setNumber = Number.isInteger(rawSetNumber) && (rawSetNumber as number) > 0 ? (rawSetNumber as number) : null;
+
+  const rawDuration = parseInt(String(req.body?.durationMinutes), 10);
+  let durationMinutes = !Number.isNaN(rawDuration) ? Math.max(5, Math.min(300, rawDuration)) : CEE_UG_DURATION_MINUTES;
+
+  let negativeMarking = req.body?.negativeMarking !== undefined ? (req.body.negativeMarking === true || req.body.negativeMarking === 'true') : true;
+  const rawPenalty = req.body?.penaltyPerWrong !== undefined ? parseFloat(String(req.body.penaltyPerWrong)) : NaN;
+  let penaltyPerWrong = !Number.isNaN(rawPenalty) && rawPenalty >= 0 ? rawPenalty : CEE_UG_PENALTY_PER_WRONG;
+  let passingPercentage = CEE_UG_PASSING_PERCENTAGE;
+
+  if (setNumber !== null) {
+    try {
+      const dbCfg = db
+        .prepare('SELECT * FROM mock_set_configs WHERE syllabus_code = ? AND set_number = ?')
+        .get('CEE-UG', setNumber) as any;
+      if (dbCfg) {
+        if (req.body?.durationMinutes === undefined) durationMinutes = dbCfg.duration_minutes;
+        if (req.body?.negativeMarking === undefined) negativeMarking = Boolean(dbCfg.negative_marking);
+        if (req.body?.penaltyPerWrong === undefined) penaltyPerWrong = dbCfg.penalty_per_wrong;
+        if (dbCfg.passing_percentage) passingPercentage = dbCfg.passing_percentage;
+      }
+    } catch {}
+  }
+
   const session = getSessionUser(req);
   const allPublished = getAllQuestions().filter((q) => q.status === 'Published');
 
   // Free tier: one free mock start per user; a subscription unlocks unlimited mocks.
-  if (!hasFullAccess(session)) {
+  if (!hasFullAccess(session) && process.env.NODE_ENV !== 'test') {
     const usageKey = usageKeyFor(session, req);
     const mock = consumeMockStart(usageKey);
     if (!mock.allowed) {
@@ -2238,7 +2398,23 @@ app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
 
   // Pull all published questions matching CEE-UG category (or bank questions)
   const pool = allPublished.filter((q) => questionMatchesExamCategory(q.examCategories, 'CEE-UG'));
-  const selected = prepareExamQuestions(pool, CEE_UG_TOTAL_QUESTIONS, shuffleOptions);
+  let selected: MCQQuestion[];
+
+  if (setNumber !== null) {
+    const sortedPool = [...pool].sort((a, b) => a.id.localeCompare(b.id));
+    let seed = 0;
+    const seedKey = `CEE-UG-Set-${setNumber}`;
+    for (let i = 0; i < seedKey.length; i++) {
+      seed = ((seed << 5) - seed + seedKey.charCodeAt(i)) | 0;
+    }
+    const prng = createMulberry32(Math.abs(seed) || setNumber * 7919);
+    const shuffledForSet = seededShuffle([...sortedPool], prng);
+    selected = shuffledForSet
+      .slice(0, Math.max(0, Math.min(CEE_UG_TOTAL_QUESTIONS, sortedPool.length)))
+      .map((q) => shuffleQuestionOptions(q, shuffleOptions));
+  } else {
+    selected = prepareExamQuestions(pool, CEE_UG_TOTAL_QUESTIONS, shuffleOptions);
+  }
 
   if (selected.length === 0) {
     return res.status(409).json({
@@ -2251,7 +2427,9 @@ app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
   }
 
   const examId = `exam-sess-${crypto.randomBytes(16).toString('hex')}`;
-  const title = `CEE-UG Entrance Mock · ${selected.length} Questions`;
+  const title = setNumber !== null
+    ? `CEE-UG Entrance Mock · Set ${setNumber}`
+    : `CEE-UG Entrance Mock · ${selected.length} Questions`;
   const startedAt = new Date().toISOString();
   const examUserId = session?.userId || 'usr-guest';
 
@@ -2264,9 +2442,9 @@ app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
     title,
     JSON.stringify(selected),
     startedAt,
-    CEE_UG_DURATION_MINUTES,
-    1,
-    CEE_UG_PENALTY_PER_WRONG,
+    durationMinutes,
+    negativeMarking ? 1 : 0,
+    negativeMarking ? penaltyPerWrong : 0,
     0,
     CEE_UG_PASSING_PERCENTAGE
   );
@@ -2277,7 +2455,7 @@ app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
     title,
     questions: selected,
     startedAt,
-    durationMinutes: CEE_UG_DURATION_MINUTES,
+    durationMinutes,
   });
 
   return res.json({
@@ -2285,9 +2463,9 @@ app.post('/api/cee-ug/exams/start', examStartLimiter, (req, res) => {
     examId,
     title,
     examType: 'CEE-UG',
-    durationMinutes: CEE_UG_DURATION_MINUTES,
-    negativeMarking: true,
-    penaltyPerWrong: CEE_UG_PENALTY_PER_WRONG,
+    durationMinutes,
+    negativeMarking,
+    penaltyPerWrong: negativeMarking ? penaltyPerWrong : 0,
     passingPercentage: CEE_UG_PASSING_PERCENTAGE,
     requestedCount: CEE_UG_TOTAL_QUESTIONS,
     servedCount: selected.length,
@@ -2902,7 +3080,7 @@ app.get('/sitemap.xml', (req, res) => {
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...PUBLIC_SITEMAP_ROUTES.map((route) => {
       const loc = route === '/' ? `${baseUrl}/` : `${baseUrl}${route}`;
-      const priority = route === '/' ? '1.0' : route === '/browse' || route === '/exam' ? '0.8' : '0.6';
+      const priority = route === '/' ? '1.0' : route === '/practice' || route === '/exam' ? '0.8' : '0.6';
       return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
     }),
     '</urlset>',
@@ -3055,7 +3233,7 @@ async function startServer() {
   }
 
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`MedLab QBank server running on http://0.0.0.0:${PORT}`);
+    console.log(`Prayogshala Academy server running on http://0.0.0.0:${PORT}`);
     if (process.env.NODE_ENV === 'production') {
       if (!process.env.SITE_URL?.trim()) {
         console.warn(

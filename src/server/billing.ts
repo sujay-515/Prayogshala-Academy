@@ -10,6 +10,13 @@
  */
 import crypto from 'crypto';
 import { db } from './db';
+import {
+  syncUpsertSubscription,
+  syncPatchUserSubscriptions,
+  syncUpsertPayment,
+  syncUpsertPracticeUsage,
+  syncUpsertExamUsage,
+} from './supabaseSync';
 
 export const FREE_PRACTICE_PER_UNIT = Math.max(
   0,
@@ -129,12 +136,15 @@ export function activateSubscription(
   const expiresAt = new Date(now.getTime() + plan.durationDays * 24 * 60 * 60 * 1000);
   const id = `sub-${crypto.randomBytes(12).toString('hex')}`;
 
+  const nowIso = now.toISOString();
+  const expiresIso = expiresAt.toISOString();
+
   db.exec('BEGIN IMMEDIATE');
   try {
     db.prepare(
       `UPDATE subscriptions SET status = 'expired'
        WHERE user_id = ? AND status = 'active' AND expires_at <= ?`
-    ).run(userId, now.toISOString());
+    ).run(userId, nowIso);
     db.prepare(
       `INSERT INTO subscriptions (id, user_id, plan_id, status, source, starts_at, expires_at, created_at, created_by)
        VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)`
@@ -143,9 +153,9 @@ export function activateSubscription(
       userId,
       plan.id,
       source,
-      now.toISOString(),
-      expiresAt.toISOString(),
-      now.toISOString(),
+      nowIso,
+      expiresIso,
+      nowIso,
       createdBy
     );
     db.exec('COMMIT');
@@ -154,15 +164,27 @@ export function activateSubscription(
     throw err;
   }
 
+  syncUpsertSubscription({
+    id,
+    user_id: userId,
+    plan_id: plan.id,
+    status: 'active',
+    source,
+    starts_at: nowIso,
+    expires_at: expiresIso,
+    created_at: nowIso,
+    created_by: createdBy,
+  });
+
   return {
     id,
     userId,
     planId: plan.id,
     status: 'active',
     source,
-    startsAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-    createdAt: now.toISOString(),
+    startsAt: nowIso,
+    expiresAt: expiresIso,
+    createdAt: nowIso,
   };
 }
 
@@ -182,7 +204,11 @@ export function revokeSubscription(userId: string): number {
   const result = db
     .prepare(`UPDATE subscriptions SET status = 'cancelled' WHERE user_id = ? AND status = 'active'`)
     .run(userId);
-  return Number(result.changes || 0);
+  const changed = Number(result.changes || 0);
+  if (changed > 0) {
+    syncPatchUserSubscriptions(userId, 'active', 'cancelled');
+  }
+  return changed;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,9 +251,11 @@ export function consumePracticeAnswer(
   if (!quota.allowed) {
     return { allowed: false, quota };
   }
+  const nowIso = new Date().toISOString();
   db.prepare(
     'INSERT OR IGNORE INTO practice_usage (usage_key, unit, question_id, first_answered_at) VALUES (?, ?, ?, ?)'
-  ).run(usageKey, unit, questionId, new Date().toISOString());
+  ).run(usageKey, unit, questionId, nowIso);
+  syncUpsertPracticeUsage(usageKey, unit, questionId, nowIso);
   return { allowed: true, quota: getPracticeQuota(usageKey, unit) };
 }
 
@@ -251,11 +279,14 @@ export function consumeMockStart(usageKey: UsageKey): { allowed: boolean; quota:
   if (!quota.allowed) {
     return { allowed: false, quota };
   }
+  const nowIso = new Date().toISOString();
   db.prepare(
     `INSERT INTO exam_usage (usage_key, free_mock_used, updated_at) VALUES (?, 1, ?)
      ON CONFLICT(usage_key) DO UPDATE SET free_mock_used = free_mock_used + 1, updated_at = excluded.updated_at`
-  ).run(usageKey, new Date().toISOString());
-  return { allowed: true, quota: getMockQuota(usageKey) };
+  ).run(usageKey, nowIso);
+  const updatedQuota = getMockQuota(usageKey);
+  syncUpsertExamUsage(usageKey, updatedQuota.used, nowIso);
+  return { allowed: true, quota: updatedQuota };
 }
 
 export function listPracticeUsage(usageKey: UsageKey): { unit: string; used: number; limit: number }[] {
@@ -292,6 +323,18 @@ export function createPayment(
     `INSERT INTO payments (id, user_id, plan_id, gateway, amount_npr, status, gateway_ref, gateway_payload, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 'initiated', NULL, NULL, ?, ?)`
   ).run(id, userId, plan.id, gateway, plan.priceNpr, now, now);
+  syncUpsertPayment({
+    id,
+    user_id: userId,
+    plan_id: plan.id,
+    gateway,
+    amount_npr: plan.priceNpr,
+    status: 'initiated',
+    gateway_ref: null,
+    gateway_payload: null,
+    created_at: now,
+    updated_at: now,
+  });
   return { id, userId, planId: plan.id, gateway, amountNpr: plan.priceNpr, status: 'initiated', gatewayRef: null, createdAt: now, updatedAt: now };
 }
 
@@ -325,6 +368,21 @@ export function updatePayment(
        updated_at = ?
      WHERE id = ?`
   ).run(patch.status ?? null, patch.gatewayRef ?? null, patch.gatewayPayload ?? null, now, id);
+  const updated = db.prepare('SELECT * FROM payments WHERE id = ?').get(id) as any;
+  if (updated) {
+    syncUpsertPayment({
+      id: updated.id,
+      user_id: updated.user_id,
+      plan_id: updated.plan_id,
+      gateway: updated.gateway,
+      amount_npr: updated.amount_npr,
+      status: updated.status,
+      gateway_ref: updated.gateway_ref || null,
+      gateway_payload: updated.gateway_payload || null,
+      created_at: updated.created_at,
+      updated_at: updated.updated_at,
+    });
+  }
 }
 
 export function findPaymentByGatewayRef(gateway: string, gatewayRef: string): PaymentRecord | null {

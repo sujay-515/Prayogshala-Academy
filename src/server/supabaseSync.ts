@@ -134,7 +134,6 @@ export function syncDeleteQuestion(id: string): void {
 export function syncBulkDeleteQuestions(ids: string[]): void {
   if (!isSupabaseConfigured() || ids.length === 0) return;
   void (async () => {
-    // Chunk to keep PostgREST URLs within safe length limits
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100).map((id) => `"${id.replace(/"/g, '')}"`);
       await supabaseRequest(`questions?id=in.(${encodeURIComponent(chunk.join(','))})`, {
@@ -183,6 +182,7 @@ export function syncInsertReport(report: QuestionReport): void {
       details: report.details,
       submitted_at: report.submittedAt,
       status: report.status,
+      user_id: report.userId || null,
     },
   });
 }
@@ -199,33 +199,60 @@ export function syncUpdateReportStatus(id: string, status: string): void {
 export function syncUpsertUser(user: {
   id: string;
   username: string;
-  email?: string;
-  password_hash: string;
+  email?: string | null;
+  password_hash?: string | null;
   role: string;
   display_name: string;
   stats_json: string;
   created_at: string;
+  email_verified?: number | boolean;
+  email_verify_token_hash?: string | null;
+  email_verify_expires?: string | null;
+  leaderboard_hidden?: number | boolean;
 }): void {
   if (!isSupabaseConfigured()) return;
   let parsedStats: any = {};
   try {
-    parsedStats = JSON.parse(user.stats_json);
+    parsedStats = typeof user.stats_json === 'string' ? JSON.parse(user.stats_json) : user.stats_json;
   } catch {
     parsedStats = {};
   }
+  const body: Record<string, any> = {
+    id: user.id,
+    username: user.username,
+    email: user.email || null,
+    password_hash: user.password_hash || null,
+    role: user.role,
+    display_name: user.display_name,
+    stats_json: parsedStats,
+    created_at: user.created_at,
+  };
+  if (user.email_verified !== undefined) {
+    body.email_verified = user.email_verified ? 1 : 0;
+  }
+  if (user.email_verify_token_hash !== undefined) {
+    body.email_verify_token_hash = user.email_verify_token_hash;
+  }
+  if (user.email_verify_expires !== undefined) {
+    body.email_verify_expires = user.email_verify_expires;
+  }
+  if (user.leaderboard_hidden !== undefined) {
+    body.leaderboard_hidden = user.leaderboard_hidden ? 1 : 0;
+  }
+
   void supabaseRequest('users?on_conflict=id', {
     method: 'POST',
     prefer: 'resolution=merge-duplicates,return=minimal',
-    body: {
-      id: user.id,
-      username: user.username,
-      email: user.email || null,
-      password_hash: user.password_hash,
-      role: user.role,
-      display_name: user.display_name,
-      stats_json: parsedStats,
-      created_at: user.created_at,
-    },
+    body,
+  });
+}
+
+export function syncPatchUser(userId: string, fields: Record<string, any>): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`users?id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: fields,
   });
 }
 
@@ -249,10 +276,24 @@ export function syncUpdateUserStats(userId: string, stats: UserStats): void {
 
 export function syncDeleteUser(userId: string): void {
   if (!isSupabaseConfigured()) return;
-  void supabaseRequest(`users?id=eq.${encodeURIComponent(userId)}`, {
-    method: 'DELETE',
-    prefer: 'return=minimal',
-  }).catch((err) => {
+  void (async () => {
+    const encoded = encodeURIComponent(userId);
+    const usageKey = encodeURIComponent(`user:${userId}`);
+    await supabaseRequest(`sessions?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`password_resets?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`exam_attempts?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`active_exams?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`subscriptions?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`payments?user_id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`practice_usage?usage_key=eq.${usageKey}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`exam_usage?usage_key=eq.${usageKey}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await supabaseRequest(`reports?user_id=eq.${encoded}`, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { user_id: null },
+    });
+    await supabaseRequest(`users?id=eq.${encoded}`, { method: 'DELETE', prefer: 'return=minimal' });
+  })().catch((err) => {
     console.error('[Supabase] Failed to sync user deletion:', err);
   });
 }
@@ -277,12 +318,91 @@ export function syncSaveSourcePdf(
   });
 }
 
-export function syncInsertSession(_token: string, _userId: string, _role: string, _createdAt: string): void {
-  // SEC-10: Sessions and tokens are strictly local and not synced to Supabase
+export function syncInsertSession(
+  tokenHash: string,
+  userId: string,
+  role: string,
+  createdAt: string,
+  userAgent?: string,
+  ip?: string
+): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('sessions?on_conflict=token', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      token: tokenHash,
+      user_id: userId,
+      role,
+      created_at: createdAt,
+      user_agent: userAgent || null,
+      ip: ip || null,
+    },
+  });
 }
 
-export function syncDeleteSession(_token: string): void {
-  // SEC-10: Sessions and tokens are strictly local and not synced to Supabase
+export function syncDeleteSession(tokenHash: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`sessions?token=eq.${encodeURIComponent(tokenHash)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  });
+}
+
+export function syncDeleteUserSessions(userId: string, exceptTokenHash?: string): void {
+  if (!isSupabaseConfigured()) return;
+  let query = `sessions?user_id=eq.${encodeURIComponent(userId)}`;
+  if (exceptTokenHash) {
+    query += `&token=neq.${encodeURIComponent(exceptTokenHash)}`;
+  }
+  void supabaseRequest(query, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  });
+}
+
+export function syncUpdateUserSessionRole(userId: string, role: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`sessions?user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    prefer: 'return=minimal',
+    body: { role },
+  });
+}
+
+export function syncUpsertPasswordReset(
+  tokenHash: string,
+  userId: string,
+  expiresAt: string,
+  createdAt: string
+): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('password_resets?on_conflict=token', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      token: tokenHash,
+      user_id: userId,
+      expires_at: expiresAt,
+      created_at: createdAt,
+    },
+  });
+}
+
+export function syncDeletePasswordReset(tokenHash: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`password_resets?token=eq.${encodeURIComponent(tokenHash)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  });
+}
+
+export function syncDeleteUserPasswordResets(userId: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`password_resets?user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  });
 }
 
 export function syncInsertActiveExam(exam: {
@@ -292,6 +412,10 @@ export function syncInsertActiveExam(exam: {
   questions: any[];
   startedAt: string;
   durationMinutes: number;
+  negativeMarking?: number;
+  penaltyPerWrong?: number;
+  isGrandTest?: number;
+  passingPercentage?: number;
 }): void {
   if (!isSupabaseConfigured()) return;
   void supabaseRequest('active_exams?on_conflict=id', {
@@ -304,6 +428,10 @@ export function syncInsertActiveExam(exam: {
       questions_json: exam.questions,
       started_at: exam.startedAt,
       duration_minutes: exam.durationMinutes,
+      negative_marking: exam.negativeMarking ?? 0,
+      penalty_per_wrong: exam.penaltyPerWrong ?? 0.25,
+      is_grand_test: exam.isGrandTest ?? 0,
+      passing_percentage: exam.passingPercentage ?? 70,
     },
   });
 }
@@ -313,6 +441,166 @@ export function syncDeleteActiveExam(id: string): void {
   void supabaseRequest(`active_exams?id=eq.${encodeURIComponent(id)}`, {
     method: 'DELETE',
     prefer: 'return=minimal',
+  });
+}
+
+export function syncDeleteUserActiveExams(userId: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`active_exams?user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  });
+}
+
+export interface ExamAttemptRow {
+  id: string;
+  user_id: string;
+  display_name: string;
+  title: string;
+  total: number;
+  correct_count: number;
+  score: number;
+  percentage: number;
+  passed: number;
+  time_spent_seconds: number;
+  negative_marking: number;
+  is_grand_test: number;
+  completed_at: string;
+}
+
+export function syncInsertExamAttempt(attempt: ExamAttemptRow): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('exam_attempts?on_conflict=id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: attempt,
+  });
+}
+
+export function syncDeleteUserExamAttempts(userId: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(`exam_attempts?user_id=eq.${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    prefer: 'return=minimal',
+  });
+}
+
+export function syncUpsertWeeklyPaper(windowStart: string, questionIds: string[], createdAt: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('weekly_papers?on_conflict=window_start', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      window_start: windowStart,
+      question_ids_json: questionIds,
+      created_at: createdAt,
+    },
+  });
+}
+
+export function syncUpsertMockSetConfig(cfg: {
+  syllabus_code: string;
+  set_number: number;
+  duration_minutes: number;
+  negative_marking: number;
+  penalty_per_wrong: number;
+  passing_percentage: number;
+  updated_at: string;
+}): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('mock_set_configs?on_conflict=syllabus_code,set_number', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: cfg,
+  });
+}
+
+export function syncDeleteMockSetConfig(syllabusCode: string, setNumber: number): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(
+    `mock_set_configs?syllabus_code=eq.${encodeURIComponent(syllabusCode)}&set_number=eq.${encodeURIComponent(String(setNumber))}`,
+    {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    }
+  );
+}
+
+export function syncUpsertSubscription(sub: {
+  id: string;
+  user_id: string;
+  plan_id: string | null;
+  status: string;
+  source: string;
+  starts_at: string;
+  expires_at: string;
+  created_at: string;
+  created_by: string | null;
+}): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('subscriptions?on_conflict=id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: sub,
+  });
+}
+
+export function syncPatchUserSubscriptions(userId: string, statusFilter: string, newStatus: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest(
+    `subscriptions?user_id=eq.${encodeURIComponent(userId)}&status=eq.${encodeURIComponent(statusFilter)}`,
+    {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: { status: newStatus },
+    }
+  );
+}
+
+export function syncUpsertPayment(payment: {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  gateway: string;
+  amount_npr: number;
+  status: string;
+  gateway_ref: string | null;
+  gateway_payload: string | null;
+  created_at: string;
+  updated_at: string;
+}): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('payments?on_conflict=id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: payment,
+  });
+}
+
+export function syncUpsertPracticeUsage(usageKey: string, unit: string, questionId: string, firstAnsweredAt: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('practice_usage?on_conflict=usage_key,unit,question_id', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      usage_key: usageKey,
+      unit,
+      question_id: questionId,
+      first_answered_at: firstAnsweredAt,
+    },
+  });
+}
+
+export function syncUpsertExamUsage(usageKey: string, freeMockUsed: number, updatedAt: string): void {
+  if (!isSupabaseConfigured()) return;
+  void supabaseRequest('exam_usage?on_conflict=usage_key', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates,return=minimal',
+    body: {
+      usage_key: usageKey,
+      free_mock_used: freeMockUsed,
+      updated_at: updatedAt,
+    },
   });
 }
 
@@ -339,7 +627,37 @@ export function syncDeleteStagingDrafts(id: string): void {
 }
 
 export function syncCleanupExpiredRecords(): void {
-  // Sessions & reset tokens remain local-only; no remote cloud cleanup needed
+  if (!isSupabaseConfigured()) return;
+  void (async () => {
+    const now = Date.now();
+    const cutoff24h = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const cutoff7d = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff14d = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const nowIso = new Date(now).toISOString();
+
+    await supabaseRequest(`active_exams?started_at=lt.${encodeURIComponent(cutoff24h)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    });
+    await supabaseRequest(`sessions?created_at=lt.${encodeURIComponent(cutoff7d)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    });
+    await supabaseRequest(`password_resets?expires_at=lt.${encodeURIComponent(nowIso)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    });
+    await supabaseRequest(`pdf_staging_drafts?updated_at=lt.${encodeURIComponent(cutoff7d)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    });
+    await supabaseRequest(`source_pdfs?uploaded_at=lt.${encodeURIComponent(cutoff14d)}`, {
+      method: 'DELETE',
+      prefer: 'return=minimal',
+    });
+  })().catch((err) => {
+    console.warn('[Supabase Sync] Failed to cleanup expired records:', err);
+  });
 }
 
 export { supabaseRequest };

@@ -163,75 +163,113 @@ export function validateExtractedQuestion(draft: Partial<ExtractedMCQDraft>): st
  * All returned Unit, Subject, and Topic names match INITIAL_CATEGORIES in src/data/categories.ts.
  */
 export function inferCategoryFromContent(text: string): {
-  unit: string;
   subject: string;
+  unit: string;
   topic: string;
   difficulty: DifficultyLevel;
 } {
   const lower = text.toLowerCase();
 
-  // Clinical Chemistry
+  // Clinical Biochemistry
   if (lower.includes('troponin') || lower.includes('ck-mb') || lower.includes('cardiac') || lower.includes('myocardial') || lower.includes('bnp')) {
-    return { unit: 'Clinical Chemistry', subject: 'Lipid & Cardiac Markers', topic: 'High-Sensitivity Troponin', difficulty: 'Conceptual' };
+    return { subject: 'Clinical Biochemistry', unit: 'Lipid & Cardiac Markers', topic: 'High-Sensitivity Troponin', difficulty: 'Conceptual' };
   }
   if (lower.includes('bilirubin') || lower.includes('alt') || lower.includes('ast') || lower.includes('alkaline phosphatase') || lower.includes('liver') || lower.includes('jaundice') || lower.includes('ggt') || lower.includes('amylase') || lower.includes('lipase')) {
-    return { unit: 'Clinical Chemistry', subject: 'Clinical Enzymology & Hepatic Function', topic: 'Transaminases (ALT/AST)', difficulty: 'Conceptual' };
+    return { subject: 'Clinical Biochemistry', unit: 'Hepatic Function & Clinical Enzymology', topic: 'Transaminases (ALT/AST)', difficulty: 'Conceptual' };
   }
   if (lower.includes('creatinine') || lower.includes('bun') || lower.includes('glomerular') || lower.includes('egfr') || lower.includes('urea') || lower.includes('electrolyte') || lower.includes('anion gap') || lower.includes('acidosis')) {
-    return { unit: 'Clinical Chemistry', subject: 'Renal Function & Electrolytes', topic: 'Creatinine Clearance & eGFR', difficulty: 'Memory-based' };
+    return { subject: 'Clinical Biochemistry', unit: 'Renal Function & Electrolytes', topic: 'Serum Creatinine & eGFR', difficulty: 'Memory-based' };
   }
   if (lower.includes('glucose') || lower.includes('hba1c') || lower.includes('insulin') || lower.includes('diabetes') || lower.includes('ketoacidosis') || lower.includes('thyroid') || lower.includes('tsh') || lower.includes('cortisol')) {
-    return { unit: 'Clinical Chemistry', subject: 'Endocrinology & Metabolism', topic: 'Glycemic Control & HbA1c', difficulty: 'Conceptual' };
+    return { subject: 'Clinical Biochemistry', unit: 'Endocrinology & Metabolic Disorders', topic: 'Glycemic Monitoring & HbA1c', difficulty: 'Conceptual' };
   }
 
-  // Hematology & Hemostasis
+  // Hematology and Blood Banking
   if (lower.includes('leukemia') || lower.includes('blast') || lower.includes('auer rod') || lower.includes('myeloid') || lower.includes('philadelphia') || lower.includes('lymphoma')) {
-    return { unit: 'Hematology & Hemostasis', subject: 'Leukocytes & Leukemias', topic: 'Acute Myeloid Leukemia (AML)', difficulty: 'Advanced' };
+    return { subject: 'Hematology and Blood Banking', unit: 'Leukocytes & Hematologic Malignancies', topic: 'Acute Myeloid Leukemia (AML)', difficulty: 'Advanced' };
   }
   if (lower.includes('anemia') || lower.includes('ferritin') || lower.includes('microcytic') || lower.includes('macrocytic') || lower.includes('mcv') || lower.includes('reticulocyte') || lower.includes('sickle') || lower.includes('hemoglobin')) {
-    return { unit: 'Hematology & Hemostasis', subject: 'Erythrocytes & Anemias', topic: 'Iron Deficiency vs ACD', difficulty: 'Conceptual' };
+    return { subject: 'Hematology and Blood Banking', unit: 'Erythrocytes & Anemias', topic: 'Iron Deficiency vs Anemia of Chronic Disease', difficulty: 'Conceptual' };
   }
   if (lower.includes('inr') || lower.includes('pt ') || lower.includes('prothrombin') || lower.includes('aptt') || lower.includes('factor viii') || lower.includes('factor xiii') || lower.includes('coagulation') || lower.includes('heparin') || lower.includes('willebrand') || lower.includes('platelet')) {
-    return { unit: 'Hematology & Hemostasis', subject: 'Platelets & Hemostasis', topic: 'aPTT & Intrinsic Pathway', difficulty: 'Advanced' };
+    return { subject: 'Hematology and Blood Banking', unit: 'Platelets & Hemostasis', topic: 'aPTT & Intrinsic Pathway', difficulty: 'Advanced' };
   }
-
-  // Immunohematology (Blood Banking)
   if (lower.includes('rh ') || lower.includes('rh-') || lower.includes('anti-d') || lower.includes('abo') || lower.includes('crossmatch') || lower.includes('transfusion') || lower.includes('coombs') || lower.includes('antiglobulin') || lower.includes('blood group')) {
-    return { unit: 'Immunohematology (Blood Banking)', subject: 'Blood Group Systems & Transfusion', topic: 'ABO/Rh Discrepancies & Resolutions', difficulty: 'Advanced' };
+    return { subject: 'Hematology and Blood Banking', unit: 'Immunohematology & Blood Transfusion', topic: 'ABO/Rh Discrepancies & Resolutions', difficulty: 'Advanced' };
   }
 
-  // Clinical Microbiology & Parasitology
-  if (lower.includes('plasmodium') || lower.includes('malaria') || lower.includes('babesia') || lower.includes('parasite') || lower.includes('trophozoite') || lower.includes('ova') || lower.includes('fungi') || lower.includes('yeast') || lower.includes('candida') || lower.includes('aspergillus')) {
-    return { unit: 'Clinical Microbiology & Parasitology', subject: 'Diagnostic Parasitology & Mycology', topic: 'Blood Parasites (Plasmodium, Babesia)', difficulty: 'Conceptual' };
+  // Parasitology
+  if (lower.includes('plasmodium') || lower.includes('malaria') || lower.includes('babesia') || lower.includes('parasite') || lower.includes('trophozoite') || lower.includes('leishmania') || lower.includes('kala-azar') || lower.includes('filaria') || lower.includes('entamoeba') || lower.includes('giardia') || lower.includes('helminth') || lower.includes('ascaris') || lower.includes('hookworm') || lower.includes('taenia')) {
+    return { subject: 'Parasitology', unit: 'Blood & Tissue Parasites', topic: 'Plasmodium Species & Malaria Microscopy', difficulty: 'Conceptual' };
   }
+
+  // Microbiology
   if (lower.includes('mic') || lower.includes('kirby-bauer') || lower.includes('carbapenem') || lower.includes('esbl') || lower.includes('mrsa') || lower.includes('vancomycin') || lower.includes('susceptibility')) {
-    return { unit: 'Clinical Microbiology & Parasitology', subject: 'Antimicrobial Susceptibility', topic: 'ESBL & Carbapenemase Detection', difficulty: 'Advanced' };
+    return { subject: 'Microbiology', unit: 'Antimicrobial Susceptibility Testing (AST)', topic: 'ESBL & Carbapenemase Detection', difficulty: 'Advanced' };
   }
-  if (lower.includes('gram-negative') || lower.includes('gram-positive') || lower.includes('staphylococcus') || lower.includes('pseudomonas') || lower.includes('culture') || lower.includes('macconkey') || lower.includes('oxidase') || lower.includes('coagulase') || lower.includes('bacteria') || lower.includes('bacillus')) {
-    return { unit: 'Clinical Microbiology & Parasitology', subject: 'Diagnostic Bacteriology', topic: 'Gram-Positive Cocci Identification', difficulty: 'Memory-based' };
+  if (lower.includes('fungi') || lower.includes('yeast') || lower.includes('candida') || lower.includes('aspergillus') || lower.includes('dermatophyte') || lower.includes('virus') || lower.includes('virology')) {
+    return { subject: 'Microbiology', unit: 'Clinical Mycology & Virology', topic: 'Yeasts & Candida Identification', difficulty: 'Conceptual' };
   }
-
-  // Immunology & Serology
-  if (lower.includes('ana ') || lower.includes('antinuclear') || lower.includes('rheumatoid') || lower.includes('autoantibod') || lower.includes('anca') || lower.includes('complement') || lower.includes('cd4') || lower.includes('cd28') || lower.includes('t cell') || lower.includes('elisa') || lower.includes('hbsag') || lower.includes('syphilis') || lower.includes('hiv')) {
-    return { unit: 'Immunology & Serology', subject: 'Autoimmune & Rheumatologic Serology', topic: 'Antinuclear Antibodies (ANA Patterns)', difficulty: 'Conceptual' };
+  if (lower.includes('gram-negative') || lower.includes('gram-positive') || lower.includes('staphylococcus') || lower.includes('pseudomonas') || lower.includes('culture') || lower.includes('macconkey') || lower.includes('oxidase') || lower.includes('coagulase') || lower.includes('bacteria') || lower.includes('bacillus') || lower.includes('mycobacterium')) {
+    return { subject: 'Microbiology', unit: 'Diagnostic Bacteriology', topic: 'Gram-Positive Cocci Identification', difficulty: 'Memory-based' };
   }
 
-  // Urinalysis & Body Fluids
-  if (lower.includes('urinalysis') || lower.includes('urine') || lower.includes('urobilinogen') || lower.includes('cerebrospinal') || lower.includes('csf') || lower.includes('synovial') || lower.includes('pleural') || lower.includes('ascites') || lower.includes('casts')) {
-    return { unit: 'Urinalysis & Body Fluids', subject: 'Clinical Urinalysis', topic: 'Reagent Strip Reactions & Interferences', difficulty: 'Conceptual' };
+  // Histopathology and Cytopathology
+  if (lower.includes('formalin') || lower.includes('microtome') || lower.includes('paraffin') || lower.includes('h&e') || lower.includes('biopsy') || lower.includes('fnac') || lower.includes('pap smear') || lower.includes('cytology') || lower.includes('histopathology') || lower.includes('cryostat') || lower.includes('ihc') || lower.includes('immunohistochemistry')) {
+    return { subject: 'Histopathology and Cytopathology', unit: 'Tissue Fixation & Processing', topic: 'Fixatives (Formalin, Bouin, Carnoy)', difficulty: 'Conceptual' };
   }
 
-  // Molecular Diagnostics
-  if (lower.includes('pcr') || lower.includes('rt-pcr') || lower.includes('sequencing') || lower.includes('reverse transcriptase') || lower.includes('telomerase') || lower.includes('chromosome') || lower.includes('translocation') || lower.includes('bcr-abl') || lower.includes('dna') || lower.includes('mrna')) {
-    return { unit: 'Molecular Diagnostics', subject: 'Molecular Techniques & Applications', topic: 'Real-Time Quantitative PCR', difficulty: 'Advanced' };
+  // Anatomy and Physiology
+  if (lower.includes('anatomy') || lower.includes('physiology') || lower.includes('nephron') || lower.includes('cardiac cycle') || lower.includes('bone marrow') || lower.includes('hematopoiesis') || lower.includes('alveoli') || lower.includes('pituitary')) {
+    return { subject: 'Anatomy and Physiology', unit: 'Circulatory & Hematopoietic Systems', topic: 'Cardiac Conduction & Blood Pressure Regulation', difficulty: 'Memory-based' };
   }
 
-  // Laboratory Operations & QA
-  if (lower.includes('westgard') || lower.includes('levey-jennings') || lower.includes('systematic error') || lower.includes('random error') || lower.includes('standard deviation') || lower.includes('quality control') || lower.includes('analyzer') || lower.includes('carryover') || lower.includes('automation') || lower.includes('segmented flow') || lower.includes('spectrophotometer') || lower.includes('reflectance')) {
-    return { unit: 'Laboratory Operations & QA', subject: 'Statistical Quality Control', topic: 'Westgard Multirule Evaluation', difficulty: 'Conceptual' };
+  // Clinical Pathology
+  if (lower.includes('urinalysis') || lower.includes('urine') || lower.includes('urobilinogen') || lower.includes('cerebrospinal') || lower.includes('csf') || lower.includes('synovial') || lower.includes('pleural') || lower.includes('ascites') || lower.includes('casts') || lower.includes('semen')) {
+    return { subject: 'Clinical Pathology', unit: 'Clinical Urinalysis', topic: 'Reagent Strip Reactions & Interferences', difficulty: 'Conceptual' };
   }
 
-  return { unit: 'Clinical Chemistry', subject: 'Clinical Enzymology & Hepatic Function', topic: 'Transaminases (ALT/AST)', difficulty: 'Conceptual' };
+  // Immunology and Serology
+  if (lower.includes('ana ') || lower.includes('antinuclear') || lower.includes('rheumatoid') || lower.includes('autoantibod') || lower.includes('anca') || lower.includes('complement') || lower.includes('cd4') || lower.includes('cd28') || lower.includes('t cell') || lower.includes('elisa') || lower.includes('hbsag') || lower.includes('syphilis') || lower.includes('hiv') || lower.includes('widal')) {
+    return { subject: 'Immunology and Serology', unit: 'Infectious Disease Serology', topic: 'Hepatitis B & C Serologic Markers', difficulty: 'Conceptual' };
+  }
+
+  // Laboratory Management and QMS
+  if (lower.includes('westgard') || lower.includes('levey-jennings') || lower.includes('systematic error') || lower.includes('random error') || lower.includes('quality control') || lower.includes('iso 15189') || lower.includes('biosafety') || lower.includes('waste management') || lower.includes('eqas') || lower.includes('iqc')) {
+    return { subject: 'Laboratory Management and QMS', unit: 'Quality Assurance & Statistical QC', topic: 'Internal Quality Control (IQC) & Westgard Multirules', difficulty: 'Conceptual' };
+  }
+
+  // Instrumentation and Automation
+  if (lower.includes('spectrophotometer') || lower.includes('beer-lambert') || lower.includes('analyzer') || lower.includes('centrifug') || lower.includes('flame photom') || lower.includes('automation') || lower.includes('clia') || lower.includes('turbidimetry')) {
+    return { subject: 'Instrumentation and Automation', unit: 'Photometry, Spectrophotometry & Optics', topic: 'Beer-Lambert Law & Absorption Spectrophotometry', difficulty: 'Conceptual' };
+  }
+
+  // Research Methodology and Biostatistics
+  if (lower.includes('sensitivity') || lower.includes('specificity') || lower.includes('roc curve') || lower.includes('predictive value') || lower.includes('biostatistics') || lower.includes('chi-square') || lower.includes('t-test') || lower.includes('null hypothesis') || lower.includes('p-value')) {
+    return { subject: 'Research Methodology and Biostatistics', unit: 'Diagnostic Test Accuracy & Evaluation', topic: 'Sensitivity, Specificity & Diagnostic Accuracy', difficulty: 'Conceptual' };
+  }
+
+  // Pharmacology
+  if (lower.includes('pharmacology') || lower.includes('tdm') || lower.includes('vancomycin') || lower.includes('digoxin') || lower.includes('peak') || lower.includes('trough') || lower.includes('antibacterial') || lower.includes('half-life')) {
+    return { subject: 'Pharmacology', unit: 'Therapeutic Drug Monitoring (TDM)', topic: 'Peak vs Trough Serum Concentrations', difficulty: 'Conceptual' };
+  }
+
+  // Public Health
+  if (lower.includes('epidemiology') || lower.includes('public health') || lower.includes('incidence') || lower.includes('prevalence') || lower.includes('outbreak') || lower.includes('immunization') || lower.includes('vaccin') || lower.includes('coliform')) {
+    return { subject: 'Public Health', unit: 'Epidemiology & Disease Surveillance', topic: 'Incidence, Prevalence & Attack Rates', difficulty: 'Memory-based' };
+  }
+
+  // Health Policy
+  if (lower.includes('health policy') || lower.includes('primary health care') || lower.includes('referral') || lower.includes('health insurance') || lower.includes('sdg') || lower.includes('ihr')) {
+    return { subject: 'Health Policy', unit: 'Health Care Delivery System', topic: 'Three-Tier Healthcare Hierarchy in Nepal', difficulty: 'Memory-based' };
+  }
+
+  // NHPC and Ethics
+  if (lower.includes('nhpc') || lower.includes('ethics') || lower.includes('council') || lower.includes('code of conduct') || lower.includes('malpractice') || lower.includes('chain of custody') || lower.includes('confidentiality')) {
+    return { subject: 'NHPC and Ethics', unit: 'NHPC Act, Rules & Licensing', topic: 'Nepal Health Professional Council (NHPC) Act 2053', difficulty: 'Memory-based' };
+  }
+
+  return { subject: 'Clinical Biochemistry', unit: 'Hepatic Function & Clinical Enzymology', topic: 'Transaminases (ALT/AST)', difficulty: 'Conceptual' };
 }
 
 const DEVANAGARI_OPTION_MAP: Record<string, 'A' | 'B' | 'C' | 'D' | 'E'> = {
@@ -953,8 +991,8 @@ export function parseRawMCQText(
       reference: reference.trim(),
       clinicalCase: clinicalCase.trim() || undefined,
       tableData,
-      unit: categoryInference.unit,
       subject: categoryInference.subject,
+      unit: categoryInference.unit,
       topic: categoryInference.topic,
       difficulty: categoryInference.difficulty,
       // Examination tags: conservative detection from explicit line or title, defaulting to General ([])
@@ -1009,7 +1047,83 @@ export function parseRawMCQText(
 /**
  * Generates sample CSV template for bulk question upload
  */
-export function generateCSVTemplate(): string {
+export function generateCSVTemplate(mode: 'all' | 'mock' | 'subject' = 'all'): string {
+  if (mode === 'mock') {
+    const headers = [
+      'QuestionStem',
+      'OptionA',
+      'OptionB',
+      'OptionC',
+      'OptionD',
+      'CorrectAnswer',
+      'Explanation',
+      'Reference',
+      'ExamCategories',
+      'PastPaper',
+      'Difficulty',
+      'HighYield',
+      'Unit',
+      'Subject',
+      'Topic',
+    ];
+    const exampleRow = [
+      '"Which cell surface marker is most characteristic of classical Reed-Sternberg cells in Hodgkin lymphoma?"',
+      '"CD15 and CD30"',
+      '"CD3 and CD4"',
+      '"CD19 and CD20"',
+      '"CD34 and CD117"',
+      '"A"',
+      '"Reed-Sternberg cells in classic Hodgkin lymphoma typically express CD15 and CD30, while being negative for CD45 and typically negative for T-cell markers."',
+      '"Henry\'s Clinical Diagnosis and Management by Laboratory Methods, 24th Ed."',
+      '"CEE-UG;ASCP;NHPC"',
+      '"CEE-UG Entrance Mock 2026"',
+      '"Conceptual"',
+      '"Yes"',
+      '"Hematology"',
+      '"Hematopathology & Neoplasms"',
+      '"Hodgkin Lymphoma Markers"',
+    ];
+    return `${headers.join(',')}\n${exampleRow.join(',')}`;
+  }
+
+  if (mode === 'subject') {
+    const headers = [
+      'QuestionStem',
+      'OptionA',
+      'OptionB',
+      'OptionC',
+      'OptionD',
+      'CorrectAnswer',
+      'Explanation',
+      'Reference',
+      'Unit',
+      'Subject',
+      'Topic',
+      'Difficulty',
+      'HighYield',
+      'ExamCategories',
+      'PastPaper',
+    ];
+    const exampleRow = [
+      '"What is the primary indicator of acute coronary syndrome that rises within 3-6 hours and remains elevated for up to 10-14 days?"',
+      '"Cardiac Troponin I / T"',
+      '"Myoglobin"',
+      '"Creatine Kinase-MB"',
+      '"Lactate Dehydrogenase-1"',
+      '"A"',
+      '"Cardiac troponins (cTnI and cTnT) are gold standard biomarkers for myocardial infarction with high cardiac specificity."',
+      '"Tietz Textbook of Clinical Chemistry and Molecular Diagnostics, 6th Ed."',
+      '"Clinical Chemistry"',
+      '"Lipid & Cardiac Markers"',
+      '"High-Sensitivity Troponin"',
+      '"Conceptual"',
+      '"Yes"',
+      '"General"',
+      '""',
+    ];
+    return `${headers.join(',')}\n${exampleRow.join(',')}`;
+  }
+
   const headers = [
     'QuestionStem',
     'OptionA',
@@ -1019,8 +1133,8 @@ export function generateCSVTemplate(): string {
     'CorrectAnswer',
     'Explanation',
     'Reference',
-    'Unit',
     'Subject',
+    'Unit',
     'Topic',
     'Difficulty',
     'ExamCategories',
@@ -1055,7 +1169,14 @@ export function generateCSVTemplate(): string {
 export function parseCSVToMCQ(
   csvText: string,
   sourceDocument = 'bulk_upload.csv',
-  existingQuestions: MCQQuestion[] = []
+  existingQuestions: MCQQuestion[] = [],
+  defaults?: {
+    subject?: string;
+    unit?: string;
+    topic?: string;
+    examCategories?: ExamCategory[];
+    pastPaper?: string;
+  }
 ): ExtractedMCQDraft[] {
   if (!csvText || !csvText.trim()) return [];
 
@@ -1097,28 +1218,58 @@ export function parseCSVToMCQ(
   if (rows.length < 2) return [];
 
   const drafts: ExtractedMCQDraft[] = [];
+  const headerRow = (rows[0] || []).map((h) => h.trim().toLowerCase());
+  const subjectColIdx = headerRow.findIndex((h) => h === 'subject' || h === 'specialty subject');
+  const unitColIdx = headerRow.findIndex((h) => h === 'unit' || h === 'module' || h === 'section');
+  const topicColIdx = headerRow.findIndex((h) => h === 'topic');
+  const diffColIdx = headerRow.findIndex((h) => h === 'difficulty');
+  const examColIdx = headerRow.findIndex((h) => h === 'examcategories' || h === 'exam' || h === 'exams');
+  const hyColIdx = headerRow.findIndex((h) => h === 'highyield' || h === 'high yield');
+  const pastPaperColIdx = headerRow.findIndex((h) => h === 'pastpaper' || h === 'past paper');
 
   for (let idx = 1; idx < rows.length; idx++) {
     const row = rows[idx];
     if (row.length < 6) continue;
 
-    const [
-      stem,
-      optA,
-      optB,
-      optC,
-      optD,
-      answer,
-      explanation = '',
-      reference = '',
-      unit = '',
-      subject = '',
-      topic = '',
-      difficulty = 'Conceptual',
-      examCategoriesStr = '',
-      highYieldStr = '',
-      pastPaper = '',
-    ] = row;
+    const stem = row[0] || '';
+    const optA = row[1] || '';
+    const optB = row[2] || '';
+    const optC = row[3] || '';
+    const optD = row[4] || '';
+    const answer = row[5] || '';
+    const explanation = row[6] || '';
+    const reference = row[7] || '';
+
+    let rawSubject = subjectColIdx !== -1 ? row[subjectColIdx] || '' : (row[8] || '');
+    let rawUnit = unitColIdx !== -1 ? row[unitColIdx] || '' : (row[9] || '');
+    const rawTopic = topicColIdx !== -1 ? row[topicColIdx] || '' : (row[10] || '');
+    const difficulty = diffColIdx !== -1 ? row[diffColIdx] || 'Conceptual' : (row[11] || 'Conceptual');
+    const examCategoriesStr = examColIdx !== -1 ? row[examColIdx] || '' : (row[12] || '');
+    const highYieldStr = hyColIdx !== -1 ? row[hyColIdx] || '' : (row[13] || '');
+    const pastPaper = pastPaperColIdx !== -1 ? row[pastPaperColIdx] || '' : (row[14] || '');
+
+    // If header wasn't explicit and legacy 'Unit, Subject' order was used (e.g. rawSubject is a unit and rawUnit is empty or vice-versa)
+    const knownSubjects = new Set([
+      'clinical chemistry',
+      'hematology & hemostasis',
+      'hematology',
+      'clinical microbiology & parasitology',
+      'microbiology',
+      'immunology & serology',
+      'immunology',
+      'immunohematology (blood banking)',
+      'blood banking',
+      'urinalysis & body fluids',
+      'molecular diagnostics',
+      'laboratory operations & qa',
+    ]);
+
+    // If unit holds a known subject name and subject doesn't, swap them
+    if (knownSubjects.has(rawUnit.trim().toLowerCase()) && !knownSubjects.has(rawSubject.trim().toLowerCase())) {
+      const temp = rawSubject;
+      rawSubject = rawUnit;
+      rawUnit = temp;
+    }
 
     const options: MCQOption[] = [
       { id: 'A' as const, text: optA || '' },
@@ -1130,9 +1281,19 @@ export function parseCSVToMCQ(
     const validDifficulty: DifficultyLevel =
       difficulty === 'Memory-based' || difficulty === 'Advanced' ? difficulty : 'Conceptual';
 
-    const examCategories: ExamCategory[] = normalizeExamCategories(examCategoriesStr);
+    const rawCategories = normalizeExamCategories(examCategoriesStr);
+    const resolvedExamCategories =
+      rawCategories.length > 0
+        ? rawCategories
+        : defaults?.examCategories && defaults.examCategories.length > 0
+        ? defaults.examCategories
+        : [];
 
     const inferred = inferCategoryFromContent(`${stem} ${explanation}`);
+    const resolvedSubject = rawSubject.trim() || defaults?.subject || inferred.subject;
+    const resolvedUnit = rawUnit.trim() || defaults?.unit || inferred.unit;
+    const resolvedTopic = rawTopic.trim() || defaults?.topic || inferred.topic;
+    const resolvedPastPaper = pastPaper.trim() || defaults?.pastPaper || undefined;
 
     const draftItem: ExtractedMCQDraft = {
       id: `csv-${Date.now()}-${idx}`,
@@ -1142,13 +1303,13 @@ export function parseCSVToMCQ(
       correctAnswer: (answer.trim().toUpperCase() as 'A' | 'B' | 'C' | 'D' | 'E') || '',
       explanation: explanation.trim() || 'Comprehensive laboratory rationale and diagnostic reference.',
       reference: reference.trim() || 'Clinical Laboratory Standards Institute (CLSI)',
-      unit: unit.trim() || inferred.unit,
-      subject: subject.trim() || inferred.subject,
-      topic: topic.trim() || inferred.topic,
+      subject: resolvedSubject,
+      unit: resolvedUnit,
+      topic: resolvedTopic,
       difficulty: validDifficulty,
-      examCategories,
+      examCategories: resolvedExamCategories,
       isHighYield: /^(yes|true|1|y)$/i.test(highYieldStr.trim()),
-      pastPaper: pastPaper.trim() || undefined,
+      pastPaper: resolvedPastPaper,
       sourceDocument,
       confidenceScore: 0.98,
       validationErrors: [],

@@ -8,14 +8,14 @@ import { performDatabaseBackup } from '../../src/server/backup';
 
 describe('Database Backup & Rotation Suite', () => {
   it('creates a consistent point-in-time SQLite snapshot via VACUUM INTO and rotates to keep N', async () => {
-    const tempBackupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-backup-test-'));
+    const tempBackupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'prayogshala-backup-test-'));
 
     try {
       // 1. Initial backup
       const res1 = performDatabaseBackup(tempBackupDir, 3);
       assert.equal(res1.success, true);
       assert.ok(fs.existsSync(res1.backupPath), 'Backup file must exist on disk');
-      assert.ok(res1.backupFileName.startsWith('medlab_qbank_backup_'));
+      assert.ok(res1.backupFileName.startsWith('prayogshala_academy_backup_'));
       assert.ok(res1.backupFileName.endsWith('.sqlite'));
 
       // 2. Validate that the backup is a valid SQLite database

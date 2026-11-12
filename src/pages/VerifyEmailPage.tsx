@@ -30,11 +30,11 @@ export const VerifyEmailPage: React.FC = () => {
           setState('success');
           setMessage(data.message || 'Email verified successfully.');
           try {
-            const saved = localStorage.getItem('medlab_qbank_current_user_v1');
+            const saved = localStorage.getItem('prayogshala_current_user_v1');
             if (saved) {
               const user = JSON.parse(saved);
               user.emailVerified = true;
-              localStorage.setItem('medlab_qbank_current_user_v1', JSON.stringify(user));
+              localStorage.setItem('prayogshala_current_user_v1', JSON.stringify(user));
             }
           } catch {
             // Ignore storage errors; the next bootstrap refresh will update the flag.
@@ -57,7 +57,7 @@ export const VerifyEmailPage: React.FC = () => {
 
   return (
     <div className="max-w-xl mx-auto py-10 px-4">
-      <title>Verify Email | MedLab QBank</title>
+      <title>Verify Email | Prayogshala Academy</title>
       <meta name="robots" content="noindex,nofollow" />
       <div className="glass-panel rounded-2xl p-8 text-center space-y-4">
         {state === 'checking' && (

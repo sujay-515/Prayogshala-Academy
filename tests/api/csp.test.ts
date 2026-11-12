@@ -27,8 +27,8 @@ function requestHeader(port: number, reqPath: string): Promise<http.IncomingHttp
 
 describe('CSP Mode Configuration Suite', () => {
   it('sends Content-Security-Policy-Report-Only by default and Content-Security-Policy in enforce mode', async () => {
-    const tempDirReport = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-csp-report-'));
-    const tempDirEnforce = fs.mkdtempSync(path.join(os.tmpdir(), 'medlab-csp-enforce-'));
+    const tempDirReport = fs.mkdtempSync(path.join(os.tmpdir(), 'prayogshala-csp-report-'));
+    const tempDirEnforce = fs.mkdtempSync(path.join(os.tmpdir(), 'prayogshala-csp-enforce-'));
     const portReport = 4800 + Math.floor(Math.random() * 100);
     const portEnforce = 4900 + Math.floor(Math.random() * 100);
 

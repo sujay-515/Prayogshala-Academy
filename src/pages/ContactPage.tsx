@@ -12,13 +12,13 @@ export const ContactPage: React.FC = () => {
       <title>{`Contact & Support | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="Get in touch with the MedLab QBank editorial team for question reporting, account support, and partnership inquiries."
+        content="Get in touch with the Prayogshala Academy editorial team for question reporting, account support, and partnership inquiries."
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Contact & Support | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="Get in touch with the MedLab QBank team for support, feedback, and question reporting."
+        content="Get in touch with the Prayogshala Academy team for support, feedback, and question reporting."
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -79,16 +79,16 @@ export const ContactPage: React.FC = () => {
                 Found a typo, incorrect answer key, ambiguous explanation, or missing image in a question?
               </p>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Please use the in-app <strong>Report Flag</strong> icon located beneath each question in Practice Mode or the Question Bank browser. This automatically links your report directly to the question's unique identifier (<code className="text-[11px] font-mono bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">LAB-XXXX</code>) for faster review by our medical review team.
+                Please use the in-app <strong>Report Flag</strong> icon located beneath each question in Practice Mode. This automatically links your report directly to the question's unique identifier (<code className="text-[11px] font-mono bg-slate-200 dark:bg-slate-700 px-1 py-0.5 rounded">LAB-XXXX</code>) for faster review by our medical review team.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800">
               <Link
-                to="/browse"
+                to="/practice"
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
-                <span>Browse Questions to Practice & Report</span>
+                <span>Go to Practice Questions</span>
               </Link>
             </div>
           </div>
@@ -96,7 +96,7 @@ export const ContactPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to MedLab QBank
+            ← Return to Prayogshala Academy
           </Link>
           <div className="flex gap-4">
             <Link to="/privacy" className="hover:underline">Privacy</Link>

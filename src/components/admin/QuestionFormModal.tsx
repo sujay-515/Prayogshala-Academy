@@ -37,8 +37,9 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
   const [explanation, setExplanation] = useState('');
   const [reference, setReference] = useState('');
   const [pastPaper, setPastPaper] = useState('');
-  const [unit, setUnit] = useState(categories[0]?.name || 'Clinical Chemistry');
-  const [subject, setSubject] = useState(categories[0]?.subjects[0]?.name || 'Clinical Enzymology & Hepatic Function');
+  const firstUnits = categories[0]?.units || categories[0]?.subjects || [];
+  const [subject, setSubject] = useState(categories[0]?.name || 'Clinical Chemistry');
+  const [unit, setUnit] = useState(firstUnits[0]?.name || 'Clinical Enzymology & Hepatic Function');
   const [topic, setTopic] = useState('Transaminases (ALT/AST)');
   const [subtopic, setSubtopic] = useState('');
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('Conceptual');
@@ -83,8 +84,8 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setExplanation(editingQuestion.explanation);
       setReference(editingQuestion.reference);
       setPastPaper(editingQuestion.pastPaper || '');
-      setUnit(editingQuestion.unit);
       setSubject(editingQuestion.subject);
+      setUnit(editingQuestion.unit);
       setTopic(editingQuestion.topic);
       setSubtopic(editingQuestion.subtopic || '');
       setDifficulty(editingQuestion.difficulty);
@@ -112,12 +113,12 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
       setExplanation('');
       setReference('CLSI Guidelines & Medical Pathology Standards');
       setPastPaper('');
-      setUnit(categories[0]?.name || 'Clinical Chemistry');
-      setSubject(categories[0]?.subjects[0]?.name || 'Clinical Enzymology & Hepatic Function');
-      setTopic(categories[0]?.subjects[0]?.topics[0] || 'Transaminases (ALT/AST)');
+      const defaultUnits = categories[0]?.units || categories[0]?.subjects || [];
+      setSubject(categories[0]?.name || 'Clinical Chemistry');
+      setUnit(defaultUnits[0]?.name || 'Clinical Enzymology & Hepatic Function');
+      setTopic(defaultUnits[0]?.topics[0] || 'Transaminases (ALT/AST)');
       setSubtopic('');
       setDifficulty('Conceptual');
-      setIsHighYield(false);
       setSelectedExams([]);
       setStatus('Published');
       setImageUrl('');
@@ -128,10 +129,10 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentUnitObj = categories.find((c) => c.name === unit);
-  const availableSubjects = currentUnitObj?.subjects || [];
-  const currentSubjectObj = availableSubjects.find((s) => s.name === subject);
-  const availableTopics = currentSubjectObj?.topics || [];
+  const currentSubjectObj = categories.find((c) => c.name === subject);
+  const availableUnits = currentSubjectObj?.units || currentSubjectObj?.subjects || [];
+  const currentUnitObj = availableUnits.find((u) => u.name === unit);
+  const availableTopics = currentUnitObj?.topics || [];
 
   const toggleExam = (exam: ExamCategory) => {
     setSelectedExams((prev) =>
@@ -353,9 +354,9 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
           {isPreviewMode ? (
             <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span className="font-semibold text-slate-900">{unit}</span>
+                <span className="font-semibold text-slate-900">{subject}</span>
                 <span>·</span>
-                <span>{subject}</span>
+                <span>{unit}</span>
                 <span>·</span>
                 <span>{topic}</span>
                 {subtopic && (
@@ -634,29 +635,31 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 )}
               </div>
 
-              {/* Categorization Dropdowns (Unit -> Subject -> Topic -> Subtopic) */}
+              {/* Categorization Dropdowns (Subject -> Unit -> Topic -> Subtopic) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label htmlFor="qform-unit" className="block text-slate-700 font-semibold mb-1">
-                    Unit
+                  <label htmlFor="qform-subject" className="block text-slate-700 font-semibold mb-1">
+                    Specialty Subject
                   </label>
                   <select
-                    id="qform-unit"
-                    value={unit}
+                    id="qform-subject"
+                    value={subject}
                     onChange={(e) => {
-                      setUnit(e.target.value);
-                      const uObj = categories.find((c) => c.name === e.target.value);
-                      if (uObj?.subjects[0]) {
-                        setSubject(uObj.subjects[0].name);
-                        if (uObj.subjects[0].topics[0]) {
-                          setTopic(uObj.subjects[0].topics[0]);
+                      const nextSub = e.target.value;
+                      setSubject(nextSub);
+                      const sObj = categories.find((c) => c.name === nextSub);
+                      const units = sObj?.units || sObj?.subjects || [];
+                      if (units[0]) {
+                        setUnit(units[0].name);
+                        if (units[0].topics[0]) {
+                          setTopic(units[0].topics[0]);
                         }
                       }
                     }}
                     className="w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                   >
-                    {!categories.some((c) => c.name === unit) && unit && (
-                      <option value={unit}>{unit}</option>
+                    {!categories.some((c) => c.name === subject) && subject && (
+                      <option value={subject}>{subject}</option>
                     )}
                     {categories.map((c) => (
                       <option key={c.id} value={c.name}>
@@ -667,25 +670,25 @@ export const QuestionFormModal: React.FC<QuestionFormModalProps> = ({
                 </div>
 
                 <div>
-                  <label htmlFor="qform-subject" className="block text-slate-700 font-semibold mb-1">
-                    Subject
+                  <label htmlFor="qform-unit" className="block text-slate-700 font-semibold mb-1">
+                    Unit / Module
                   </label>
                   <select
-                    id="qform-subject"
-                    value={subject}
+                    id="qform-unit"
+                    value={unit}
                     onChange={(e) => {
-                      setSubject(e.target.value);
-                      const sObj = availableSubjects.find((s) => s.name === e.target.value);
-                      if (sObj?.topics[0]) setTopic(sObj.topics[0]);
+                      setUnit(e.target.value);
+                      const uObj = availableUnits.find((u) => u.name === e.target.value);
+                      if (uObj?.topics[0]) setTopic(uObj.topics[0]);
                     }}
                     className="w-full bg-white border border-slate-300 rounded-md p-2 text-slate-900 focus:outline-none focus:border-slate-900"
                   >
-                    {!availableSubjects.some((s) => s.name === subject) && subject && (
-                      <option value={subject}>{subject}</option>
+                    {!availableUnits.some((u) => u.name === unit) && unit && (
+                      <option value={unit}>{unit}</option>
                     )}
-                    {availableSubjects.map((s) => (
-                      <option key={s.id} value={s.name}>
-                        {s.name}
+                    {availableUnits.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        {u.name}
                       </option>
                     ))}
                   </select>
