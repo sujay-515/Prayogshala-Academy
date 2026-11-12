@@ -45,13 +45,13 @@ export const CookiesPage: React.FC = () => {
       <title>{`Cookie & Storage Policy | ${SITE_CONFIG.SITE_NAME}`}</title>
       <meta
         name="description"
-        content="How MedLab QBank uses cookies and browser storage, which keys are stored, why, and how to clear them."
+        content={`How ${SITE_CONFIG.siteName} uses cookies and browser storage, which keys are stored, why, and how to clear them.`}
       />
       <link rel="canonical" href={canonicalUrl} />
       <meta property="og:title" content={`Cookie & Storage Policy | ${SITE_CONFIG.SITE_NAME}`} />
       <meta
         property="og:description"
-        content="How MedLab QBank uses cookies and browser storage, which keys are stored, why, and how to clear them."
+        content={`How ${SITE_CONFIG.siteName} uses cookies and browser storage, which keys are stored, why, and how to clear them.`}
       />
       <meta property="og:url" content={canonicalUrl} />
 
@@ -131,6 +131,12 @@ export const CookiesPage: React.FC = () => {
                 terms.
               </li>
               <li>
+                <strong>Google Identity Services (Sign in with Google)</strong>: When opening the sign-in dialog,
+                Google&apos;s client script is loaded lazily from <code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">https://accounts.google.com/gsi/client</code>.
+                If you choose to sign in with Google, Google processes authentication and may set its own essential
+                security and session cookies on <code className="text-xs font-mono bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">accounts.google.com</code>.
+              </li>
+              <li>
                 <strong>Supabase</strong> is used only when the operator enables optional cloud sync. If it is
                 disabled, no Supabase requests are made from your browser.
               </li>
@@ -195,7 +201,7 @@ export const CookiesPage: React.FC = () => {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
           <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            ← Return to MedLab QBank
+            ← Return to {SITE_CONFIG.siteName}
           </Link>
           <div className="flex flex-wrap gap-4">
             <Link to="/privacy" className="hover:underline">Privacy</Link>

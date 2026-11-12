@@ -1,5 +1,5 @@
 -- ============================================================================
--- MedLab QBank — Supabase PostgreSQL Schema (8 Tables + Automatic Space Cleanup)
+-- MedLab QBank — Supabase PostgreSQL Schema (9 Tables + Automatic Space Cleanup)
 -- ============================================================================
 
 -- 1. Permanent Question Bank
@@ -38,22 +38,39 @@ CREATE TABLE IF NOT EXISTS public.reports (
   reason TEXT NOT NULL,
   details TEXT NOT NULL,
   submitted_at TEXT NOT NULL,
-  status TEXT NOT NULL
+  status TEXT NOT NULL,
+  user_id TEXT
 );
+
+ALTER TABLE public.reports ADD COLUMN IF NOT EXISTS user_id TEXT;
 
 -- 4. User Accounts & Performance Analytics
 CREATE TABLE IF NOT EXISTS public.users (
   id TEXT PRIMARY KEY,
   username TEXT UNIQUE NOT NULL,
   email TEXT UNIQUE,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   role TEXT NOT NULL,
   display_name TEXT NOT NULL,
   stats_json JSONB NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  email_verified INTEGER NOT NULL DEFAULT 1,
+  email_verify_token_hash TEXT,
+  email_verify_expires TEXT,
+  google_sub TEXT
 );
 
--- 4b. Password Reset Tokens (1-hour TTL)
+-- Safe migrations for existing Supabase deployments
+ALTER TABLE public.users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verified INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verify_token_hash TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email_verify_expires TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_sub TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub
+  ON public.users(google_sub) WHERE google_sub IS NOT NULL;
+
+-- 4b. Password Reset Tokens (1-hour TTL; SHA-256 hashed at rest)
 CREATE TABLE IF NOT EXISTS public.password_resets (
   token TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -61,13 +78,18 @@ CREATE TABLE IF NOT EXISTS public.password_resets (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 5. Active Login Sessions (Auto-deleted on logout or after 7 days)
+-- 5. Active Login Sessions (SHA-256 hashed token at rest; auto-deleted on logout or after 7 days)
 CREATE TABLE IF NOT EXISTS public.sessions (
   token TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
   role TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  user_agent TEXT,
+  ip TEXT
 );
+
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS user_agent TEXT;
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS ip TEXT;
 
 -- 6. Active Timed Mock Exams (Auto-deleted upon submission or after 24 hours)
 CREATE TABLE IF NOT EXISTS public.active_exams (
@@ -76,10 +98,39 @@ CREATE TABLE IF NOT EXISTS public.active_exams (
   title TEXT NOT NULL,
   questions_json JSONB NOT NULL,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  duration_minutes INTEGER NOT NULL
+  duration_minutes INTEGER NOT NULL,
+  negative_marking INTEGER NOT NULL DEFAULT 0,
+  penalty_per_wrong REAL NOT NULL DEFAULT 0.25,
+  is_grand_test INTEGER NOT NULL DEFAULT 0,
+  passing_percentage INTEGER NOT NULL DEFAULT 70
 );
 
--- 7. Temporary PDF Extraction Staging Drafts (Auto-deleted upon import or after 7 days)
+ALTER TABLE public.active_exams ADD COLUMN IF NOT EXISTS negative_marking INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.active_exams ADD COLUMN IF NOT EXISTS penalty_per_wrong REAL NOT NULL DEFAULT 0.25;
+ALTER TABLE public.active_exams ADD COLUMN IF NOT EXISTS is_grand_test INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.active_exams ADD COLUMN IF NOT EXISTS passing_percentage INTEGER NOT NULL DEFAULT 70;
+
+-- 7. Completed Exam Attempts & Leaderboard Records
+CREATE TABLE IF NOT EXISTS public.exam_attempts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  total INTEGER NOT NULL,
+  correct_count INTEGER NOT NULL,
+  score REAL NOT NULL,
+  percentage INTEGER NOT NULL,
+  passed INTEGER NOT NULL,
+  time_spent_seconds INTEGER NOT NULL,
+  negative_marking INTEGER NOT NULL DEFAULT 0,
+  is_grand_test INTEGER NOT NULL DEFAULT 0,
+  completed_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_exam_attempts_window
+  ON public.exam_attempts(is_grand_test, completed_at);
+
+-- 8. Temporary PDF Extraction Staging Drafts (Auto-deleted upon import or after 7 days)
 CREATE TABLE IF NOT EXISTS public.pdf_staging_drafts (
   id TEXT PRIMARY KEY,
   source_filename TEXT NOT NULL,
@@ -87,7 +138,7 @@ CREATE TABLE IF NOT EXISTS public.pdf_staging_drafts (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 8. Uploaded Source PDFs for Traceability (Heavy binary/text auto-pruned after 14 days)
+-- 9. Uploaded Source PDFs for Traceability (Heavy binary/text auto-pruned after 14 days)
 CREATE TABLE IF NOT EXISTS public.source_pdfs (
   filename TEXT PRIMARY KEY,
   mime_type TEXT NOT NULL,
@@ -111,6 +162,10 @@ BEGIN
   -- 2. Delete login sessions older than 7 days
   DELETE FROM public.sessions
   WHERE created_at < NOW() - INTERVAL '7 days';
+
+  -- 2b. Delete expired password reset tokens
+  DELETE FROM public.password_resets
+  WHERE expires_at < NOW();
 
   -- 3. Delete unsubmitted PDF staging drafts unused for more than 7 days
   DELETE FROM public.pdf_staging_drafts
@@ -162,6 +217,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.password_resets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_exams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.exam_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pdf_staging_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.source_pdfs ENABLE ROW LEVEL SECURITY;
 
@@ -185,6 +241,9 @@ CREATE POLICY "Backend full access sessions" ON public.sessions FOR ALL TO servi
 
 DROP POLICY IF EXISTS "Backend full access active_exams" ON public.active_exams;
 CREATE POLICY "Backend full access active_exams" ON public.active_exams FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Backend full access exam_attempts" ON public.exam_attempts;
+CREATE POLICY "Backend full access exam_attempts" ON public.exam_attempts FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Backend full access pdf_staging_drafts" ON public.pdf_staging_drafts;
 CREATE POLICY "Backend full access pdf_staging_drafts" ON public.pdf_staging_drafts FOR ALL TO service_role USING (true) WITH CHECK (true);

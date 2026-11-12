@@ -75,6 +75,42 @@ In production environments, Helmet configures HTTP security headers. The CSP mod
 - `CSP_MODE=report-only` (default when unset): Emits the `Content-Security-Policy-Report-Only` header. This allows operators to audit policy compliance in their production environment without blocking styles, fonts, or images.
 - `CSP_MODE=enforce`: Emits the strict `Content-Security-Policy` header using the same directive set, actively enforcing resource isolation and blocking unauthorized external origins.
 
+### Sign in with Google (Google Identity Services)
+
+Prayogshala Academy supports one-click "Sign in with Google" alongside existing email/password authentication.
+
+#### Google Cloud Console Setup Steps:
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) and create or select a project.
+2. Navigate to **APIs & Services** > **OAuth consent screen**:
+   - Choose **External** user type.
+   - Set the App name to exactly **Prayogshala Academy**.
+   - Provide a User support email and Developer contact email.
+   - In the **Scopes** step, select `openid`, `email`, and `profile` only (no sensitive or restricted scopes).
+   - **PUBLISH the app to production**: By default, new consent screens start in "Testing" mode where only explicitly listed test accounts can sign in. Click **Publish App** so any student can authenticate.
+3. Navigate to **APIs & Services** > **Credentials**:
+   - Click **Create Credentials** > **OAuth client ID**.
+   - Application type: **Web application**.
+   - Name: `Prayogshala Academy Web Client`.
+   - **Authorized JavaScript origins**:
+     - Local development: `http://localhost:3000` and `http://localhost:3001`
+     - Production deployment: Your Railway deployment URL and your final custom domain.
+     - *Note*: Authorized origins must match exactly with scheme and port, without trailing slashes. Add each new domain or preview URL before using it.
+   - **Authorized redirect URIs**: Leave empty. The Google Identity Services button flow does not use redirect URIs.
+   - Client Secret: Not needed for this flow; no client secret should be added or committed.
+4. Copy the generated **Client ID** and configure your environment:
+   ```env
+   GOOGLE_CLIENT_ID="<your-client-id>.apps.googleusercontent.com"
+   VITE_GOOGLE_CLIENT_ID="<your-client-id>.apps.googleusercontent.com"
+   ```
+   Both variables must hold the same Client ID value. Leaving them empty or unset automatically disables the Google sign-in endpoint (returns 404) and hides the frontend button.
+
+#### Content Security Policy (CSP) Additions
+When Helmet runs in production, the following endpoints are permitted for Google Identity Services:
+- `script-src`: `'self' https://accounts.google.com/gsi/client`
+- `frame-src`: `'self' data: blob: https://accounts.google.com/gsi/`
+- `connect-src`: `'self' https://accounts.google.com/gsi/`
+- `style-src`: `'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style`
+
 ## Backups
 
 ### Automated and CLI Database Snapshots (`VACUUM INTO`)
@@ -236,6 +272,7 @@ BASE_URL=https://qbank.example.com npm run smoke
 - **Email Verification Is Soft-Gated**: Accounts stay usable immediately, but unverified email addresses are excluded from the Grand Test leaderboard and a banner prompts verification. Delivery requires `RESEND_API_KEY` and a correct `APP_URL`.
 - **No Exam Resume After Refresh**: Active exam timer and in-progress answers are tracked in client component state; hard-refreshing or navigating away mid-exam forfeits the active attempt.
 - **Answer Protection Limitations**: Server-side answer verification and allowlist serializers prevent trivial source inspection and throttle bulk extraction. However, because students must legitimately see explanations and answers to learn, slow distributed extraction cannot be completely eliminated.
+- **Google Sign-In Limitations**: No nonce replay protection beyond Google's short ID token lifetime; no account unlinking; accounts created via Google must use the "Forgot password" flow to add a password; authorized JavaScript origins in Google Cloud Console must match serving origins exactly (scheme, host, and port).
 
 ### Email Setup
 
