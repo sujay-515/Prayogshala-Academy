@@ -18,7 +18,17 @@ import {
   syncInsertReport,
   syncUpdateReportStatus,
   syncUpsertUser,
+  syncPatchUser,
+  syncUpdateUserRole,
   syncUpdateUserStats,
+  syncDeleteUserSessions,
+  syncUpdateUserSessionRole,
+  syncUpsertPasswordReset,
+  syncDeletePasswordReset,
+  syncDeleteUserPasswordResets,
+  syncDeleteUserActiveExams,
+  syncInsertExamAttempt,
+  syncDeleteUserExamAttempts,
   syncSaveSourcePdf,
   syncSaveStagingDrafts,
   syncDeleteStagingDrafts,
@@ -490,11 +500,16 @@ export function updateUserRole(userId: string, newRole: 'admin' | 'student') {
 
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(newRole, userId);
   db.prepare('UPDATE sessions SET role = ? WHERE user_id = ?').run(newRole, userId);
+  syncUpdateUserRole(userId, newRole);
+  syncUpdateUserSessionRole(userId, newRole);
 
   if (newRole === 'admin') {
     db.prepare('UPDATE users SET stats_json = ? WHERE id = ?').run(JSON.stringify(DEFAULT_USER_STATS), userId);
     db.prepare('DELETE FROM exam_attempts WHERE user_id = ?').run(userId);
     db.prepare('DELETE FROM active_exams WHERE user_id = ?').run(userId);
+    syncUpdateUserStats(userId, DEFAULT_USER_STATS);
+    syncDeleteUserExamAttempts(userId);
+    syncDeleteUserActiveExams(userId);
   }
 
   return { success: true };
@@ -506,10 +521,15 @@ export function hashToken(token: string): string {
 
 export function createEmailVerification(userId: string): string {
   const rawToken = crypto.randomBytes(24).toString('hex');
+  const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   db.prepare(
     'UPDATE users SET email_verify_token_hash = ?, email_verify_expires = ? WHERE id = ?'
-  ).run(hashToken(rawToken), expiresAt, userId);
+  ).run(tokenHash, expiresAt, userId);
+  syncPatchUser(userId, {
+    email_verify_token_hash: tokenHash,
+    email_verify_expires: expiresAt,
+  });
   return rawToken;
 }
 
@@ -527,28 +547,40 @@ export function verifyEmailToken(rawToken: string): { success: boolean; error?: 
     db.prepare(
       'UPDATE users SET email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
     ).run(row.id);
+    syncPatchUser(row.id, {
+      email_verify_token_hash: null,
+      email_verify_expires: null,
+    });
     return { success: false, error: 'Verification link has expired. Request a new one.' };
   }
 
   db.prepare(
     'UPDATE users SET email_verified = 1, email_verify_token_hash = NULL, email_verify_expires = NULL WHERE id = ?'
   ).run(row.id);
+  syncPatchUser(row.id, {
+    email_verified: 1,
+    email_verify_token_hash: null,
+    email_verify_expires: null,
+  });
   return { success: true };
 }
 
 export function createPasswordReset(userId: string): string {
   db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(userId);
+  syncDeleteUserPasswordResets(userId);
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(rawToken);
   const now = new Date();
+  const createdAt = now.toISOString();
   const expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString(); // 1 hour TTL
 
   db.prepare('INSERT INTO password_resets (token, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)').run(
     tokenHash,
     userId,
     expiresAt,
-    now.toISOString()
+    createdAt
   );
+  syncUpsertPasswordReset(tokenHash, userId, expiresAt, createdAt);
 
   return rawToken;
 }
@@ -562,6 +594,7 @@ export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: st
 
   if (new Date(row.expires_at).getTime() < Date.now()) {
     db.prepare('DELETE FROM password_resets WHERE token = ?').run(tokenHash);
+    syncDeletePasswordReset(tokenHash);
     return { success: false, error: 'Password reset link has expired. Please request a new one.' };
   }
 
@@ -579,6 +612,15 @@ export function verifyAndConsumeResetToken(rawToken: string, newPasswordHash: st
     db.exec('ROLLBACK');
     throw err;
   }
+
+  syncPatchUser(row.user_id, {
+    password_hash: newPasswordHash,
+    email_verified: 1,
+    email_verify_token_hash: null,
+    email_verify_expires: null,
+  });
+  syncDeletePasswordReset(tokenHash);
+  syncDeleteUserSessions(row.user_id);
 
   return { success: true };
 }
