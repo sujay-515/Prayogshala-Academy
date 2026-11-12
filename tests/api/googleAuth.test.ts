@@ -85,12 +85,12 @@ function httpRequest(
 describe('Sign in with Google & Auth Hardening Suite', () => {
   let serverProcess: ChildProcess;
   let tempDir: string;
-  const PORT = 5200 + Math.floor(Math.random() * 200);
+  const PORT = 5500 + Math.floor(Math.random() * 300);
 
   // Server without GOOGLE_CLIENT_ID for disabled-feature check
   let disabledServerProcess: ChildProcess;
   let disabledTempDir: string;
-  const DISABLED_PORT = 5500 + Math.floor(Math.random() * 200);
+  const DISABLED_PORT = 5900 + Math.floor(Math.random() * 300);
 
   before(async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'google-auth-test-'));
@@ -253,10 +253,7 @@ describe('Sign in with Google & Auth Hardening Suite', () => {
     assert.equal(res.body.stats.totalAnswered, 0);
 
     // Verify in database: password_hash IS NULL and google_sub matches
-    const dbFile = fs.existsSync(path.join(tempDir, 'prayogshala_academy.sqlite'))
-      ? 'prayogshala_academy.sqlite'
-      : 'medlab_qbank.sqlite';
-    const dbPath = path.join(tempDir, dbFile);
+    const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
     const localDb = new DatabaseSync(dbPath);
     const row = localDb.prepare('SELECT * FROM users WHERE google_sub = ?').get(googleSub) as any;
     localDb.close();
@@ -315,10 +312,7 @@ describe('Sign in with Google & Auth Hardening Suite', () => {
     const originalToken = regRes.body.token;
 
     // Mark verified in DB
-    const dbFile = fs.existsSync(path.join(tempDir, 'prayogshala_academy.sqlite'))
-      ? 'prayogshala_academy.sqlite'
-      : 'medlab_qbank.sqlite';
-    const dbPath = path.join(tempDir, dbFile);
+    const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
     const localDb = new DatabaseSync(dbPath);
     localDb.prepare('UPDATE users SET email_verified = 1 WHERE email = ?').run(userEmail);
     localDb.close();
@@ -371,10 +365,7 @@ describe('Sign in with Google & Auth Hardening Suite', () => {
     const attackerSessionToken = regRes.body.token;
 
     // Verify it is unverified in DB
-    const dbFile = fs.existsSync(path.join(tempDir, 'prayogshala_academy.sqlite'))
-      ? 'prayogshala_academy.sqlite'
-      : 'medlab_qbank.sqlite';
-    const dbPath = path.join(tempDir, dbFile);
+    const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
     let localDb = new DatabaseSync(dbPath);
     const beforeRow = localDb.prepare('SELECT email_verified, password_hash FROM users WHERE email = ?').get(targetEmail) as any;
     assert.equal(beforeRow.email_verified, 0);
