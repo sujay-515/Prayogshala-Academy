@@ -239,6 +239,8 @@ export interface UserAccount {
   token?: string;
   createdAt?: string;
   emailVerified?: boolean;
+  hasPassword?: boolean;
+  isGoogleLinked?: boolean;
 }
 
 export interface QuestionReport {

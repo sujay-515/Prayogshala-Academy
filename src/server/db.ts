@@ -78,7 +78,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     role TEXT NOT NULL,
     display_name TEXT NOT NULL,
     stats_json TEXT NOT NULL,
@@ -197,6 +197,59 @@ try {
   db.prepare('ALTER TABLE users ADD COLUMN email_verify_expires TEXT').run();
 } catch {}
 
+// Google Sign-In support
+try {
+  db.prepare('ALTER TABLE users ADD COLUMN google_sub TEXT').run();
+} catch {}
+
+try {
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL').run();
+} catch {}
+
+// Safely relax password_hash NOT NULL constraint on existing databases where it was created NOT NULL
+try {
+  const tableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string; notnull: number }[];
+  const pwCol = tableInfo.find((c) => c.name === 'password_hash');
+  if (pwCol && pwCol.notnull === 1) {
+    db.exec('BEGIN IMMEDIATE');
+    db.exec(`
+      CREATE TABLE users_rebuild_temp (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT,
+        role TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        stats_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        email TEXT,
+        email_verified INTEGER NOT NULL DEFAULT 1,
+        email_verify_token_hash TEXT,
+        email_verify_expires TEXT,
+        google_sub TEXT
+      );
+
+      INSERT INTO users_rebuild_temp (
+        id, username, password_hash, role, display_name, stats_json, created_at,
+        email, email_verified, email_verify_token_hash, email_verify_expires, google_sub
+      )
+      SELECT
+        id, username, password_hash, role, display_name, stats_json, created_at,
+        email, email_verified, email_verify_token_hash, email_verify_expires, google_sub
+      FROM users;
+
+      DROP TABLE users;
+      ALTER TABLE users_rebuild_temp RENAME TO users;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub) WHERE google_sub IS NOT NULL;
+    `);
+    db.exec('COMMIT');
+  }
+} catch (err) {
+  try { db.exec('ROLLBACK'); } catch {}
+  console.warn('[Migration Warning] Failed to relax password_hash constraint:', err);
+}
+
 const scryptAsync = promisify(crypto.scrypt);
 
 export async function hashPassword(password: string, customSalt?: string): Promise<string> {
@@ -311,6 +364,15 @@ export function getUserByEmailOrUsername(identifier: string) {
   return db
     .prepare('SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?')
     .get(clean, clean) as any;
+}
+
+export function getUserByGoogleSub(sub: string) {
+  return db.prepare('SELECT * FROM users WHERE google_sub = ?').get(sub) as any;
+}
+
+export function getUserByEmail(email: string) {
+  const clean = email.trim().toLowerCase();
+  return db.prepare('SELECT * FROM users WHERE LOWER(email) = ?').get(clean) as any;
 }
 
 export function listAllUsers() {
