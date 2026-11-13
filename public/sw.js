@@ -9,6 +9,8 @@ const CACHE_NAME = 'prayogshala-shell-v1';
 const SHELL_URLS = [
   '/',
   '/index.html',
+  '/theme-init.js',
+  '/fonts/ibm-plex-sans-latin.woff2',
   '/manifest.webmanifest',
   '/favicon.svg',
   '/icon-192.png',
