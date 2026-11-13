@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
   Compass,
@@ -11,6 +11,7 @@ import {
   User,
   LogOut,
   X,
+  Menu,
   ShieldCheck,
   Moon,
   Sun,
@@ -20,6 +21,7 @@ import {
   Bookmark,
   LogIn,
   Crown,
+  ArrowRight,
 } from 'lucide-react';
 import { UserAccount } from '../types';
 import type { Theme } from '../utils/theme';
@@ -58,7 +60,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMobileLandingOpen, setIsMobileLandingOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const isHomepage = location.pathname === '/';
 
   const userMenuRef = useRef<HTMLDivElement>(null);
   const userBtnRef = useRef<HTMLButtonElement>(null);
@@ -300,6 +305,359 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
     </div>
   );
+
+  // Dedicated landing header and navigation when viewing the homepage ('/')
+  if (isHomepage) {
+    return (
+      <>
+        {/* Sticky Landing Navbar for Homepage */}
+        <header className="sticky top-0 inset-x-0 z-40 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-b border-slate-200/80 dark:border-white/10 transition-all">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-4">
+            {/* Brand Logo & Name */}
+            <div className="shrink-0">
+              <Link
+                to="/"
+                className="flex items-center gap-2.5 text-slate-900 dark:text-white transition-opacity hover:opacity-90 cursor-pointer group"
+                onClick={() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                aria-label="Prayogshala Academy Home"
+              >
+                <img
+                  src="/brand/svg/logo-mark-cyan.svg"
+                  alt="Prayogshala Logo"
+                  className="w-7 h-7 sm:w-8 sm:h-8 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(6,182,212,0.35)]"
+                />
+                <div className="flex flex-col leading-tight">
+                  <span className="font-extrabold text-sm sm:text-base tracking-tight block text-slate-900 dark:text-white">
+                    Prayogshala
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.24em] text-cyan-600 dark:text-cyan-400 uppercase block">
+                    Academy
+                  </span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Desktop Anchor Links */}
+            <nav
+              aria-label="Homepage sections"
+              className="hidden md:flex items-center gap-6 lg:gap-8 text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-300"
+            >
+              <a
+                href="#features"
+                className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors py-2"
+              >
+                Features
+              </a>
+              <a
+                href="#exams"
+                className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors py-2"
+              >
+                Exams
+              </a>
+              <a
+                href="#demo"
+                className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors py-2"
+              >
+                Demo
+              </a>
+              <a
+                href="#about"
+                className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors py-2"
+              >
+                About
+              </a>
+            </nav>
+
+            {/* Desktop Right Cluster: Theme, Auth / Dashboard, CTA */}
+            <div className="hidden md:flex items-center gap-3 shrink-0">
+              {onToggleTheme && (
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                  title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className="p-2 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 text-amber-300" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-cyan-700" />
+                  )}
+                </button>
+              )}
+
+              {currentUser ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('dashboard');
+                      navigate('/dashboard');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/15 text-slate-800 dark:text-white text-xs sm:text-sm font-bold transition-all cursor-pointer min-h-[44px]"
+                  >
+                    <span>Go to Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="relative shrink-0">
+                    <button
+                      ref={userBtnRef}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsUserMenuOpen((prev) => !prev);
+                      }}
+                      aria-label="User account menu"
+                      aria-expanded={isUserMenuOpen}
+                      className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer min-h-[44px]"
+                    >
+                      <User className="w-4 h-4" />
+                    </button>
+                    {isUserMenuOpen && renderUserDropdown()}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {onOpenAuthModal && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuthModal('login')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer min-h-[44px]"
+                    >
+                      <LogIn className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                      <span>Sign In</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('practice');
+                      navigate('/practice');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-slate-950 text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer min-h-[44px]"
+                  >
+                    <span>Start Preparing</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Utility & Menu Toggle */}
+            <div className="flex md:hidden items-center gap-1.5 shrink-0">
+              {onToggleTheme && (
+                <button
+                  type="button"
+                  onClick={onToggleTheme}
+                  aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                  className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 text-amber-300" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-cyan-700" />
+                  )}
+                </button>
+              )}
+
+              {currentUser && (
+                <div className="relative">
+                  <button
+                    ref={userBtnMobileRef}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsUserMenuOpen((prev) => !prev);
+                    }}
+                    aria-label="User account menu"
+                    aria-expanded={isUserMenuOpen}
+                    className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  >
+                    <User className="w-4 h-4" />
+                  </button>
+                  {isUserMenuOpen && renderUserDropdown()}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsMobileLandingOpen((prev) => !prev)}
+                aria-label={isMobileLandingOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={isMobileLandingOpen}
+                className="p-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+              >
+                {isMobileLandingOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Menu Panel */}
+          {isMobileLandingOpen && (
+            <div
+              className="md:hidden border-t border-slate-200/80 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl px-4 py-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150"
+              role="region"
+              aria-label="Mobile navigation links"
+            >
+              <nav className="flex flex-col space-y-1">
+                <a
+                  href="#features"
+                  onClick={() => setIsMobileLandingOpen(false)}
+                  className="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px] flex items-center"
+                >
+                  Features
+                </a>
+                <a
+                  href="#exams"
+                  onClick={() => setIsMobileLandingOpen(false)}
+                  className="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px] flex items-center"
+                >
+                  Exams
+                </a>
+                <a
+                  href="#demo"
+                  onClick={() => setIsMobileLandingOpen(false)}
+                  className="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px] flex items-center"
+                >
+                  Demo
+                </a>
+                <a
+                  href="#about"
+                  onClick={() => setIsMobileLandingOpen(false)}
+                  className="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px] flex items-center"
+                >
+                  About
+                </a>
+              </nav>
+
+              <div className="pt-2 border-t border-slate-200/70 dark:border-white/10 space-y-2">
+                {currentUser ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMobileLandingOpen(false);
+                      setActiveTab('dashboard');
+                      navigate('/dashboard');
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-slate-950 font-bold text-sm min-h-[44px]"
+                  >
+                    <span>Go to Dashboard</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMobileLandingOpen(false);
+                        setActiveTab('practice');
+                        navigate('/practice');
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-slate-950 font-bold text-sm min-h-[44px]"
+                    >
+                      <span>Start Preparing</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+
+                    {onOpenAuthModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileLandingOpen(false);
+                          onOpenAuthModal('login');
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/15 text-slate-800 dark:text-white font-semibold text-sm hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px]"
+                      >
+                        <LogIn className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                        <span>Sign In</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </header>
+
+        {/* For signed-in users on homepage, show the floating bottom dock so they retain their navigation */}
+        {currentUser && (
+          <div className="md:hidden fixed bottom-3 inset-x-0 z-40 flex flex-col items-center pointer-events-none px-3">
+            <nav
+              aria-label="Mobile navigation dock"
+              className="pointer-events-auto bg-black/30 dark:bg-black/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/25 shadow-2xl shadow-black/30 rounded-2xl px-1.5 py-1.5 flex items-center justify-between gap-0.5 w-full max-w-[390px] text-white"
+            >
+              <Link
+                to="/"
+                onClick={() => {
+                  setActiveTab('home');
+                  setIsSearchOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all ${
+                  activeTab === 'home'
+                    ? 'bg-white/25 text-white font-semibold shadow-xs'
+                    : 'text-white/65 hover:text-white'
+                }`}
+              >
+                <Home className="w-4 h-4 mb-0.5" />
+                <span className="text-[10px] tracking-tight leading-none">Home</span>
+              </Link>
+
+              <Link
+                to="/practice"
+                onClick={() => {
+                  setActiveTab('practice');
+                  setIsSearchOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all ${
+                  activeTab === 'practice'
+                    ? 'bg-white/25 text-white font-semibold shadow-xs'
+                    : 'text-white/65 hover:text-white'
+                }`}
+              >
+                <Target className="w-4 h-4 mb-0.5" />
+                <span className="text-[10px] tracking-tight leading-none">Practice</span>
+              </Link>
+
+              <Link
+                to="/exam"
+                onClick={() => {
+                  setActiveTab('exam');
+                  setIsSearchOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all ${
+                  activeTab === 'exam'
+                    ? 'bg-white/25 text-white font-semibold shadow-xs'
+                    : 'text-white/65 hover:text-white'
+                }`}
+              >
+                <GraduationCap className="w-4 h-4 mb-0.5" />
+                <span className="text-[10px] tracking-tight leading-none">Exam</span>
+              </Link>
+
+              <Link
+                to="/cee-ug"
+                onClick={() => {
+                  setActiveTab('cee-ug');
+                  setIsSearchOpen(false);
+                }}
+                className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all ${
+                  activeTab === 'cee-ug'
+                    ? 'bg-white/25 text-white font-semibold shadow-xs'
+                    : 'text-white/65 hover:text-white'
+                }`}
+              >
+                <Stethoscope className="w-4 h-4 mb-0.5" />
+                <span className="text-[10px] tracking-tight leading-none">CEE-UG</span>
+              </Link>
+            </nav>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <>

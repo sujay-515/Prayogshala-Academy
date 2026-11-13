@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { EmailVerificationBanner } from './components/EmailVerificationBanner';
-import { HomeView } from './components/home/HomeView';
+// HomeView is lazy-loaded below for optimal bundle splitting and strict performance
 import { UserDashboard } from './components/dashboard/UserDashboard';
 import { DailyQuestionModal } from './components/DailyQuestionModal';
 import { ReportModal } from './components/ReportModal';
@@ -39,6 +39,7 @@ import { SITE_CONFIG } from './config/site';
 import { GoogleSignInButton } from './components/auth/GoogleSignInButton';
 
 // Route-level code-splitting for heavy feature components
+const HomeView = lazy(() => import('./components/home/HomeView').then((m) => ({ default: m.HomeView })));
 const PracticeMode = lazy(() => import('./components/practice/PracticeMode').then((m) => ({ default: m.PracticeMode })));
 const ExamMode = lazy(() => import('./components/exam/ExamMode').then((m) => ({ default: m.ExamMode })));
 const AdminPortal = lazy(() => import('./components/admin/AdminPortal').then((m) => ({ default: m.AdminPortal })));
@@ -245,6 +246,7 @@ export default function App() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { theme, toggleTheme } = useTheme();
+  const isHomepage = location.pathname === '/';
 
   // Navigation & Role - Derived from URL route
   const getActiveTab = (): 'home' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin' => {
@@ -1171,7 +1173,13 @@ export default function App() {
       )}
 
       {/* Main Content Area with React Router */}
-      <main id="main-content" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 md:pb-8 relative z-10 focus:outline-none">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`flex-1 w-full relative z-10 focus:outline-none ${
+          isHomepage ? 'pt-0 pb-0' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-24 md:pb-8'
+        }`}
+      >
         <ErrorBoundary>
           <Suspense fallback={<RouteLoadingFallback label="Loading page..." />}>
             <Routes>
@@ -1200,6 +1208,7 @@ export default function App() {
                   setSelectedExamCategory(exam);
                   navigate(`/exam?exam=${encodeURIComponent(exam)}`);
                 }}
+                theme={theme}
               />
             }
           />
@@ -1631,26 +1640,28 @@ export default function App() {
           </div>
         </Modal>
 
-      {/* Footer */}
-      <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10 border-t border-slate-200/60 dark:border-slate-800/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
-            <span className="font-semibold text-slate-900 dark:text-white">{SITE_CONFIG.siteName}</span>
-            <span aria-hidden="true">·</span>
-            <span>Laboratory Medicine Examination Platform</span>
-          </div>
+      {/* Footer (Preserved on all routes except homepage, which provides its own 4-column footer) */}
+      {!isHomepage && (
+        <footer className="glass-nav py-6 text-xs text-slate-500 mt-auto relative z-10 border-t border-slate-200/60 dark:border-slate-800/60">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-center sm:text-left">
+              <span className="font-semibold text-slate-900 dark:text-white">{SITE_CONFIG.siteName}</span>
+              <span aria-hidden="true">·</span>
+              <span>Laboratory Medicine Examination Platform</span>
+            </div>
 
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-slate-500 dark:text-slate-400">
-            <Link to="/pricing" className="text-amber-600 dark:text-amber-400 font-semibold hover:underline transition">Plans &amp; Pricing</Link>
-            <Link to="/privacy" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Terms of Service</Link>
-            <Link to="/disclaimer" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Disclaimer</Link>
-            <Link to="/help" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Help Center</Link>
-            <Link to="/cookies" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Cookie Policy</Link>
-            <Link to="/contact" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Contact</Link>
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-slate-500 dark:text-slate-400">
+              <Link to="/pricing" className="text-amber-600 dark:text-amber-400 font-semibold hover:underline transition">Plans &amp; Pricing</Link>
+              <Link to="/privacy" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Privacy Policy</Link>
+              <Link to="/terms" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Terms of Service</Link>
+              <Link to="/disclaimer" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Disclaimer</Link>
+              <Link to="/help" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Help Center</Link>
+              <Link to="/cookies" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Cookie Policy</Link>
+              <Link to="/contact" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition">Contact</Link>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }
