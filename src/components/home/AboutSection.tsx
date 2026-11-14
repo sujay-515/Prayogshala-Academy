@@ -22,9 +22,9 @@ export const AboutSection: React.FC = () => {
           </p>
         </div>
 
-        {/* 3 Pillars */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
+        {/* 3 Pillars - Clean Typography & Whitespace */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 sm:gap-10">
+          <div className="space-y-2.5">
             <Microscope className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Specialized Laboratory Scope
@@ -34,7 +34,7 @@ export const AboutSection: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
+          <div className="space-y-2.5">
             <BookCheck className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Evidence-Based Rationales
@@ -44,7 +44,7 @@ export const AboutSection: React.FC = () => {
             </p>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
+          <div className="space-y-2.5">
             <Award className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Rigorous Remediation
@@ -55,17 +55,16 @@ export const AboutSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Mission Statement & Operator Narrative Block */}
-        <div className="p-6 sm:p-8 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 space-y-3">
+        {/* Mission Statement & Operator Narrative Block - Hairline Divider */}
+        <div className="pt-8 border-t border-slate-200/70 dark:border-white/10 space-y-3">
           <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
             Editorial Integrity &amp; Authorship
           </h4>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            {/* [PLACEHOLDER: Insert institutional founder statement or editorial background below] */}
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-4xl">
             Questions are authored and reviewed by experienced laboratory medicine educators and pathologists. We do not use web scraping or automated scraping scripts. All clinical questions are peer-reviewed for diagnostic consistency, standard reference ranges, and syllabus compliance across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG examination standards.
           </p>
-          <div className="pt-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
             For institutional syllabus alignment or editorial inquiries, contact{' '}
             <span className="font-semibold text-slate-700 dark:text-slate-300">
               {SITE_CONFIG.CONTACT_EMAIL}

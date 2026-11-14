@@ -124,11 +124,11 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
       </div>
 
       {/* Tablist */}
-      <div className="flex justify-center">
+      <div className="flex justify-center border-b border-slate-200/70 dark:border-white/10">
         <div
           role="tablist"
           aria-label="Application feature demonstrations"
-          className="inline-flex p-1.5 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 gap-1 overflow-x-auto max-w-full"
+          className="flex gap-4 sm:gap-8 overflow-x-auto max-w-full -mb-[1px]"
         >
           {tabs.map((tab, idx) => {
             const Icon = tab.icon;
@@ -143,10 +143,10 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
                 onKeyDown={(e) => handleKeyDown(e, idx)}
-                className={`inline-flex items-center gap-2 px-3.5 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all shrink-0 cursor-pointer min-h-[44px] ${
+                className={`inline-flex items-center gap-2 pb-3.5 text-xs sm:text-sm font-semibold transition-all shrink-0 cursor-pointer min-h-[44px] border-b-2 ${
                   isSelected
-                    ? 'bg-white dark:bg-slate-800 text-cyan-800 dark:text-cyan-300 shadow-sm border border-slate-200/60 dark:border-white/10'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/5'
+                    ? 'border-cyan-700 dark:border-cyan-400 text-cyan-800 dark:text-cyan-300'
+                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isSelected ? 'text-cyan-700 dark:text-cyan-400' : ''}`} />
@@ -163,22 +163,20 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
         role="tabpanel"
         aria-labelledby={`demo-tab-${currentTab.id}`}
         tabIndex={0}
-        className="rounded-2xl p-4 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+        className="space-y-4 focus:outline-none"
       >
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/70 dark:border-white/10 pb-4">
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
-                {currentTab.label} Overview
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                {currentTab.description}
-              </p>
-            </div>
+        <div className="space-y-3">
+          <div className="text-left space-y-1">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              {currentTab.label} Overview
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+              {currentTab.description}
+            </p>
           </div>
 
-          {/* Screenshot Display with Clean Fallback Preview */}
-          <div className="relative rounded-2xl overflow-hidden border border-slate-200/80 dark:border-white/10 bg-slate-900/5 dark:bg-black/30 aspect-[16/10] flex items-center justify-center">
+          {/* Screenshot Display with Clean Fallback Preview - Single Framed Box */}
+          <div className="relative rounded-lg overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-900 aspect-[16/10] flex items-center justify-center">
             {!hasError ? (
               <img
                 src={activeImage}

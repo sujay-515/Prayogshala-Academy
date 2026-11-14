@@ -84,22 +84,22 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
                 Simulate the undergraduate medical entrance examination with exact negative marking, full 200-question sittings, and high-stakes 3-hour pacing.
               </p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Structure</span>
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">{CEE_UG_TOTAL_QUESTIONS} MCQs</span>
+                  <span className="text-lg font-bold text-slate-900 dark:text-white mt-0.5 block">{CEE_UG_TOTAL_QUESTIONS} MCQs</span>
                 </div>
-                <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-center">
+                <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Duration</span>
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">{CEE_UG_DURATION_MINUTES} Minutes</span>
+                  <span className="text-lg font-bold text-slate-900 dark:text-white mt-0.5 block">{CEE_UG_DURATION_MINUTES} Minutes</span>
                 </div>
-                <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-center">
+                <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Total Marks</span>
-                  <span className="text-lg font-bold text-slate-900 dark:text-white">{CEE_UG_TOTAL_MARKS} Marks</span>
+                  <span className="text-lg font-bold text-slate-900 dark:text-white mt-0.5 block">{CEE_UG_TOTAL_MARKS} Marks</span>
                 </div>
-                <div className="p-3 rounded-xl bg-white/80 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 text-center">
+                <div>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Negative Marking</span>
-                  <span className="text-lg font-bold text-rose-600 dark:text-rose-400">-{CEE_UG_PENALTY_PER_WRONG}</span>
+                  <span className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5 block">-{CEE_UG_PENALTY_PER_WRONG}</span>
                 </div>
               </div>
 
@@ -116,12 +116,12 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
               </div>
             </div>
 
-            <div className="lg:col-span-4 bg-white/90 dark:bg-slate-950/70 rounded-2xl p-5 border border-slate-200/80 dark:border-white/10 space-y-3">
+            <div className="lg:col-span-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl p-5 space-y-3">
               <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                 Curriculum Blueprint Distribution
               </h4>
-              <div className="space-y-2 text-xs divide-y divide-slate-100 dark:divide-white/5">
+              <div className="space-y-2 text-xs divide-y divide-slate-200/60 dark:divide-white/5">
                 <div className="flex justify-between py-1.5">
                   <span className="text-slate-600 dark:text-slate-400">Biology (Botany &amp; Zoology)</span>
                   <span className="font-bold text-slate-900 dark:text-white">80 Questions</span>
@@ -147,51 +147,56 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
           </div>
         </div>
 
-        {/* Board Cards Grid (Laboratory Medicine Licensing) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {ALL_EXAM_CATEGORIES.filter((cat) => cat !== 'CEE-UG').map((cat) => {
-            const info = boardDescriptions[cat];
-            return (
-              <div
-                key={cat}
-                className="rounded-xl p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 space-y-3 hover:border-cyan-500/40 transition-colors flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-base text-slate-900 dark:text-white">
-                      {info.title}
-                    </span>
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                      {cat}
-                    </span>
+        {/* Board List (Laboratory Medicine Licensing) - Plain Text List with Hairline Dividers */}
+        <div className="space-y-4 pt-4">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            Medical Laboratory Licensing Boards
+          </h3>
+          <div className="divide-y divide-slate-200/70 dark:divide-white/10 border-t border-slate-200/70 dark:border-white/10">
+            {ALL_EXAM_CATEGORIES.filter((cat) => cat !== 'CEE-UG').map((cat) => {
+              const info = boardDescriptions[cat];
+              return (
+                <div
+                  key={cat}
+                  className="py-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-base text-slate-900 dark:text-white">
+                        {info.title}
+                      </span>
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {cat}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium text-cyan-800 dark:text-cyan-400">
+                      {info.subtitle}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
+                      {info.scope}
+                    </p>
                   </div>
-                  <p className="text-xs font-medium text-cyan-800 dark:text-cyan-400">
-                    {info.subtitle}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {info.scope}
-                  </p>
-                </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                    Curriculum Aligned
-                  </span>
-                  {onSelectExam && (
-                    <button
-                      type="button"
-                      onClick={() => onSelectExam(cat)}
-                      className="text-cyan-700 dark:text-cyan-400 hover:text-cyan-900 dark:hover:text-cyan-300 font-semibold inline-flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Explore Exam</span>
-                      <ArrowRight className="w-3 h-3" />
-                    </button>
-                  )}
+                  <div className="flex items-center gap-4 shrink-0">
+                    <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1 text-xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Curriculum Aligned
+                    </span>
+                    {onSelectExam && (
+                      <button
+                        type="button"
+                        onClick={() => onSelectExam(cat)}
+                        className="text-cyan-700 dark:text-cyan-400 hover:text-cyan-900 dark:hover:text-cyan-300 font-semibold text-xs inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Explore Exam</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>
