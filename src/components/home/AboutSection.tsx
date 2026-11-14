@@ -55,17 +55,17 @@ export const AboutSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Mission Statement & Operator Narrative Block - Hairline Divider */}
+        {/* Curriculum Alignment & Editorial Standards - Hairline Divider */}
         <div className="pt-8 border-t border-slate-200/70 dark:border-white/10 space-y-3">
           <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-            Editorial Integrity &amp; Authorship
+            Syllabus Alignment &amp; Editorial Standards
           </h4>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-4xl">
-            Questions are authored and reviewed by experienced laboratory medicine educators and pathologists. We do not use web scraping or automated scraping scripts. All clinical questions are peer-reviewed for diagnostic consistency, standard reference ranges, and syllabus compliance across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG examination standards.
+            Question items and diagnostic rationales are mapped to published examination blueprints and standard reference materials across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG curriculum standards. Explanations focus on differential diagnosis criteria, standard laboratory reference ranges, and established quality control protocols.
           </p>
           <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            For institutional syllabus alignment or editorial inquiries, contact{' '}
+            For syllabus alignment inquiries or errata submissions, contact{' '}
             <span className="font-semibold text-slate-700 dark:text-slate-300">
               {SITE_CONFIG.CONTACT_EMAIL}
             </span>.
