@@ -19,6 +19,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     theme === 'dark'
       ? '/brand/screenshots/practice-dark.webp'
       : '/brand/screenshots/practice-light.webp';
+  const screenshotMobileSrc =
+    theme === 'dark'
+      ? '/brand/screenshots/practice-mobile-dark.webp'
+      : '/brand/screenshots/practice-mobile-light.webp';
 
   return (
     <section
@@ -71,16 +75,22 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           {/* Right Column: Single Flat Framed Practice Screenshot (7/12 on desktop) */}
           <div className="lg:col-span-7 order-2">
             <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-900 aspect-[16/10] w-full">
-              <img
-                src={screenshotSrc}
-                alt="Practice mode interface with clinical question and explanation"
-                width={1280}
-                height={800}
-                loading="eager"
-                fetchPriority="high"
-                decoding="async"
-                className="w-full h-full object-cover object-top block"
-              />
+              <picture className="w-full h-full block">
+                <source
+                  media="(max-width: 639px)"
+                  srcSet={screenshotMobileSrc}
+                />
+                <img
+                  src={screenshotSrc}
+                  alt="Practice mode interface with clinical question and explanation"
+                  width={1280}
+                  height={800}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                  className="w-full h-full object-cover object-top block"
+                />
+              </picture>
             </div>
           </div>
         </div>
