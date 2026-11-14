@@ -363,6 +363,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Demo
               </a>
               <a
+                href="#pricing"
+                className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors py-2"
+              >
+                Pricing
+              </a>
+              <a
                 href="#about"
                 className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors py-2"
               >
@@ -435,12 +441,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setActiveTab('practice');
-                      navigate('/practice');
+                      if (onOpenAuthModal) {
+                        onOpenAuthModal('register');
+                      } else {
+                        setActiveTab('practice');
+                        navigate('/practice');
+                      }
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-slate-950 text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer min-h-[44px]"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-[#04131d] text-xs sm:text-sm font-bold shadow-xs hover:shadow-sm transition-all active:scale-[0.98] cursor-pointer min-h-[44px]"
                   >
-                    <span>Start Preparing</span>
+                    <span>Sign Up Free</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </>
@@ -525,6 +535,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                   Demo
                 </a>
                 <a
+                  href="#pricing"
+                  onClick={() => setIsMobileLandingOpen(false)}
+                  className="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px] flex items-center"
+                >
+                  Pricing
+                </a>
+                <a
                   href="#about"
                   onClick={() => setIsMobileLandingOpen(false)}
                   className="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 min-h-[44px] flex items-center"
@@ -542,7 +559,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setActiveTab('dashboard');
                       navigate('/dashboard');
                     }}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-slate-950 font-bold text-sm min-h-[44px]"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-[#04131d] font-bold text-sm min-h-[44px]"
                   >
                     <span>Go to Dashboard</span>
                     <ArrowRight className="w-4 h-4" />
@@ -553,12 +570,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                       type="button"
                       onClick={() => {
                         setIsMobileLandingOpen(false);
-                        setActiveTab('practice');
-                        navigate('/practice');
+                        if (onOpenAuthModal) {
+                          onOpenAuthModal('register');
+                        } else {
+                          setActiveTab('practice');
+                          navigate('/practice');
+                        }
                       }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-slate-950 font-bold text-sm min-h-[44px]"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-[#04131d] font-bold text-sm min-h-[44px]"
                     >
-                      <span>Start Preparing</span>
+                      <span>Sign Up Free</span>
                       <ArrowRight className="w-4 h-4" />
                     </button>
 

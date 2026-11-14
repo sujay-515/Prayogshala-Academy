@@ -10,10 +10,12 @@ import type {
 import { SITE_CONFIG } from '../../config/site';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
 import type { Theme } from '../../utils/theme';
+import './homeAnimations.css';
 import { ClinicalHero } from './ClinicalHero';
 import { MasteryWorkflowSection } from './MasteryWorkflowSection';
 import { ExamBlueprintsSection } from './ExamBlueprintsSection';
 import { InteractiveSandboxSection } from './InteractiveSandboxSection';
+import { PricingPreviewSection } from './PricingPreviewSection';
 import { EditorialStandardsSection } from './EditorialStandardsSection';
 import { HomeFooter } from './HomeFooter';
 
@@ -110,7 +112,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* 1. Hero + Live Clinical Case Workbench */}
+      {/* 1. Hero + Sample Clinical Case Workbench */}
       <ClinicalHero
         currentUser={currentUser}
         onOpenAuthModal={onOpenAuthModal}
@@ -123,39 +125,52 @@ export const HomeView: React.FC<HomeViewProps> = ({
         unitsCount={unitsCount}
       />
 
-      {/* 2. Features & Live Discipline Explorer (#features) */}
+      {/* 2. Feature Previews & Scrollable Subject Rail (#features) */}
       <MasteryWorkflowSection
         categories={categories}
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
         onSelectSubject={onSelectSubject}
         onSelectUnit={onSelectUnit}
         onNavigateTab={onNavigateTab}
       />
 
-      {/* 3. Licensing Blueprints, CEE-UG Deck & Weekly Grand Test (#exams) */}
+      {/* 3. Scrollable Exam Blueprints, CEE-UG & Grand Test (#exams) */}
       <ExamBlueprintsSection
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
         onSelectExam={onSelectExam}
         onNavigateCeeUg={() => onNavigateTab('cee-ug')}
         onTakeMock={() => onNavigateTab('exam')}
         onNavigateLeaderboard={() => navigate('/leaderboard')}
       />
 
-      {/* 4. Interactive Study Sandbox (#demo) */}
+      {/* 4. Interactive Sample Study Sandbox (#demo) */}
       <InteractiveSandboxSection
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
         onStartPractice={() => onNavigateTab('practice')}
         onNavigateMistakes={() => onNavigateTab('mistakes')}
         onOpenDashboard={() => onNavigateTab('dashboard')}
       />
 
-      {/* 5. Editorial Standards & Closing Conversion Band (#about) */}
+      {/* 5. Transparent Free vs Paid Access (#pricing) */}
+      <PricingPreviewSection
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
+        onStartPractice={() => onNavigateTab('practice')}
+      />
+
+      {/* 6. Clinical Standards & Closing Conversion Band (#about) */}
       <EditorialStandardsSection
         currentUser={currentUser}
         onOpenAuthModal={onOpenAuthModal}
         onStartPractice={() => onNavigateTab('practice')}
-        onNavigateCeeUg={() => onNavigateTab('cee-ug')}
+        onNavigateDashboard={() => onNavigateTab('dashboard')}
       />
 
-      {/* 6. Homepage Footer */}
-      <HomeFooter />
+      {/* 7. Homepage Footer */}
+      <HomeFooter currentUser={currentUser} onOpenAuthModal={onOpenAuthModal} />
     </div>
   );
 };
