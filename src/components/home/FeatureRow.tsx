@@ -1,7 +1,6 @@
 import React from 'react';
 
 interface FeatureRowProps {
-  label?: string;
   heading: string;
   description: string;
   bullets: string[];

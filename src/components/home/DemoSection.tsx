@@ -5,11 +5,6 @@ import {
   RotateCcw,
   GraduationCap,
   Bookmark,
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  FileText,
-  ShieldCheck,
   ImageIcon,
 } from 'lucide-react';
 import type { Theme } from '../../utils/theme';
