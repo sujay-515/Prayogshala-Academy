@@ -1,22 +1,29 @@
 import React, { useMemo } from 'react';
-import { ExamCategory, MCQQuestion, UserAccount, SubjectCategory } from '../../types';
+import { useNavigate } from 'react-router-dom';
+import type {
+  ExamCategory,
+  MCQQuestion,
+  SubjectCategory,
+  SubjectUnit,
+  UserAccount,
+} from '../../types';
 import { SITE_CONFIG } from '../../config/site';
 import { isVisibleQuestion } from '../../utils/questionVisibility';
 import type { Theme } from '../../utils/theme';
-import { HeroSection } from './HeroSection';
-import { StatsStrip } from './StatsStrip';
-import { FeaturesSection } from './FeaturesSection';
-import { ExamsSection } from './ExamsSection';
-import { DemoSection } from './DemoSection';
-import { AboutSection } from './AboutSection';
-import { FinalCtaSection } from './FinalCtaSection';
+import { ClinicalHero } from './ClinicalHero';
+import { MasteryWorkflowSection } from './MasteryWorkflowSection';
+import { ExamBlueprintsSection } from './ExamBlueprintsSection';
+import { InteractiveSandboxSection } from './InteractiveSandboxSection';
+import { EditorialStandardsSection } from './EditorialStandardsSection';
 import { HomeFooter } from './HomeFooter';
 
 export interface HomeViewProps {
   categories: SubjectCategory[];
   questions: MCQQuestion[];
   currentUser?: UserAccount | null;
-  onNavigateTab: (tab: 'home' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin') => void;
+  onNavigateTab: (
+    tab: 'home' | 'practice' | 'exam' | 'cee-ug' | 'mistakes' | 'dashboard' | 'admin'
+  ) => void;
   onOpenDailyQuestion: () => void;
   onOpenAuthModal?: (mode?: 'login' | 'register') => void;
   onSelectSubject?: (subjectName: string) => void;
@@ -35,17 +42,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onSelectSubject,
   onSelectUnit,
   onSelectExam,
-  theme = 'light',
 }) => {
-  const publishedQuestions = useMemo(
-    () => questions.filter((q) => isVisibleQuestion(q)),
+  const navigate = useNavigate();
+
+  const publishedCount = useMemo(
+    () => questions.filter((q) => isVisibleQuestion(q)).length,
     [questions]
   );
-  const publishedCount = publishedQuestions.length;
 
   const unitsCount = useMemo(() => {
     return categories.reduce((total, cat) => {
-      const units = cat.units || (cat as any).subjects || [];
+      const units: SubjectUnit[] =
+        cat.units || (cat as { subjects?: SubjectUnit[] }).subjects || [];
       return total + units.length;
     }, 0);
   }, [categories]);
@@ -102,43 +110,51 @@ export const HomeView: React.FC<HomeViewProps> = ({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* 1. Hero Section */}
-      <HeroSection
+      {/* 1. Hero + Live Clinical Case Workbench */}
+      <ClinicalHero
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
         onStartPractice={() => onNavigateTab('practice')}
         onTakeMock={() => onNavigateTab('exam')}
-        theme={theme}
-        categoriesCount={categories.length}
-      />
-
-      {/* 2. Stats Strip */}
-      <StatsStrip
+        onOpenDashboard={() => onNavigateTab('dashboard')}
+        onOpenDailyQuestion={onOpenDailyQuestion}
         publishedQuestionCount={publishedCount}
         categoriesCount={categories.length}
         unitsCount={unitsCount}
       />
 
-      {/* 3. Features Section ("Built for high scores" / Exam Day) */}
-      <FeaturesSection />
-
-      {/* 4. Exams & Curriculum Scope Section */}
-      <ExamsSection
-        onSelectExam={onSelectExam}
-        onNavigateCeeUg={() => onNavigateTab('cee-ug')}
+      {/* 2. Features & Live Discipline Explorer (#features) */}
+      <MasteryWorkflowSection
+        categories={categories}
+        onSelectSubject={onSelectSubject}
+        onSelectUnit={onSelectUnit}
+        onNavigateTab={onNavigateTab}
       />
 
-      {/* 5. See It in Action Demo Section */}
-      <DemoSection theme={theme} />
+      {/* 3. Licensing Blueprints, CEE-UG Deck & Weekly Grand Test (#exams) */}
+      <ExamBlueprintsSection
+        onSelectExam={onSelectExam}
+        onNavigateCeeUg={() => onNavigateTab('cee-ug')}
+        onTakeMock={() => onNavigateTab('exam')}
+        onNavigateLeaderboard={() => navigate('/leaderboard')}
+      />
 
-      {/* 6. About & Educational Scope Section */}
-      <AboutSection />
+      {/* 4. Interactive Study Sandbox (#demo) */}
+      <InteractiveSandboxSection
+        onStartPractice={() => onNavigateTab('practice')}
+        onNavigateMistakes={() => onNavigateTab('mistakes')}
+        onOpenDashboard={() => onNavigateTab('dashboard')}
+      />
 
-      {/* 7. Final CTA Section */}
-      <FinalCtaSection
+      {/* 5. Editorial Standards & Closing Conversion Band (#about) */}
+      <EditorialStandardsSection
+        currentUser={currentUser}
+        onOpenAuthModal={onOpenAuthModal}
         onStartPractice={() => onNavigateTab('practice')}
         onNavigateCeeUg={() => onNavigateTab('cee-ug')}
       />
 
-      {/* 8. 4-Column Homepage-Specific Footer */}
+      {/* 6. Homepage Footer */}
       <HomeFooter />
     </div>
   );
