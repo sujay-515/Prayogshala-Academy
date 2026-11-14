@@ -234,7 +234,7 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
                         type="button"
                         onClick={() => setActiveCaseIndex(idx)}
                         aria-pressed={active}
-                        className={`px-2.5 min-h-[36px] sm:min-h-[34px] rounded-lg text-xs font-semibold transition-[background-color,color] duration-150 ease-out cursor-pointer touch-manipulation ${
+                        className={`px-3 min-h-[44px] rounded-lg text-xs font-semibold transition-[background-color,color] duration-150 ease-out cursor-pointer touch-manipulation ${
                           active
                             ? 'bg-cyan-700 text-white dark:bg-cyan-400 dark:text-[#04131d]'
                             : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800'
@@ -390,14 +390,14 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
                       </p>
                     )}
 
-                    <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-300/60 dark:border-slate-700/60 text-[11px]">
+                    <div className="pt-1 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 dark:border-slate-800 text-[11px]">
                       <span className="text-slate-700 dark:text-slate-300 italic">
                         Ref: {activeCase.reference}
                       </span>
                       <button
                         type="button"
                         onClick={handleResetCase}
-                        className="inline-flex items-center gap-1 font-semibold text-cyan-800 dark:text-cyan-300 hover:underline cursor-pointer"
+                        className="inline-flex items-center gap-1 min-h-[44px] px-2 font-semibold text-cyan-800 dark:text-cyan-300 hover:underline cursor-pointer touch-manipulation"
                       >
                         <RotateCcw className="w-3 h-3" aria-hidden="true" />
                         <span>Retry case</span>
