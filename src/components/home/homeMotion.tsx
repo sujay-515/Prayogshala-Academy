@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 /** Returns true when the user prefers reduced motion in OS/browser settings. */
@@ -118,37 +118,80 @@ interface HorizontalSnapScrollerProps {
   children: React.ReactNode;
 }
 
-/** Keyboard-accessible, scroll-snap horizontal card rail with edge fades and nav buttons. */
+/** Keyboard-accessible, pop-out scroll-snap carousel with focal-card elevation & dots. */
 export const HorizontalSnapScroller: React.FC<HorizontalSnapScrollerProps> = ({
   ariaLabel,
   scrollHintText = 'Scroll or use arrow keys',
-  fadeFromClass = 'from-slate-50 dark:from-[#081420]',
   children,
 }) => {
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number>(0);
   const prefersReduced = usePrefersReducedMotion();
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [pageCount, setPageCount] = useState(1);
+  const [activePage, setActivePage] = useState(0);
 
-  const syncScrollEdges = () => {
+  const updateCarouselMetrics = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
+
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
     setCanScrollLeft(el.scrollLeft > 8);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
-  };
+    setCanScrollRight(el.scrollLeft < maxScroll - 8);
+
+    const pages = Math.max(1, Math.round(el.scrollWidth / Math.max(1, el.clientWidth)));
+    setPageCount(pages);
+    if (maxScroll > 0) {
+      const ratio = el.scrollLeft / maxScroll;
+      setActivePage(Math.min(pages - 1, Math.round(ratio * (pages - 1))));
+    } else {
+      setActivePage(0);
+    }
+
+    // Mark cards substantially inside the visible viewport so peripheral cards recess cleanly
+    const containerRect = el.getBoundingClientRect();
+    const cards = el.querySelectorAll<HTMLElement>('[data-scroller-card]');
+    cards.forEach((card) => {
+      const rect = card.getBoundingClientRect();
+      const visibleWidth =
+        Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left);
+      const isFocal = rect.width > 0 && visibleWidth / rect.width >= 0.72;
+      card.setAttribute('data-focal', isFocal ? 'true' : 'false');
+    });
+  }, []);
+
+  const scheduleUpdate = useCallback(() => {
+    if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
+    rafRef.current = window.requestAnimationFrame(updateCarouselMetrics);
+  }, [updateCarouselMetrics]);
 
   useEffect(() => {
-    syncScrollEdges();
-    window.addEventListener('resize', syncScrollEdges);
-    return () => window.removeEventListener('resize', syncScrollEdges);
-  }, []);
+    updateCarouselMetrics();
+    window.addEventListener('resize', scheduleUpdate);
+    return () => {
+      window.removeEventListener('resize', scheduleUpdate);
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current);
+    };
+  }, [updateCarouselMetrics, scheduleUpdate]);
 
   const scrollByStep = (direction: -1 | 1) => {
     const el = trackRef.current;
     if (!el) return;
-    const step = Math.max(260, Math.round(el.clientWidth * 0.72));
+    const step = Math.max(260, Math.round(el.clientWidth * 0.68));
     el.scrollBy({
       left: direction * step,
+      behavior: prefersReduced ? 'auto' : 'smooth',
+    });
+  };
+
+  const scrollToPage = (pageIndex: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth);
+    const targetLeft = pageCount > 1 ? (pageIndex / (pageCount - 1)) * maxScroll : 0;
+    el.scrollTo({
+      left: targetLeft,
       behavior: prefersReduced ? 'auto' : 'smooth',
     });
   };
@@ -163,6 +206,15 @@ export const HorizontalSnapScroller: React.FC<HorizontalSnapScrollerProps> = ({
     }
   };
 
+  const maskClass =
+    canScrollLeft && canScrollRight
+      ? 'hp-mask-both'
+      : canScrollRight
+      ? 'hp-mask-right'
+      : canScrollLeft
+      ? 'hp-mask-left'
+      : '';
+
   return (
     <div className="space-y-3">
       {/* Controls & keyboard hint row */}
@@ -170,54 +222,64 @@ export const HorizontalSnapScroller: React.FC<HorizontalSnapScrollerProps> = ({
         <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
           {scrollHintText}
         </span>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => scrollByStep(-1)}
-            disabled={!canScrollLeft}
-            aria-label={`Scroll ${ariaLabel} left`}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white text-slate-700 dark:text-slate-200 hover:border-cyan-500 disabled:opacity-35 disabled:cursor-not-allowed transition-[opacity,transform,border-color] duration-150 active:scale-[0.96] cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollByStep(1)}
-            disabled={!canScrollRight}
-            aria-label={`Scroll ${ariaLabel} right`}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white text-slate-700 dark:text-slate-200 hover:border-cyan-500 disabled:opacity-35 disabled:cursor-not-allowed transition-[opacity,transform,border-color] duration-150 active:scale-[0.96] cursor-pointer"
-          >
-            <ChevronRight className="w-4 h-4" aria-hidden="true" />
-          </button>
+
+        <div className="flex items-center gap-3 shrink-0">
+          {pageCount > 1 && (
+            <div className="hidden sm:flex items-center gap-1.5" role="group" aria-label={`${ariaLabel} pages`}>
+              {Array.from({ length: pageCount }).map((_, idx) => {
+                const active = idx === activePage;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => scrollToPage(idx)}
+                    aria-label={`Jump to ${ariaLabel} view ${idx + 1}`}
+                    aria-current={active ? 'true' : undefined}
+                    className={`h-2 rounded-full transition-[width,background-color] duration-200 cursor-pointer ${
+                      active
+                        ? 'w-5 bg-cyan-700 dark:bg-cyan-400'
+                        : 'w-2 bg-slate-300 dark:bg-slate-700 hover:bg-cyan-500'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => scrollByStep(-1)}
+              disabled={!canScrollLeft}
+              aria-label={`Scroll ${ariaLabel} left`}
+              className="hp-card inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 dark:text-slate-200 disabled:opacity-35 disabled:cursor-not-allowed transition-[opacity,transform,border-color] duration-150 active:scale-[0.95] cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollByStep(1)}
+              disabled={!canScrollRight}
+              aria-label={`Scroll ${ariaLabel} right`}
+              className="hp-card inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 dark:text-slate-200 disabled:opacity-35 disabled:cursor-not-allowed transition-[opacity,transform,border-color] duration-150 active:scale-[0.95] cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Scrollable snap rail + subtle edge fade cues */}
-      <div className="relative">
-        <div
-          ref={trackRef}
-          role="region"
-          aria-label={ariaLabel}
-          tabIndex={0}
-          onScroll={syncScrollEdges}
-          onKeyDown={handleKeyDown}
-          className="hp-scroller flex items-stretch gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory py-2 px-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600 rounded-xl"
-        >
-          {children}
-        </div>
-
-        <div
-          aria-hidden="true"
-          className={`pointer-events-none hidden sm:block absolute inset-y-0 left-0 w-7 bg-gradient-to-r ${fadeFromClass} to-transparent transition-opacity duration-200 ${
-            canScrollLeft ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-        <div
-          aria-hidden="true"
-          className={`pointer-events-none hidden sm:block absolute inset-y-0 right-0 w-10 bg-gradient-to-l ${fadeFromClass} to-transparent transition-opacity duration-200 ${
-            canScrollRight ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
+      {/* Scrollable snap rail with generous vertical headroom so popped cards don't clip */}
+      <div
+        ref={trackRef}
+        role="region"
+        aria-label={ariaLabel}
+        tabIndex={0}
+        onScroll={scheduleUpdate}
+        onKeyDown={handleKeyDown}
+        className={`hp-scroller ${maskClass} flex items-stretch gap-4 sm:gap-5 overflow-x-auto snap-x snap-mandatory py-6 -my-3 px-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600 rounded-2xl`}
+      >
+        {children}
       </div>
     </div>
   );

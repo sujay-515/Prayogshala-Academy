@@ -1,3 +1,7 @@
+/* ==========================================================================
+   Homepage Surfaces, Motion & Pop-Out Scrollers (Light + Smoked-Glass Dark)
+   ========================================================================== */
+
 @keyframes hp-fade-up {
   from {
     opacity: 0;
@@ -14,19 +18,115 @@
     transform: translate3d(0, 0, 0);
   }
   100% {
-    transform: translate3d(0, -5px, 0);
+    transform: translate3d(0, -6px, 0);
   }
 }
 
-@keyframes hp-card-drift {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
+@keyframes hp-demo-pulse {
+  0%,
   100% {
-    transform: translate3d(0, -4px, 0);
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.78;
+    transform: scale(0.96);
   }
 }
 
+/* ── Dark-Mode & Light-Mode Layered Surfaces (Cyan Brand Harmony) ─────── */
+.hp-section-base {
+  background: transparent;
+}
+
+.hp-section-tinted {
+  background: linear-gradient(
+    180deg,
+    rgba(241, 247, 251, 0.72) 0%,
+    rgba(248, 250, 252, 0.4) 100%
+  );
+}
+
+.dark .hp-section-base {
+  background: transparent;
+}
+
+.dark .hp-section-tinted {
+  background:
+    radial-gradient(900px 380px at 50% 0%, rgba(6, 182, 212, 0.08), transparent 72%),
+    linear-gradient(180deg, rgba(10, 22, 34, 0.52) 0%, rgba(6, 14, 22, 0.28) 100%);
+}
+
+.hp-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(249, 252, 254, 0.88) 100%
+  );
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  box-shadow:
+    0 4px 18px -6px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+.hp-card:hover,
+.hp-card:focus-within {
+  border-color: rgba(8, 145, 178, 0.45);
+}
+
+.dark .hp-card {
+  background: linear-gradient(
+    155deg,
+    rgba(17, 37, 54, 0.82) 0%,
+    rgba(11, 24, 37, 0.74) 100%
+  );
+  border: 1px solid rgba(103, 232, 249, 0.16);
+  box-shadow:
+    0 20px 42px -24px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.dark .hp-card:hover,
+.dark .hp-card:focus-within {
+  border-color: rgba(34, 211, 238, 0.4);
+  box-shadow:
+    0 22px 46px -20px rgba(6, 182, 212, 0.22),
+    inset 0 1px 0 0 rgba(165, 243, 252, 0.12);
+}
+
+.hp-card-highlight {
+  border-color: rgba(8, 145, 178, 0.55);
+  box-shadow:
+    0 12px 30px -12px rgba(8, 145, 178, 0.18),
+    0 0 0 1px rgba(8, 145, 178, 0.15);
+}
+
+.dark .hp-card-highlight {
+  background: linear-gradient(
+    155deg,
+    rgba(22, 48, 68, 0.9) 0%,
+    rgba(12, 30, 44, 0.82) 100%
+  );
+  border-color: rgba(34, 211, 238, 0.45);
+  box-shadow:
+    0 24px 50px -22px rgba(6, 182, 212, 0.25),
+    0 0 0 1px rgba(34, 211, 238, 0.16),
+    inset 0 1px 0 0 rgba(165, 243, 252, 0.14);
+}
+
+.hp-well {
+  background: rgba(241, 246, 250, 0.85);
+  border: 1px solid rgba(203, 213, 225, 0.72);
+}
+
+.dark .hp-well {
+  background: rgba(23, 47, 67, 0.48);
+  border: 1px solid rgba(103, 232, 249, 0.13);
+}
+
+/* ── Staged Hero Entrance & Subtle Ambient Float ──────────────────────── */
 .hp-hero-stage-1 {
   animation: hp-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both;
 }
@@ -53,29 +153,7 @@
   animation-play-state: paused;
 }
 
-.hp-card-drift {
-  animation: hp-card-drift 4.6s ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-.hp-drift-delay-1 {
-  animation-delay: -1.15s;
-}
-
-.hp-drift-delay-2 {
-  animation-delay: -2.3s;
-}
-
-.hp-drift-delay-3 {
-  animation-delay: -3.45s;
-}
-
-.hp-card-drift:hover,
-.hp-card-drift:focus-within,
-.hp-card-drift:focus {
-  animation-play-state: paused;
-}
-
+/* ── Section & Non-Uniform Step Wave Scroll Reveals ───────────────────── */
 .hp-reveal {
   opacity: 0;
   transform: translate3d(0, 18px, 0);
@@ -89,6 +167,41 @@
   transform: translate3d(0, 0, 0);
 }
 
+.hp-step-card {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0) scale(0.975);
+  transition:
+    opacity 540ms cubic-bezier(0.22, 1, 0.36, 1) var(--step-delay, 0ms),
+    transform 540ms cubic-bezier(0.22, 1, 0.36, 1) var(--step-delay, 0ms),
+    border-color 220ms ease,
+    box-shadow 260ms ease;
+}
+
+.hp-step-card.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.hp-step-card.is-visible:hover {
+  transform: translate3d(0, -4px, 0) scale(1);
+}
+
+/* Animated demo scaleX bars inside Study System cards */
+.hp-demo-bar {
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1) var(--bar-delay, 120ms);
+}
+
+.is-visible .hp-demo-bar {
+  transform: scaleX(var(--bar-scale, 1));
+}
+
+.hp-demo-pulse {
+  animation: hp-demo-pulse 2.2s ease-in-out infinite;
+}
+
+/* ── Pop-Out Horizontal Scroller Cards ────────────────────────────────── */
 .hp-scroller {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -98,22 +211,114 @@
   display: none;
 }
 
+.hp-mask-both {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent 100%
+  );
+}
+
+.hp-mask-right {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 36px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 0%,
+    #000 calc(100% - 36px),
+    transparent 100%
+  );
+}
+
+.hp-mask-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 32px, #000 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 32px, #000 100%);
+}
+
+.hp-pop-card {
+  transform: translate3d(0, 3px, 0) scale(0.955);
+  opacity: 0.8;
+  transition:
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease,
+    border-color 220ms ease,
+    box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+}
+
+.hp-pop-card[data-focal='true'] {
+  transform: translate3d(0, -3px, 0) scale(1);
+  opacity: 1;
+  box-shadow: 0 12px 28px -12px rgba(8, 145, 178, 0.16);
+}
+
+.dark .hp-pop-card[data-focal='true'] {
+  box-shadow:
+    0 20px 44px -18px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(34, 211, 238, 0.18),
+    inset 0 1px 0 0 rgba(165, 243, 252, 0.1);
+}
+
+.hp-pop-card:hover,
+.hp-pop-card:focus-visible {
+  transform: translate3d(0, -9px, 0) scale(1.03) !important;
+  opacity: 1 !important;
+  z-index: 10;
+  border-color: rgba(8, 145, 178, 0.65);
+  box-shadow:
+    0 22px 40px -14px rgba(8, 145, 178, 0.25),
+    0 0 0 1px rgba(6, 182, 212, 0.25);
+}
+
+.dark .hp-pop-card:hover,
+.dark .hp-pop-card:focus-visible {
+  border-color: rgba(34, 211, 238, 0.65);
+  box-shadow:
+    0 26px 52px -16px rgba(6, 182, 212, 0.28),
+    0 0 0 1px rgba(34, 211, 238, 0.32),
+    inset 0 1px 0 0 rgba(165, 243, 252, 0.18);
+}
+
+.hp-pop-card:active {
+  transform: translate3d(0, -4px, 0) scale(0.99) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hp-hero-stage-1,
   .hp-hero-stage-2,
   .hp-hero-stage-3,
   .hp-hero-stage-4,
   .hp-float-slow,
-  .hp-card-drift {
+  .hp-demo-pulse {
     animation: none !important;
     transform: none !important;
     opacity: 1 !important;
     will-change: auto;
   }
 
-  .hp-reveal {
+  .hp-reveal,
+  .hp-step-card,
+  .hp-pop-card {
     opacity: 1 !important;
     transform: none !important;
+    transition: none !important;
+  }
+
+  .hp-demo-bar {
+    transform: scaleX(var(--bar-scale, 1)) !important;
     transition: none !important;
   }
 }
