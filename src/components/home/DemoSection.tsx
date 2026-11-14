@@ -163,7 +163,7 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
         role="tabpanel"
         aria-labelledby={`demo-tab-${currentTab.id}`}
         tabIndex={0}
-        className="glass-panel rounded-3xl p-4 sm:p-8 border border-slate-200/80 dark:border-white/10 shadow-2xl relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+        className="rounded-2xl p-4 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
       >
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/70 dark:border-white/10 pb-4">
@@ -209,9 +209,7 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
                 </div>
 
                 <div className="my-auto text-center space-y-3 max-w-lg mx-auto py-6">
-                  <div className="w-12 h-12 rounded-2xl bg-cyan-100 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-400 mx-auto flex items-center justify-center shadow-xs">
-                    <currentTab.icon className="w-6 h-6" />
-                  </div>
+                  <currentTab.icon className="w-8 h-8 text-cyan-700 dark:text-cyan-400 mx-auto" />
                   <h4 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
                     {currentTab.placeholderCaption}
                   </h4>

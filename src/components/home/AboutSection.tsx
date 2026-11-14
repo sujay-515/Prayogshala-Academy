@@ -25,9 +25,7 @@ export const AboutSection: React.FC = () => {
         {/* 3 Pillars */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="p-6 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400 flex items-center justify-center">
-              <Microscope className="w-5 h-5" />
-            </div>
+            <Microscope className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Specialized Laboratory Scope
             </h3>
@@ -37,9 +35,7 @@ export const AboutSection: React.FC = () => {
           </div>
 
           <div className="p-6 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400 flex items-center justify-center">
-              <BookCheck className="w-5 h-5" />
-            </div>
+            <BookCheck className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Evidence-Based Rationales
             </h3>
@@ -49,9 +45,7 @@ export const AboutSection: React.FC = () => {
           </div>
 
           <div className="p-6 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/80 dark:border-white/10 space-y-3">
-            <div className="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-400 flex items-center justify-center">
-              <Award className="w-5 h-5" />
-            </div>
+            <Award className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
               Rigorous Remediation
             </h3>

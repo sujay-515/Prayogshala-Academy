@@ -75,12 +75,10 @@ export const FeaturesSection: React.FC = () => {
             'Real-time mistake counter in the navigation bar keeps revision top-of-mind',
           ]}
           visual={
-            <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-lg border border-slate-200/80 dark:border-white/10">
+            <div className="rounded-xl p-5 sm:p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10">
               <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-                    <RotateCcw className="w-4 h-4" />
-                  </div>
+                <div className="flex items-center gap-2.5">
+                  <RotateCcw className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">Mistakes Notebook</h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Strict two-step remediation</p>
@@ -130,12 +128,10 @@ export const FeaturesSection: React.FC = () => {
             'Start custom practice sessions filtered directly from your bookmarked items',
           ]}
           visual={
-            <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-lg border border-slate-200/80 dark:border-white/10">
+            <div className="rounded-xl p-5 sm:p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10">
               <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center justify-center">
-                    <Bookmark className="w-4 h-4" />
-                  </div>
+                <div className="flex items-center gap-2.5">
+                  <Bookmark className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">Bookmarks Library</h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Saved items with personal annotations</p>
@@ -185,12 +181,10 @@ export const FeaturesSection: React.FC = () => {
             'Explainable predicted score based on real practice and mock attempts',
           ]}
           visual={
-            <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-lg border border-slate-200/80 dark:border-white/10">
+            <div className="rounded-xl p-5 sm:p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10">
               <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 flex items-center justify-center">
-                    <BarChart3 className="w-4 h-4" />
-                  </div>
+                <div className="flex items-center gap-2.5">
+                  <BarChart3 className="w-5 h-5 text-cyan-700 dark:text-cyan-400 shrink-0" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">Readiness &amp; Pacing</h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Diagnostic telemetry</p>
@@ -257,12 +251,10 @@ export const FeaturesSection: React.FC = () => {
             `Weekly Grand Test window (${grandOpenDay} 11:00 AM to ${grandCloseDay} midnight)`,
           ]}
           visual={
-            <div className="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-lg border border-slate-200/80 dark:border-white/10">
+            <div className="rounded-xl p-5 sm:p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10">
               <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-white/10 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-400 flex items-center justify-center">
-                    <Timer className="w-4 h-4" />
-                  </div>
+                <div className="flex items-center gap-2.5">
+                  <Timer className="w-5 h-5 text-cyan-700 dark:text-cyan-400 shrink-0" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">Exam Simulation Engine</h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Strict blueprint calibrator</p>

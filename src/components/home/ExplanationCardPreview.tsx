@@ -11,13 +11,10 @@ import { CheckCircle2, BookOpen, ExternalLink } from 'lucide-react';
 export const ExplanationCardPreview: React.FC = () => {
   return (
     <div
-      className="glass-card rounded-2xl p-5 sm:p-6 space-y-4 shadow-lg border border-slate-200/80 dark:border-white/10 relative overflow-hidden"
+      className="rounded-xl p-5 sm:p-6 space-y-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10"
       role="region"
       aria-label="Interactive Diagnostic Rationale Preview"
     >
-      {/* Decorative top accent line */}
-      <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-cyan-600 via-teal-500 to-cyan-400" />
-
       {/* Header tags */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
@@ -42,10 +39,10 @@ export const ExplanationCardPreview: React.FC = () => {
       <div className="space-y-2 pt-1" role="list">
         <div
           role="listitem"
-          className="p-3 rounded-xl border border-emerald-500 bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-950 dark:text-emerald-200 flex items-start gap-2.5 shadow-xs"
+          className="p-3 rounded-lg border border-emerald-500/80 bg-emerald-50/60 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-200 flex items-start gap-2.5"
         >
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-xs font-bold bg-emerald-600 text-white shrink-0 mt-0.5">
-            A
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5">
+            A.
           </span>
           <div className="flex-1 text-xs sm:text-sm font-medium">
             Extrahepatic biliary tract obstruction (choledocholithiasis)
@@ -55,10 +52,10 @@ export const ExplanationCardPreview: React.FC = () => {
 
         <div
           role="listitem"
-          className="p-2.5 rounded-xl border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 text-slate-500 dark:text-slate-400 flex items-start gap-2.5 text-xs opacity-75"
+          className="p-2.5 rounded-lg border border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 text-slate-500 dark:text-slate-400 flex items-start gap-2.5 text-xs opacity-75"
         >
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-md text-xs font-semibold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
-            B
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+            B.
           </span>
           <span className="line-through">Acute intravascular hemolytic anemia</span>
         </div>

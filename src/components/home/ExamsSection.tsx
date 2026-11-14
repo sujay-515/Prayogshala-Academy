@@ -73,10 +73,8 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
         </div>
 
         {/* CEE-UG Spotlight Card */}
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 border-2 border-cyan-600/30 dark:border-cyan-500/30 relative overflow-hidden shadow-xl">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-cyan-200/30 via-teal-100/20 to-transparent dark:from-cyan-900/20 dark:via-teal-950/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+        <div className="rounded-2xl p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-8 space-y-4">
               <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
                 CEE-UG Medical Entrance Mock Examination
@@ -156,7 +154,7 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
             return (
               <div
                 key={cat}
-                className="glass-card rounded-2xl p-5 border border-slate-200/80 dark:border-white/10 space-y-3 hover:border-cyan-500/40 transition-colors flex flex-col justify-between"
+                className="rounded-xl p-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 space-y-3 hover:border-cyan-500/40 transition-colors flex flex-col justify-between"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

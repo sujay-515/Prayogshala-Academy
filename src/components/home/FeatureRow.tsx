@@ -1,8 +1,7 @@
 import React from 'react';
-import { Check } from 'lucide-react';
 
 interface FeatureRowProps {
-  label: string;
+  label?: string;
   heading: string;
   description: string;
   bullets: string[];
@@ -11,7 +10,6 @@ interface FeatureRowProps {
 }
 
 export const FeatureRow: React.FC<FeatureRowProps> = ({
-  label,
   heading,
   description,
   bullets,
@@ -38,9 +36,7 @@ export const FeatureRow: React.FC<FeatureRowProps> = ({
           <ul className="space-y-2.5 pt-2" role="list">
             {bullets.map((bullet, idx) => (
               <li key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-slate-700 dark:text-slate-200">
-                <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-600 dark:bg-cyan-400 mt-2 shrink-0" aria-hidden="true" />
                 <span className="leading-relaxed">{bullet}</span>
               </li>
             ))}
