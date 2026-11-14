@@ -106,6 +106,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
       <HeroSection
         onStartPractice={() => onNavigateTab('practice')}
         onTakeMock={() => onNavigateTab('exam')}
+        theme={theme}
+        categoriesCount={categories.length}
       />
 
       {/* 2. Stats Strip */}
