@@ -4,7 +4,6 @@ import {
   Award,
   CalendarClock,
   GraduationCap,
-  Lock,
   Stethoscope,
   Trophy,
 } from 'lucide-react';
@@ -32,8 +31,6 @@ interface ExamBlueprintsSectionProps {
   onTakeMock: () => void;
   onNavigateLeaderboard: () => void;
 }
-
-const DRIFT_DELAYS = ['', 'hp-drift-delay-1', 'hp-drift-delay-2', 'hp-drift-delay-3'] as const;
 
 export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
   currentUser,
@@ -64,7 +61,7 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
     <section
       id="exams"
       aria-labelledby="exams-heading"
-      className="py-14 sm:py-20 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900"
+      className="hp-section-base py-14 sm:py-20 border-t border-slate-200/80 dark:border-slate-800"
     >
       <div
         ref={ref}
@@ -82,27 +79,25 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
             Six Licensing &amp; Entrance Exam Tracks
           </h2>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 line-clamp-2">
-            {isGuest
-              ? 'Scroll target exam blueprints. Sign up free to start timed mocks.'
-              : 'Pick your target licensure board or CEE-UG mock simulation.'}
+            Scroll board tracks and CEE-UG mocks below.
           </p>
         </div>
 
-        {/* Horizontal Snap Scroller for Exam Types (~3 visible on desktop) */}
+        {/* Pop-Out Horizontal Scroller (~3 focal cards visible on desktop) */}
         <HorizontalSnapScroller
           ariaLabel="Exam Tracks"
           scrollHintText="Swipe or use ← → keys to browse exams"
-          fadeFromClass="from-white dark:from-[#0c1a26]"
         >
-          {ALL_EXAM_CATEGORIES.map((examCode, idx) => {
+          {ALL_EXAM_CATEGORIES.map((examCode) => {
             const spec = BOARD_SPECIFICATIONS[examCode];
-            const driftDelay = DRIFT_DELAYS[idx % DRIFT_DELAYS.length];
             const isEntrance = examCode === 'CEE-UG';
 
             return (
               <button
                 key={examCode}
                 type="button"
+                data-scroller-card=""
+                data-focal="true"
                 onClick={() =>
                   openLockedOrRun(() => {
                     if (isEntrance) {
@@ -114,11 +109,11 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
                     }
                   })
                 }
-                className={`hp-card-drift ${driftDelay} group w-[78vw] sm:w-[290px] lg:w-[calc((100%-2.5rem)/3)] shrink-0 snap-start rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-cyan-500 p-5 text-left flex flex-col justify-between gap-4 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer touch-manipulation`}
+                className="hp-card hp-pop-card group w-[78vw] sm:w-[290px] lg:w-[calc((100%-2.5rem)/3)] shrink-0 snap-start rounded-2xl p-5 text-left flex flex-col justify-between gap-4 cursor-pointer touch-manipulation"
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 dark:text-cyan-300 font-mono text-xs font-bold">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-cyan-50 border border-cyan-200 text-cyan-800 dark:text-cyan-300 font-mono text-xs font-bold transition-transform duration-200 ease-out group-hover:scale-105">
                       {isEntrance ? (
                         <GraduationCap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                       ) : (
@@ -126,7 +121,7 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
                       )}
                       <span>{spec.code}</span>
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                    <span className="hp-well px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                       {spec.jurisdiction}
                     </span>
                   </div>
@@ -146,20 +141,19 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
                 </div>
 
                 <div className="pt-2.5 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-cyan-700 dark:text-cyan-400">
-                  <span className="inline-flex items-center gap-1.5">
-                    {isGuest && <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-                    <span>{isGuest ? 'Sign up to unlock' : 'Continue Practice'}</span>
-                  </span>
-                  <ArrowRight className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden="true" />
+                  <span>{isGuest ? 'Explore Track' : 'Continue Practice'}</span>
+                  <ArrowRight
+                    className="w-4 h-4 transition-transform duration-150 group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
                 </div>
               </button>
             );
           })}
         </HorizontalSnapScroller>
 
-        {/* Compact CEE-UG Metrics & Weekly Grand Test Visual Bar */}
-        <div className="rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-5">
-          {/* CEE-UG Top Strip */}
+        {/* Compact CEE-UG Metrics & Weekly Grand Test Bar */}
+        <div className="hp-card rounded-2xl p-5 sm:p-6 space-y-5">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400">
@@ -172,25 +166,25 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
             </div>
 
             <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center shrink-0">
-              <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-2">
+              <div className="hp-well rounded-xl px-2.5 py-2">
                 <div className="text-sm sm:text-base font-extrabold font-mono text-slate-900 dark:text-slate-100 tabular-nums">
                   {CEE_UG_TOTAL_QUESTIONS}
                 </div>
                 <div className="text-[10px] text-slate-600 dark:text-slate-400">MCQs</div>
               </div>
-              <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-2">
+              <div className="hp-well rounded-xl px-2.5 py-2">
                 <div className="text-sm sm:text-base font-extrabold font-mono text-slate-900 dark:text-slate-100 tabular-nums">
                   {CEE_UG_DURATION_MINUTES}m
                 </div>
                 <div className="text-[10px] text-slate-600 dark:text-slate-400">Timer</div>
               </div>
-              <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-2">
+              <div className="hp-well rounded-xl px-2.5 py-2">
                 <div className="text-sm sm:text-base font-extrabold font-mono text-rose-700 dark:text-rose-400 tabular-nums">
                   -{CEE_UG_PENALTY_PER_WRONG}
                 </div>
                 <div className="text-[10px] text-slate-600 dark:text-slate-400">Penalty</div>
               </div>
-              <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2.5 py-2">
+              <div className="hp-well rounded-xl px-2.5 py-2">
                 <div className="text-sm sm:text-base font-extrabold font-mono text-emerald-700 dark:text-emerald-400 tabular-nums">
                   {CEE_UG_PASSING_PERCENTAGE}%
                 </div>
@@ -199,10 +193,9 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
             </div>
           </div>
 
-          {/* Stacked Blueprint Bar */}
           <div className="space-y-2">
             <div
-              className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+              className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10"
               role="img"
               aria-label="CEE-UG distribution: Biology 40%, Chemistry 25%, Physics 25%, MAT 10%"
             >
@@ -225,7 +218,6 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
             </div>
           </div>
 
-          {/* Grand Test Live Status + Locked Action Row */}
           <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2.5 text-xs">
               <span
@@ -250,14 +242,10 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
               <button
                 type="button"
                 onClick={() => openLockedOrRun(onNavigateLeaderboard)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 text-xs font-bold text-slate-900 dark:text-slate-100 transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
+                className="hp-well inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl hover:border-cyan-500 text-xs font-bold text-slate-900 dark:text-slate-100 transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
               >
-                {isGuest ? (
-                  <Lock className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
-                ) : (
-                  <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
-                )}
-                <span>{isGuest ? 'Sign up to unlock' : 'Rankings'}</span>
+                <Trophy className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" aria-hidden="true" />
+                <span>Rankings</span>
               </button>
 
               <button
@@ -265,8 +253,7 @@ export const ExamBlueprintsSection: React.FC<ExamBlueprintsSectionProps> = ({
                 onClick={() => openLockedOrRun(onNavigateCeeUg)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-[#04131d] text-xs font-bold transition-[background-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
               >
-                {isGuest && <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-                <span>{isGuest ? 'Sign up for CEE-UG' : 'Launch CEE-UG'}</span>
+                <span>{isGuest ? 'Try CEE-UG Mock' : 'Launch CEE-UG'}</span>
                 <ArrowRight className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               </button>
             </div>

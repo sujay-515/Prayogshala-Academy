@@ -5,7 +5,6 @@ import {
   BookCheck,
   BookOpen,
   LayoutDashboard,
-  Lock,
   Microscope,
   ShieldCheck,
   UserPlus,
@@ -43,7 +42,7 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
     <section
       id="about"
       aria-labelledby="about-heading"
-      className="py-14 sm:py-20 border-t border-slate-200/80 dark:border-slate-800 bg-slate-50 dark:bg-slate-950"
+      className="hp-section-tinted py-14 sm:py-20 border-t border-slate-200/80 dark:border-slate-800"
     >
       <div
         ref={ref}
@@ -67,7 +66,7 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
 
         {/* 3 Visual Pillars */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <article className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-2.5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-cyan-500">
+          <article className="hp-card rounded-2xl p-5 space-y-2.5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5">
             <div className="w-9 h-9 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center">
               <Microscope className="w-4 h-4" aria-hidden="true" />
             </div>
@@ -79,7 +78,7 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
             </p>
           </article>
 
-          <article className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-2.5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-cyan-500">
+          <article className="hp-card rounded-2xl p-5 space-y-2.5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5">
             <div className="w-9 h-9 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center">
               <BookCheck className="w-4 h-4" aria-hidden="true" />
             </div>
@@ -91,7 +90,7 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
             </p>
           </article>
 
-          <article className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-2.5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-cyan-500">
+          <article className="hp-card rounded-2xl p-5 space-y-2.5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5">
             <div className="w-9 h-9 rounded-xl bg-cyan-50 border border-cyan-200 text-cyan-700 flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" aria-hidden="true" />
             </div>
@@ -133,13 +132,13 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
         </div>
 
         {/* Compact Closing Conversion Band */}
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 text-center space-y-4">
+        <div className="hp-card rounded-2xl p-6 sm:p-8 text-center space-y-4">
           <h3 className="font-serif-heading text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight text-balance">
-            {isGuest ? 'Ready to Unlock Your Practice Workspace?' : 'Resume Your Preparation'}
+            {isGuest ? 'Ready to Start Your Preparation?' : 'Resume Your Preparation'}
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-lg mx-auto line-clamp-2">
             {isGuest
-              ? 'Create a free account to unlock topic practice, timed mocks, bookmarks, and analytics.'
+              ? 'Create a free account to save accuracy, track 2-streak fixes, and sit timed mocks.'
               : 'Jump back into adaptive practice or review your readiness dashboard.'}
           </p>
 
@@ -158,10 +157,10 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
 
                 <Link
                   to="/pricing"
-                  className="inline-flex items-center justify-center gap-1.5 px-5 py-3 min-h-[48px] w-full sm:w-auto rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 hover:border-cyan-600 text-slate-900 dark:text-slate-100 font-semibold text-sm transition-[border-color,transform] duration-150 active:scale-[0.98]"
+                  className="hp-well inline-flex items-center justify-center gap-1.5 px-5 py-3 min-h-[48px] w-full sm:w-auto rounded-xl hover:border-cyan-500 text-slate-900 dark:text-slate-100 font-semibold text-sm transition-[border-color,transform] duration-150 active:scale-[0.98]"
                 >
-                  <Lock className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
                   <span>View Plans</span>
+                  <ArrowRight className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
                 </Link>
               </>
             ) : (
@@ -179,7 +178,7 @@ export const EditorialStandardsSection: React.FC<EditorialStandardsSectionProps>
                 <button
                   type="button"
                   onClick={onNavigateDashboard}
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[48px] w-full sm:w-auto rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 hover:border-cyan-600 text-slate-900 dark:text-slate-100 font-semibold text-sm transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
+                  className="hp-well inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[48px] w-full sm:w-auto rounded-xl hover:border-cyan-500 text-slate-900 dark:text-slate-100 font-semibold text-sm transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
                 >
                   <LayoutDashboard className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
                   <span>Dashboard</span>

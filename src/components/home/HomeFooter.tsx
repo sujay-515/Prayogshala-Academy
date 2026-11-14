@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Lock } from 'lucide-react';
 import type { UserAccount } from '../../types';
 import { SITE_CONFIG, isConfigured } from '../../config/site';
 
@@ -23,10 +22,9 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
         <button
           type="button"
           onClick={() => onOpenAuthModal('register')}
-          className="inline-flex items-center gap-1.5 py-1 hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors cursor-pointer text-left"
+          className="inline-block py-1 hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors cursor-pointer text-left"
         >
-          <span>{label}</span>
-          <Lock className="w-3 h-3 text-slate-400 shrink-0" aria-hidden="true" />
+          {label}
         </button>
       );
     }
@@ -41,7 +39,7 @@ export const HomeFooter: React.FC<HomeFooterProps> = ({
   return (
     <footer
       aria-label="Prayogshala Academy footer"
-      className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 text-xs py-12"
+      className="hp-section-base border-t border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 text-xs py-12"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <h2 className="sr-only">Footer navigation and legal links</h2>

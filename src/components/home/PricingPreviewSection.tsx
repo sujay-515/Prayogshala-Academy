@@ -62,7 +62,7 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
     <section
       id="pricing"
       aria-labelledby="pricing-heading"
-      className="py-14 sm:py-20 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900"
+      className="hp-section-base py-14 sm:py-20 border-t border-slate-200/80 dark:border-slate-800"
     >
       <div
         ref={ref}
@@ -98,10 +98,10 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
         {/* Free Account vs 3 Paid Plans */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {/* Free Account Card */}
-          <article className="rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 flex flex-col justify-between gap-5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 hover:border-cyan-500">
+          <article className="hp-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1">
             <div className="space-y-4">
               <div className="space-y-1">
-                <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-0.5">
+                <span className="hp-well inline-block text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 rounded-full px-2.5 py-0.5">
                   Free Account
                 </span>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 pt-1">
@@ -133,7 +133,7 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
               <button
                 type="button"
                 onClick={openGuestSignup}
-                className="inline-flex items-center justify-center gap-2 w-full py-2.5 min-h-[44px] rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-600 text-slate-900 dark:text-slate-100 text-xs sm:text-sm font-bold transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
+                className="hp-well inline-flex items-center justify-center gap-2 w-full py-2.5 min-h-[44px] rounded-xl hover:border-cyan-500 text-slate-900 dark:text-slate-100 text-xs sm:text-sm font-bold transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
               >
                 <UserPlus className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
                 <span>Create Free Account</span>
@@ -142,7 +142,7 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
               <button
                 type="button"
                 onClick={onStartPractice}
-                className="inline-flex items-center justify-center gap-2 w-full py-2.5 min-h-[44px] rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-600 text-slate-900 dark:text-slate-100 text-xs sm:text-sm font-bold transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
+                className="hp-well inline-flex items-center justify-center gap-2 w-full py-2.5 min-h-[44px] rounded-xl hover:border-cyan-500 text-slate-900 dark:text-slate-100 text-xs sm:text-sm font-bold transition-[border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
               >
                 <span>Continue Practice</span>
                 <ArrowRight className="w-4 h-4 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
@@ -158,11 +158,9 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
             return (
               <article
                 key={plan.id}
-                className={`rounded-2xl bg-slate-50 dark:bg-slate-950 border p-5 sm:p-6 flex flex-col justify-between gap-5 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 ${
-                  isPopular
-                    ? 'border-cyan-500 ring-1 ring-cyan-400/50'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-cyan-500'
-                }`}
+                className={`hp-card ${
+                  isPopular ? 'hp-card-highlight' : ''
+                } rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1`}
               >
                 <div className="space-y-4">
                   <div className="space-y-1">
@@ -210,10 +208,10 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
                   <button
                     type="button"
                     onClick={openGuestSignup}
-                    className={`inline-flex items-center justify-center gap-1.5 w-full py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-bold transition-[background-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation ${
+                    className={`inline-flex items-center justify-center gap-1.5 w-full py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-bold transition-[background-color,border-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation ${
                       isPopular
                         ? 'bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-[#04131d]'
-                        : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-600 text-slate-900 dark:text-slate-100'
+                        : 'hp-well hover:border-cyan-500 text-slate-900 dark:text-slate-100'
                     }`}
                   >
                     <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -222,10 +220,10 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
                 ) : (
                   <Link
                     to="/pricing"
-                    className={`inline-flex items-center justify-center gap-1.5 w-full py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-bold transition-[background-color,transform] duration-150 active:scale-[0.98] ${
+                    className={`inline-flex items-center justify-center gap-1.5 w-full py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-bold transition-[background-color,border-color,transform] duration-150 active:scale-[0.98] ${
                       isPopular
                         ? 'bg-cyan-700 hover:bg-cyan-800 dark:bg-cyan-400 dark:hover:bg-cyan-300 text-white dark:text-[#04131d]'
-                        : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 hover:border-cyan-600 text-slate-900 dark:text-slate-100'
+                        : 'hp-well hover:border-cyan-500 text-slate-900 dark:text-slate-100'
                     }`}
                   >
                     <span>View Checkout</span>
