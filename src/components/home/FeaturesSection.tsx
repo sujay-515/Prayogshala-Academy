@@ -42,7 +42,7 @@ export const FeaturesSection: React.FC = () => {
           bullets={[
             'Full clinical vignettes covering diagnostic criteria and laboratory methods',
             'Differential rationales explaining distractor options',
-            'Canonical textbook and guideline citations for authoritative review',
+            'Reference citations and source materials where available',
           ]}
         />
 

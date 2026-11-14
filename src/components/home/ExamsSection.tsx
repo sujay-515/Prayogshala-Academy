@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Stethoscope, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Stethoscope, ShieldCheck } from 'lucide-react';
 import { ALL_EXAM_CATEGORIES } from '../../utils/examCategories';
 import type { ExamCategory } from '../../types';
 import {
@@ -68,7 +68,7 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
             Calibrated for National &amp; International Licensure
           </h2>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-            Every question in the bank is categorized by discipline and tagged with relevant board blueprints. Prepare specifically for your target licensing authority or entrance track.
+            Questions are organized by discipline and tagged for target licensing and entrance examinations. Choose an examination to focus your study.
           </p>
         </div>
 
@@ -178,10 +178,6 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0">
-                    <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1 text-xs">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      Curriculum Aligned
-                    </span>
                     {onSelectExam && (
                       <button
                         type="button"

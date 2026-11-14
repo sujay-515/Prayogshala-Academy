@@ -18,7 +18,7 @@ export const AboutSection: React.FC = () => {
             Built for clinical precision in medical laboratory licensure
           </h2>
           <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-            {SITE_CONFIG.SITE_NAME} was founded to address the critical gap in rigorous, syllabus-aligned examination preparation for laboratory professionals and medical candidates.
+            {SITE_CONFIG.SITE_NAME} provides question banks, timed mock exams, and structured review for medical laboratory licensure candidates and entrance students.
           </p>
         </div>
 
@@ -30,7 +30,7 @@ export const AboutSection: React.FC = () => {
               Specialized Laboratory Scope
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Unlike generic medical question banks, our items focus on actual bench science: diagnostic bacteriology, antimicrobial susceptibility (AST), clinical enzymology, hemoglobinopathies, immunohematology, and laboratory quality assurance.
+              Practice subjects focus on medical laboratory disciplines: diagnostic bacteriology, antimicrobial susceptibility, clinical enzymology, hemoglobinopathies, immunohematology, and laboratory quality assurance.
             </p>
           </div>
 
@@ -40,7 +40,7 @@ export const AboutSection: React.FC = () => {
               Evidence-Based Rationales
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Every practice item includes a diagnostic explanation citing canonical laboratory textbooks (Henry's Clinical Diagnosis, Rodak's Hematology, Bailey &amp; Scott's Microbiology) so candidates learn the clinical mechanism behind each finding.
+              Practice items include diagnostic rationales explaining correct answers and distractors, with textbook references where available.
             </p>
           </div>
 
@@ -62,7 +62,7 @@ export const AboutSection: React.FC = () => {
             Syllabus Alignment &amp; Editorial Standards
           </h4>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-4xl">
-            Question items and diagnostic rationales are mapped to published examination blueprints and standard reference materials across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG curriculum standards. Explanations focus on differential diagnosis criteria, standard laboratory reference ranges, and established quality control protocols.
+            Questions are organized by subject discipline for ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG examinations. Practice sets cover core curriculum topics, standard laboratory reference values, and diagnostic methods.
           </p>
           {isConfigured(SITE_CONFIG.CONTACT_EMAIL) && (
             <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
