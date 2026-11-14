@@ -569,6 +569,11 @@ html.dark {
 /* --- Legacy `dark:` utilities authored against a normal dark palette -----
    The inverted neutral ramp would make these resolve to the wrong end of the
    scale (e.g. dark:bg-slate-900 -> near-white), so pin them explicitly. */
+.dark .app-shell [class~="dark:text-slate-100"],
+.dark .app-shell [class~="dark:text-slate-200"] {
+  color: #edf7fc;
+}
+
 .dark .app-shell [class~="dark:text-slate-300"],
 .dark .app-shell [class~="dark:hover:text-slate-300"]:hover {
   color: #c3d6e3;
