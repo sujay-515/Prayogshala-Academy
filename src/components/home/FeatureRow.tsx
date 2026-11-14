@@ -27,10 +27,6 @@ export const FeatureRow: React.FC<FeatureRowProps> = ({
             reversed ? 'lg:order-2 lg:pl-4' : 'lg:order-1 lg:pr-4'
           }`}
         >
-          <div className="inline-block px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 font-bold text-xs uppercase tracking-wider border border-cyan-200/80 dark:border-cyan-800/40">
-            {label}
-          </div>
-
           <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-snug">
             {heading}
           </h3>

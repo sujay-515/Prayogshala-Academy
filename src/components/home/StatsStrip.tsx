@@ -15,7 +15,7 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
   const stats = [
     {
       value: publishedQuestionCount > 0 ? `${publishedQuestionCount.toLocaleString()}+` : '0',
-      label: 'Verified Questions',
+      label: 'Practice Questions',
       description: 'Peer-reviewed clinical & entrance MCQs',
     },
     {

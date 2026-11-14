@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BookOpen, Stethoscope, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Stethoscope } from 'lucide-react';
 import { SITE_CONFIG } from '../../config/site';
 
 interface FinalCtaSectionProps {
@@ -28,17 +28,12 @@ export const FinalCtaSection: React.FC<FinalCtaSectionProps> = ({
         />
 
         <div className="relative z-10 max-w-3xl mx-auto text-center space-y-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Ready for Exam Day</span>
-          </div>
-
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight text-white">
             Start preparing with {SITE_CONFIG.SITE_NAME} today
           </h2>
 
           <p className="text-sm sm:text-base text-cyan-100/90 leading-relaxed max-w-2xl mx-auto">
-            Build diagnostic intuition with topic-wise clinical practice, test your speed under official blueprints, and master your mistakes before taking your exam.
+            Build diagnostic intuition with topic-wise clinical practice, test your speed under licensing blueprints, and master your mistakes before taking your exam.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">

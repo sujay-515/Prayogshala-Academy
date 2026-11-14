@@ -47,7 +47,7 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
       scope: 'Discipline-based professional assessment for medical laboratory scientist migration',
     },
     'CEE-UG': {
-      title: 'CEE-UG Entrance (MECEE-BL)',
+      title: 'CEE-UG Medical Entrance',
       subtitle: 'Medical Education Commission Entrance',
       scope: 'Biology (80), Chemistry (50), Physics (50), Mental Agility (20) - Standalone Mock',
     },
@@ -61,9 +61,6 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center max-w-3xl mx-auto space-y-3">
-          <div className="inline-block px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 font-bold text-xs uppercase tracking-wider border border-cyan-200/80 dark:border-cyan-800/40">
-            Curriculum Blueprints
-          </div>
           <h2
             id="exams-heading"
             className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
@@ -81,17 +78,12 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
             <div className="lg:col-span-8 space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-300 font-bold text-xs">
-                <Stethoscope className="w-4 h-4 text-cyan-700 dark:text-cyan-400" />
-                <span>Featured Entrance Track · {CEE_UG_NAME}</span>
-              </div>
-
               <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
-                CEE-UG Entrance (MECEE-BL) Mock Examination
+                CEE-UG Medical Entrance Mock Examination
               </h3>
 
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-                Simulate the official undergraduate medical entrance examination with exact negative marking, full 200-question sittings, and high-stakes 3-hour pacing.
+                Simulate the undergraduate medical entrance examination with exact negative marking, full 200-question sittings, and high-stakes 3-hour pacing.
               </p>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
@@ -129,7 +121,7 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
             <div className="lg:col-span-4 bg-white/90 dark:bg-slate-950/70 rounded-2xl p-5 border border-slate-200/80 dark:border-white/10 space-y-3">
               <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-                Official Blueprint Distribution
+                Curriculum Blueprint Distribution
               </h4>
               <div className="space-y-2 text-xs divide-y divide-slate-100 dark:divide-white/5">
                 <div className="flex justify-between py-1.5">
@@ -171,7 +163,7 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
                     <span className="font-extrabold text-base text-slate-900 dark:text-white">
                       {info.title}
                     </span>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                       {cat}
                     </span>
                   </div>

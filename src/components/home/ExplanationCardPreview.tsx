@@ -20,18 +20,15 @@ export const ExplanationCardPreview: React.FC = () => {
 
       {/* Header tags */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="px-2.5 py-0.5 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 font-semibold text-[11px] border border-cyan-200 dark:border-cyan-800/40">
+        <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="font-semibold text-slate-900 dark:text-white">
             Clinical Biochemistry
           </span>
-          <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+          <span>·</span>
+          <span>
             Unit: Hepatic Function &amp; Enzymology
           </span>
         </div>
-        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Server Verified</span>
-        </span>
       </div>
 
       {/* Clinical Vignette Question */}

@@ -11,9 +11,6 @@ export const AboutSection: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="max-w-3xl space-y-4">
-          <div className="inline-block px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 font-bold text-xs uppercase tracking-wider border border-cyan-200/80 dark:border-cyan-800/40">
-            About {SITE_CONFIG.SITE_NAME}
-          </div>
           <h2
             id="about-heading"
             className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
@@ -72,7 +69,7 @@ export const AboutSection: React.FC = () => {
           </h4>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             {/* [PLACEHOLDER: Insert institutional founder statement or editorial background below] */}
-            Questions are authored and verified by experienced laboratory medicine educators and pathologists. We do not use web scraping or automated scraping scripts. All clinical questions are peer-reviewed for diagnostic consistency, standard reference ranges, and syllabus compliance across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG examination standards.
+            Questions are authored and reviewed by experienced laboratory medicine educators and pathologists. We do not use web scraping or automated scraping scripts. All clinical questions are peer-reviewed for diagnostic consistency, standard reference ranges, and syllabus compliance across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG examination standards.
           </p>
           <div className="pt-2 text-[11px] text-slate-500 dark:text-slate-400">
             For institutional syllabus alignment or editorial inquiries, contact{' '}

@@ -117,11 +117,6 @@ export const HomeFooter: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/pricing" className="text-amber-600 dark:text-amber-400 font-semibold hover:underline transition-colors">
-                  Full Access &amp; Pricing
-                </Link>
-              </li>
-              <li>
                 <Link to="/contact" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors">
                   Contact Support
                 </Link>

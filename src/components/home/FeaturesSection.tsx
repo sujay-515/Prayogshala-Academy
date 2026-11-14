@@ -38,9 +38,6 @@ export const FeaturesSection: React.FC = () => {
       className="py-16 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
     >
       <div className="text-center max-w-3xl mx-auto space-y-3 mb-8 sm:mb-16">
-        <div className="inline-block px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 font-bold text-xs uppercase tracking-wider border border-cyan-200/80 dark:border-cyan-800/40">
-          Engineered for Exam Day
-        </div>
         <h2
           id="features-heading"
           className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
@@ -48,7 +45,7 @@ export const FeaturesSection: React.FC = () => {
           Everything you need to qualify your medical licensure
         </h2>
         <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-          Prayogshala Academy replaces rote memorization with verified diagnostic reasoning, paced timed simulations, and strict mistake remediation.
+          Prayogshala Academy replaces rote memorization with structured diagnostic reasoning, paced timed simulations, and strict mistake remediation.
         </p>
       </div>
 
@@ -89,7 +86,7 @@ export const FeaturesSection: React.FC = () => {
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Strict two-step remediation</p>
                   </div>
                 </div>
-                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-rose-100 text-rose-900 dark:bg-rose-950/80 dark:text-rose-300">
+                <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">
                   Active Queue
                 </span>
               </div>
@@ -108,7 +105,7 @@ export const FeaturesSection: React.FC = () => {
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                     <span className="font-medium">1 more correct answer required to clear</span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/10">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
                     Saline Replacement
                   </span>
                 </div>
@@ -253,7 +250,7 @@ export const FeaturesSection: React.FC = () => {
         <FeatureRow
           label="Exam Simulation"
           heading="Timed mock sittings and weekly Grand Tests"
-          description={`Experience actual test conditions with official blueprints, strict countdown timers, and standardized negative marking. Sit the weekly national Grand Test every ${grandOpenDay} through ${grandCloseDay}.`}
+          description={`Experience actual test conditions with licensing blueprints, strict countdown timers, and standardized negative marking. Sit the weekly national Grand Test every ${grandOpenDay} through ${grandCloseDay}.`}
           bullets={[
             `CEE-UG Entrance: ${CEE_UG_TOTAL_QUESTIONS} questions, ${CEE_UG_DURATION_MINUTES} minutes, -${CEE_UG_PENALTY_PER_WRONG} negative marking`,
             'Board-specific blueprints for ASCP, NHPC, PSC, DHA, and AIMS',
@@ -271,7 +268,7 @@ export const FeaturesSection: React.FC = () => {
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Strict blueprint calibrator</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                   CEE-UG Standard
                 </span>
               </div>

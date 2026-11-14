@@ -66,7 +66,7 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
       id: 'exams',
       label: 'Exams',
       icon: GraduationCap,
-      description: 'Standardized timed examination simulation with countdown timer and server-verified scoring',
+      description: 'Standardized timed examination simulation with countdown timer and instant scoring',
       screenshotLight: '/brand/screenshots/exams-light.webp',
       screenshotDark: '/brand/screenshots/exams-dark.webp',
       placeholderCaption: 'Timed exam mode interface with countdown timer, question navigator, and review palette',
@@ -112,9 +112,6 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
       className="py-16 sm:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10"
     >
       <div className="text-center max-w-3xl mx-auto space-y-3">
-        <div className="inline-block px-3 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 font-bold text-xs uppercase tracking-wider border border-cyan-200/80 dark:border-cyan-800/40">
-          See It in Action
-        </div>
         <h2
           id="demo-heading"
           className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
@@ -178,9 +175,6 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
                 {currentTab.description}
               </p>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cyan-100 text-cyan-900 dark:bg-cyan-950 dark:text-cyan-300 self-start sm:self-auto border border-cyan-200/60 dark:border-cyan-800/40">
-              Live Component Preview
-            </span>
           </div>
 
           {/* Screenshot Display with Clean Fallback Preview */}
