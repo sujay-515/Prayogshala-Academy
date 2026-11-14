@@ -116,30 +116,30 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
               </div>
             </div>
 
-            <div className="lg:col-span-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl p-5 space-y-3">
+            <div className="lg:col-span-4 rounded-xl p-5 space-y-3 bg-slate-100/80 dark:bg-black/40 border border-slate-200/80 dark:border-white/10">
               <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                 Curriculum Blueprint Distribution
               </h4>
-              <div className="space-y-2 text-xs divide-y divide-slate-200/60 dark:divide-white/5">
+              <div className="space-y-2 text-xs divide-y divide-slate-200 dark:divide-white/10">
                 <div className="flex justify-between py-1.5">
-                  <span className="text-slate-600 dark:text-slate-400">Biology (Botany &amp; Zoology)</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Biology (Botany &amp; Zoology)</span>
                   <span className="font-bold text-slate-900 dark:text-white">80 Questions</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-slate-600 dark:text-slate-400">Chemistry (Org / Inorg / Phys)</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Chemistry (Org / Inorg / Phys)</span>
                   <span className="font-bold text-slate-900 dark:text-white">50 Questions</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-slate-600 dark:text-slate-400">Physics &amp; Mechanics</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Physics &amp; Mechanics</span>
                   <span className="font-bold text-slate-900 dark:text-white">50 Questions</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-slate-600 dark:text-slate-400">Mental Agility Test (MAT)</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Mental Agility Test (MAT)</span>
                   <span className="font-bold text-slate-900 dark:text-white">20 Questions</span>
                 </div>
                 <div className="flex justify-between py-1.5">
-                  <span className="text-slate-600 dark:text-slate-400">Benchmark Passing Cutoff</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Benchmark Passing Cutoff</span>
                   <span className="font-bold text-emerald-700 dark:text-emerald-400">{CEE_UG_PASSING_PERCENTAGE}% Benchmark</span>
                 </div>
               </div>
