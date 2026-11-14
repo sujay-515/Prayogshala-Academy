@@ -47,10 +47,10 @@ export const AboutSection: React.FC = () => {
           <div className="space-y-2.5">
             <Award className="w-6 h-6 text-cyan-700 dark:text-cyan-400" />
             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Rigorous Remediation
+              Review Missed Questions
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              Learning requires confronting mistakes. Our proprietary Mistakes Recovery workflow isolates incorrect answers and requires two consecutive correct submissions before an item is marked as mastered.
+              Questions you answer incorrectly are saved to your personal review list. An item must be answered correctly twice in a row before it is cleared from your queue.
             </p>
           </div>
         </div>

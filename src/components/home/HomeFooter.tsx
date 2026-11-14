@@ -113,12 +113,12 @@ export const HomeFooter: React.FC = () => {
             <ul className="space-y-2 text-xs" role="list">
               <li>
                 <a href="#about" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors">
-                  About Methodology
+                  How It Works
                 </a>
               </li>
               <li>
                 <a href="#features" className="hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors">
-                  Exam Engine Features
+                  Practice &amp; Exam Tools
                 </a>
               </li>
               <li>

@@ -27,10 +27,10 @@ export const FeaturesSection: React.FC = () => {
           id="features-heading"
           className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight"
         >
-          Everything you need to qualify your medical licensure
+          Everything you need to prepare for your medical licensure
         </h2>
         <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed">
-          Prayogshala Academy replaces rote memorization with structured diagnostic reasoning, paced timed simulations, and strict mistake remediation.
+          Prayogshala Academy helps you build diagnostic reasoning, practice under timed exam conditions, and review the questions you miss.
         </p>
       </div>
 
@@ -49,10 +49,10 @@ export const FeaturesSection: React.FC = () => {
         {/* Feature 2: Mistakes Recovery */}
         <FeatureRow
           heading="Two consecutive correct answers to clear any mistake"
-          description={`Every question answered incorrectly is automatically routed to your personal Mistakes Notebook. A question remains in your remediation queue until you answer it correctly on ${MISTAKE_CLEAR_THRESHOLD} consecutive attempts, eliminating lucky guesses.`}
+          description={`Every question answered incorrectly is automatically saved to your personal Mistakes Notebook. A question stays in your review list until you answer it correctly on ${MISTAKE_CLEAR_THRESHOLD} consecutive attempts, eliminating lucky guesses.`}
           bullets={[
-            `Rigorous ${MISTAKE_CLEAR_THRESHOLD}-streak clearing requirement prevents premature removal`,
-            'Dedicated remediation mode to practice only your active mistake queue',
+            `Requires answering correctly ${MISTAKE_CLEAR_THRESHOLD} times in a row before a question is cleared`,
+            'Dedicated practice mode to review only questions you got wrong',
             'Real-time mistake counter in the navigation bar keeps revision top-of-mind',
           ]}
         />

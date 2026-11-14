@@ -55,7 +55,7 @@ export const DemoSection: React.FC<DemoSectionProps> = ({ theme = 'light' }) => 
       description: 'Dedicated Mistakes Notebook requiring 2 consecutive correct attempts to master items',
       screenshotLight: '/brand/screenshots/mistakes-light.webp',
       screenshotDark: '/brand/screenshots/mistakes-dark.webp',
-      placeholderCaption: 'Mistakes recovery notebook with active remediation queue and streak indicators',
+      placeholderCaption: 'Mistakes recovery notebook with active review queue and streak indicators',
     },
     {
       id: 'exams',
