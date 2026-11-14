@@ -1,0 +1,119 @@
+@keyframes hp-fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes hp-float-slow {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, -5px, 0);
+  }
+}
+
+@keyframes hp-card-drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+.hp-hero-stage-1 {
+  animation: hp-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both;
+}
+
+.hp-hero-stage-2 {
+  animation: hp-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+}
+
+.hp-hero-stage-3 {
+  animation: hp-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
+}
+
+.hp-hero-stage-4 {
+  animation: hp-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
+}
+
+.hp-float-slow {
+  animation: hp-float-slow 5.2s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.hp-float-slow:hover,
+.hp-float-slow:focus-within {
+  animation-play-state: paused;
+}
+
+.hp-card-drift {
+  animation: hp-card-drift 4.6s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.hp-drift-delay-1 {
+  animation-delay: -1.15s;
+}
+
+.hp-drift-delay-2 {
+  animation-delay: -2.3s;
+}
+
+.hp-drift-delay-3 {
+  animation-delay: -3.45s;
+}
+
+.hp-card-drift:hover,
+.hp-card-drift:focus-within,
+.hp-card-drift:focus {
+  animation-play-state: paused;
+}
+
+.hp-reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hp-reveal.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.hp-scroller {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.hp-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-hero-stage-1,
+  .hp-hero-stage-2,
+  .hp-hero-stage-3,
+  .hp-hero-stage-4,
+  .hp-float-slow,
+  .hp-card-drift {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+    will-change: auto;
+  }
+
+  .hp-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}

@@ -172,6 +172,36 @@ export const CLINICAL_DEMO_CASES: ClinicalDemoCase[] = [
   },
 ];
 
+export interface BillingPlanPreview {
+  id: string;
+  name: string;
+  durationDays: number;
+  priceNpr: number;
+  currency: string;
+}
+
+/** Mirrors seeded catalog in src/server/db.ts (lines 422-424) while /api/billing/plans loads. */
+export const DEFAULT_BILLING_PLANS: BillingPlanPreview[] = [
+  { id: 'plan-1m', name: '1 Month Full Access', durationDays: 30, priceNpr: 500, currency: 'NPR' },
+  { id: 'plan-3m', name: '3 Months Full Access', durationDays: 90, priceNpr: 1200, currency: 'NPR' },
+  { id: 'plan-6m', name: '6 Months Full Access', durationDays: 180, priceNpr: 2000, currency: 'NPR' },
+];
+
+/** Mirrors FREE_PRACTICE_PER_UNIT and FREE_MOCK_EXAMS in src/server/billing.ts. */
+export const FREE_TIER_LIMITS = {
+  practicePerUnit: 20,
+  freeMockExams: 1,
+} as const;
+
+export const FALLBACK_SUBJECT_PREVIEWS = [
+  { id: 'hem', name: 'Hematology', unitsCount: 8, icon: 'Microscope' },
+  { id: 'mic', name: 'Microbiology', unitsCount: 9, icon: 'Bug' },
+  { id: 'bio', name: 'Clinical Biochemistry', unitsCount: 10, icon: 'FlaskConical' },
+  { id: 'bbk', name: 'Blood Bank & Serology', unitsCount: 6, icon: 'Droplets' },
+  { id: 'his', name: 'Histopathology', unitsCount: 5, icon: 'Layers' },
+  { id: 'par', name: 'Parasitology', unitsCount: 5, icon: 'Dna' },
+] as const;
+
 export interface BoardSpecification {
   code: ExamCategory;
   title: string;
@@ -184,51 +214,51 @@ export interface BoardSpecification {
 export const BOARD_SPECIFICATIONS: Record<ExamCategory, BoardSpecification> = {
   ASCP: {
     code: 'ASCP',
-    title: 'ASCP International (MLS / MLT)',
+    title: 'ASCP International (MLS)',
     governingBody: 'American Society for Clinical Pathology',
-    jurisdiction: 'International Credentialing',
-    focus: 'Clinical correlation, troubleshooting & laboratory operations',
-    keyDomains: 'Blood Bank · Chemistry · Hematology · Immunology · Microbiology · UA/Body Fluids',
+    jurisdiction: 'International',
+    focus: 'Lab correlation, troubleshooting & QC operations.',
+    keyDomains: 'Blood Bank · Chemistry · Hematology · Micro',
   },
   NHPC: {
     code: 'NHPC',
-    title: 'NHPC Licensure Examination',
+    title: 'NHPC Licensure Exam',
     governingBody: 'Nepal Health Professional Council',
-    jurisdiction: 'Nepal National Registration',
-    focus: 'BMLT & CMLT licensing competency & national lab ethics',
-    keyDomains: 'Clinical Pathology · Bacteriology · Biochemistry · Hematology · Parasitology',
+    jurisdiction: 'Nepal',
+    focus: 'BMLT & CMLT licensing competency coverage.',
+    keyDomains: 'Clinical Path · Bacteriology · Biochemistry',
   },
   PSC: {
     code: 'PSC',
-    title: 'PSC / Lok Sewa Aayog (Lab)',
+    title: 'PSC / Lok Sewa (Lab)',
     governingBody: 'Public Service Commission',
-    jurisdiction: 'Nepal Civil Service Recruitment',
-    focus: 'Service curriculum MCQs, biosafety & national laboratory directives',
-    keyDomains: 'Diagnostic Methods · Public Health Lab · National Guidelines · Quality Systems',
+    jurisdiction: 'Nepal Civil Service',
+    focus: 'National lab guidelines, biosafety & diagnostics.',
+    keyDomains: 'Public Health · Quality Systems · Diagnostics',
   },
   DHA: {
     code: 'DHA',
-    title: 'DHA Licensure Assessment',
+    title: 'DHA Licensure Exam',
     governingBody: 'Dubai Health Authority',
-    jurisdiction: 'UAE / Gulf Licensure',
-    focus: 'Applied clinical pathology, analyzer QC & Westgard rules',
-    keyDomains: 'Clinical Chemistry · Immunohematology · Molecular Diagnostics · QA/QC',
+    jurisdiction: 'UAE / Gulf',
+    focus: 'Applied pathology, analyzer QC & Westgard rules.',
+    keyDomains: 'Chemistry · Immunohematology · QA/QC',
   },
   AIMS: {
     code: 'AIMS',
-    title: 'AIMS Professional Examination',
+    title: 'AIMS Assessment',
     governingBody: 'Australian Institute of Medical Scientists',
-    jurisdiction: 'Australia Migration & Assessment',
-    focus: 'Multi-discipline diagnostic interpretation & laboratory safety',
-    keyDomains: 'Anatomical Pathology · Transfusion Science · Medical Microbiology · Hematology',
+    jurisdiction: 'Australia',
+    focus: 'Multi-discipline diagnostics & laboratory safety.',
+    keyDomains: 'Anatomical · Transfusion · Microbiology',
   },
   'CEE-UG': {
     code: 'CEE-UG',
-    title: 'CEE-UG Medical Entrance Mock',
-    governingBody: 'Medical Education Commission (MECEE-BL)',
-    jurisdiction: 'Undergraduate Medical Entrance',
-    focus: 'High-stakes 200-item timed simulation with -0.25 negative marking',
-    keyDomains: 'Biology (80) · Chemistry (50) · Physics (50) · Mental Agility Test (20)',
+    title: 'CEE-UG Medical Mock',
+    governingBody: 'Medical Education Commission',
+    jurisdiction: 'Nepal Entrance',
+    focus: '200-item timed exam with -0.25 negative marking.',
+    keyDomains: 'Biology · Chemistry · Physics · MAT',
   },
 };
 
