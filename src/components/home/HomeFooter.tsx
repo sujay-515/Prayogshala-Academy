@@ -23,10 +23,10 @@ export const HomeFooter: React.FC = () => {
                 className="w-8 h-8 object-contain shrink-0 group-hover:scale-105 transition-transform drop-shadow-[0_2px_8px_rgba(6,182,212,0.35)]"
               />
               <div className="flex flex-col leading-tight">
-                <span className="font-extrabold text-base tracking-tight text-slate-900 dark:text-white">
-                  {SITE_CONFIG.SITE_NAME}
+                <span className="font-extrabold text-sm sm:text-base tracking-tight block text-slate-900 dark:text-white">
+                  Prayogshala
                 </span>
-                <span className="text-[10px] font-bold tracking-[0.24em] text-cyan-600 dark:text-cyan-400 uppercase">
+                <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.24em] text-cyan-600 dark:text-cyan-400 uppercase block">
                   Academy
                 </span>
               </div>
