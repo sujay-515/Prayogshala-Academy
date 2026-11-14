@@ -371,8 +371,14 @@ html.dark {
   background-color: #0a2230;
 }
 
-.dark .app-shell [class~="bg-slate-950"] {
+.dark .app-shell [class~="bg-slate-950"],
+.dark .app-shell [class~="dark:bg-slate-950"] {
   background-color: #050b12;
+}
+
+.dark .app-shell [class~="dark:bg-slate-950/80"],
+.dark .app-shell [class~="dark:bg-slate-950/90"] {
+  background-color: rgba(5, 11, 18, 0.9);
 }
 
 /* --- Cyan accents -------------------------------------------------------- */

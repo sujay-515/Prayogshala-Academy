@@ -57,7 +57,7 @@ export const ExamsSection: React.FC<ExamsSectionProps> = ({
     <section
       id="exams"
       aria-labelledby="exams-heading"
-      className="py-16 sm:py-24 border-t border-slate-200/80 dark:border-white/10 bg-slate-50/60 dark:bg-slate-900/40"
+      className="py-16 sm:py-24 border-t border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-950"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center max-w-3xl mx-auto space-y-3">

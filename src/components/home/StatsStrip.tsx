@@ -38,7 +38,7 @@ export const StatsStrip: React.FC<StatsStripProps> = ({
   return (
     <section
       aria-label="Question Bank Statistics"
-      className="py-10 sm:py-14 border-y border-slate-200/80 dark:border-white/10 bg-slate-50/50 dark:bg-slate-900/40"
+      className="py-10 sm:py-14 border-y border-slate-200/80 dark:border-white/10 bg-slate-50/70 dark:bg-slate-950"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
