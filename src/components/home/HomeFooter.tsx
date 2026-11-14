@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { SITE_CONFIG } from '../../config/site';
+import { SITE_CONFIG, isConfigured } from '../../config/site';
 
 export const HomeFooter: React.FC = () => {
+  const hasOperator = isConfigured(SITE_CONFIG.OPERATOR_NAME);
+  const hasEmail = isConfigured(SITE_CONFIG.CONTACT_EMAIL);
   return (
     <footer
       aria-label="Prayogshala Academy footer"
@@ -36,24 +38,32 @@ export const HomeFooter: React.FC = () => {
               Comprehensive clinical laboratory medicine examination preparation and medical entrance mock tests covering ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG standards.
             </p>
 
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-              <div>
-                Operator:{' '}
-                <span className="font-medium text-slate-700 dark:text-slate-300">
-                  {SITE_CONFIG.OPERATOR_NAME}
-                </span>{' '}
-                · {SITE_CONFIG.OPERATOR_COUNTRY}
+            {(hasOperator || hasEmail) && (
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
+                {hasOperator && (
+                  <div>
+                    Operator:{' '}
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      {SITE_CONFIG.OPERATOR_NAME}
+                    </span>
+                    {isConfigured(SITE_CONFIG.OPERATOR_COUNTRY) && (
+                      <> · {SITE_CONFIG.OPERATOR_COUNTRY}</>
+                    )}
+                  </div>
+                )}
+                {hasEmail && (
+                  <div>
+                    Editorial &amp; Licensure Inquiries:{' '}
+                    <a
+                      href={`mailto:${SITE_CONFIG.CONTACT_EMAIL}`}
+                      className="text-cyan-700 dark:text-cyan-400 hover:underline font-medium"
+                    >
+                      {SITE_CONFIG.CONTACT_EMAIL}
+                    </a>
+                  </div>
+                )}
               </div>
-              <div>
-                Editorial &amp; Licensure Inquiries:{' '}
-                <a
-                  href={`mailto:${SITE_CONFIG.CONTACT_EMAIL}`}
-                  className="text-cyan-700 dark:text-cyan-400 hover:underline font-medium"
-                >
-                  {SITE_CONFIG.CONTACT_EMAIL}
-                </a>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Column 2: Platform Links (lg:col-span-2) */}

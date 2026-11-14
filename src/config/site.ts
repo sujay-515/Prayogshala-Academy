@@ -18,3 +18,12 @@ export const SITE_CONFIG = {
     (typeof window !== 'undefined' && window.location && window.location.origin) ||
     '',
 };
+
+/**
+ * Returns true if the configuration value is non-empty and not an unresolved placeholder like bracketed tokens.
+ */
+export const isConfigured = (value?: string): boolean => {
+  if (!value) return false;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && !(trimmed.startsWith('[') && trimmed.endsWith(']'));
+};

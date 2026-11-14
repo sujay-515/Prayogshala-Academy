@@ -1,6 +1,6 @@
 import React from 'react';
 import { Microscope, Award, BookCheck, ShieldAlert } from 'lucide-react';
-import { SITE_CONFIG } from '../../config/site';
+import { SITE_CONFIG, isConfigured } from '../../config/site';
 
 export const AboutSection: React.FC = () => {
   return (
@@ -64,12 +64,17 @@ export const AboutSection: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-4xl">
             Question items and diagnostic rationales are mapped to published examination blueprints and standard reference materials across ASCP, NHPC, PSC, DHA, AIMS, and CEE-UG curriculum standards. Explanations focus on differential diagnosis criteria, standard laboratory reference ranges, and established quality control protocols.
           </p>
-          <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            For syllabus alignment inquiries or errata submissions, contact{' '}
-            <span className="font-semibold text-slate-700 dark:text-slate-300">
-              {SITE_CONFIG.CONTACT_EMAIL}
-            </span>.
-          </div>
+          {isConfigured(SITE_CONFIG.CONTACT_EMAIL) && (
+            <div className="pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              For syllabus alignment inquiries or errata submissions, contact{' '}
+              <a
+                href={`mailto:${SITE_CONFIG.CONTACT_EMAIL}`}
+                className="font-semibold text-slate-700 dark:text-slate-300 hover:text-cyan-700 dark:hover:text-cyan-400 underline underline-offset-2"
+              >
+                {SITE_CONFIG.CONTACT_EMAIL}
+              </a>.
+            </div>
+          )}
         </div>
       </div>
     </section>
