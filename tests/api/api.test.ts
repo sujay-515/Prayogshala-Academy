@@ -1410,7 +1410,7 @@ describe('Prayogshala Academy API Hardening Test Suite', () => {
     const suffix = Date.now().toString(36);
     const studentUsername = `stats_promoted_${suffix}`;
     const studentEmail = `${studentUsername}@example.com`;
-    const studentPassword = 'PromotedStudent123!';
+    const studentPassword = 'PromotedStudentPass99!';
 
     // 1. A student accumulates study progress.
     const studentReg = await request('POST', '/api/auth/register', {

@@ -10,8 +10,8 @@ export const SITE_CONFIG = {
   SITE_DESCRIPTION:
     'Comprehensive Medical Laboratory Science examination preparation question bank covering Hematology, Clinical Chemistry, Microbiology, Immunology, and Blood Banking.',
   CONTACT_EMAIL: '[CONTACT_EMAIL]',
-  OPERATOR_NAME: '[OPERATOR_NAME]',
-  OPERATOR_COUNTRY: '[OPERATOR_COUNTRY]',
+  OPERATOR_NAME: 'Prithak Kandel',
+  OPERATOR_COUNTRY: 'Nepal',
   LAST_UPDATED: 'October 28, 2026',
   SITE_URL:
     (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SITE_URL) ||

@@ -252,6 +252,13 @@ describe('Sign in with Google & Auth Hardening Suite', () => {
     assert.ok(res.body.stats); // Non-staff receives stats
     assert.equal(res.body.stats.totalAnswered, 0);
 
+    // Verify /api/bootstrap preserves hasPassword and isGoogleLinked for Google users
+    const bootstrapRes = await httpRequest(PORT, 'GET', '/api/bootstrap', { token: res.body.token });
+    assert.equal(bootstrapRes.status, 200);
+    assert.equal(bootstrapRes.body.user.hasPassword, false);
+    assert.equal(bootstrapRes.body.user.isGoogleLinked, true);
+    assert.equal(bootstrapRes.body.user.leaderboardHidden, false);
+
     // Verify in database: password_hash IS NULL and google_sub matches
     const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
     const localDb = new DatabaseSync(dbPath);
@@ -532,6 +539,72 @@ describe('Sign in with Google & Auth Hardening Suite', () => {
 
     // 4. Session is now revoked
     const checkRevoked = await httpRequest(PORT, 'GET', '/api/auth/me', { token: userToken });
+    assert.equal(checkRevoked.status, 401);
+  });
+
+  it('account deletion for Google-linked password account accepts Google credential', async () => {
+    const email = `hybrid_del_${Date.now()}@prayogshala.test`;
+    const username = `hybrid_del_${Date.now()}`;
+    const password = 'HybridPassword123!';
+
+    // 1. Register password account and mark verified
+    const regRes = await httpRequest(PORT, 'POST', '/api/auth/register', {
+      body: { username, email, password, displayName: 'Hybrid User' },
+    });
+    assert.equal(regRes.status, 200);
+
+    const dbPath = path.join(tempDir, 'prayogshala_academy.sqlite');
+    const localDb = new DatabaseSync(dbPath);
+    localDb.prepare('UPDATE users SET email_verified = 1 WHERE email = ?').run(email);
+    localDb.close();
+
+    // 2. Link Google account
+    const googleSub = `sub-hybrid-del-${Date.now()}`;
+    const linkRes = await httpRequest(PORT, 'POST', '/api/auth/google', {
+      body: { credential: 'token.hybrid.link' },
+      mockGoogle: {
+        sub: googleSub,
+        email,
+        name: 'Hybrid User',
+        email_verified: true,
+        aud: TEST_CLIENT_ID,
+      },
+    });
+    assert.equal(linkRes.status, 200);
+    assert.equal(linkRes.body.user.hasPassword, true);
+    assert.equal(linkRes.body.user.isGoogleLinked, true);
+
+    const bootstrapRes = await httpRequest(PORT, 'GET', '/api/bootstrap', { token: linkRes.body.token });
+    assert.equal(bootstrapRes.status, 200);
+    assert.equal(bootstrapRes.body.user.hasPassword, true);
+    assert.equal(bootstrapRes.body.user.isGoogleLinked, true);
+
+    // 3. Wrong Google sub is rejected (401)
+    const delWrongSub = await httpRequest(PORT, 'DELETE', '/api/auth/account', {
+      token: linkRes.body.token,
+      body: { credential: 'wrong.sub.token' },
+      mockGoogle: {
+        sub: 'wrong-sub',
+        email,
+        email_verified: true,
+      },
+    });
+    assert.equal(delWrongSub.status, 401);
+
+    // 4. Matching Google credential deletes the linked account (200)
+    const delSuccess = await httpRequest(PORT, 'DELETE', '/api/auth/account', {
+      token: linkRes.body.token,
+      body: { credential: 'matching.hybrid.token' },
+      mockGoogle: {
+        sub: googleSub,
+        email,
+        email_verified: true,
+      },
+    });
+    assert.equal(delSuccess.status, 200);
+    assert.equal(delSuccess.body.success, true);
+
+    const checkRevoked = await httpRequest(PORT, 'GET', '/api/auth/me', { token: linkRes.body.token });
     assert.equal(checkRevoked.status, 401);
   });
 

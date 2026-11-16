@@ -284,7 +284,7 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
     setDeleteError('');
     setIsDeleting(true);
     try {
-      const token = authToken || localStorage.getItem('medlab_qbank_auth_token_v1');
+      const token = authToken || localStorage.getItem('prayogshala_auth_token_v1');
       const res = await fetch('/api/auth/account', {
         method: 'DELETE',
         headers: {
@@ -1227,22 +1227,42 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({
                 </div>
               </div>
             ) : (
-              <div>
-                <label htmlFor="delete-account-password" className="block text-xs font-semibold text-slate-700 mb-1">
-                  Enter Current Password to Confirm Deletion <span className="text-rose-600" aria-hidden="true">*</span>
-                </label>
-                <input
-                  id="delete-account-password"
-                  type="password"
-                  required
-                  aria-required="true"
-                  aria-invalid={deleteError ? 'true' : undefined}
-                  aria-describedby={deleteError ? 'delete-account-error' : undefined}
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  placeholder="Your password..."
-                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600/20 shadow-2xs"
-                />
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="delete-account-password" className="block text-xs font-semibold text-slate-700 mb-1">
+                    Enter Current Password to Confirm Deletion <span className="text-rose-600" aria-hidden="true">*</span>
+                  </label>
+                  <input
+                    id="delete-account-password"
+                    type="password"
+                    required
+                    aria-required="true"
+                    aria-invalid={deleteError ? 'true' : undefined}
+                    aria-describedby={deleteError ? 'delete-account-error' : undefined}
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    placeholder="Your password..."
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600/20 shadow-2xs"
+                  />
+                </div>
+                {currentUser?.isGoogleLinked && (
+                  <div className="space-y-2 pt-1">
+                    <div className="relative flex py-1 items-center">
+                      <div className="flex-grow border-t border-slate-200"></div>
+                      <span className="shrink mx-2 text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                        or confirm with Google
+                      </span>
+                      <div className="flex-grow border-t border-slate-200"></div>
+                    </div>
+                    <div className="flex justify-center">
+                      <GoogleSignInButton
+                        onSuccess={handleDeleteWithGoogle}
+                        onError={(err) => setDeleteError(err)}
+                        isLoading={isDeleting}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

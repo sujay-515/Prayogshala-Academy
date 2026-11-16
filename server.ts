@@ -266,7 +266,17 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MAX_ACTIVE_SESSIONS = 5;
 
 // Helper to resolve session from Authorization header (with 7-day TTL expiration check)
-function getSessionUser(req: express.Request): { userId: string; role: string; username: string; email?: string; displayName: string; emailVerified: boolean } | null {
+function getSessionUser(req: express.Request): {
+  userId: string;
+  role: string;
+  username: string;
+  email?: string;
+  displayName: string;
+  emailVerified: boolean;
+  leaderboardHidden: boolean;
+  hasPassword: boolean;
+  isGoogleLinked: boolean;
+} | null {
   if ((req as any)._sessionUser !== undefined) {
     return (req as any)._sessionUser;
   }
@@ -279,7 +289,7 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
   const tokenHash = hashToken(rawToken);
   const row = db
     .prepare(
-      `SELECT s.user_id, u.role, s.created_at, u.username, u.email, u.display_name, u.email_verified
+      `SELECT s.user_id, u.role, s.created_at, u.username, u.email, u.display_name, u.email_verified, u.leaderboard_hidden, u.password_hash, u.google_sub
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        WHERE s.token = ?`
@@ -304,6 +314,9 @@ function getSessionUser(req: express.Request): { userId: string; role: string; u
     email: row.email || undefined,
     emailVerified: !emailVerificationRequired || row.email_verified !== 0,
     displayName: row.display_name,
+    leaderboardHidden: row.leaderboard_hidden === 1,
+    hasPassword: Boolean(row.password_hash),
+    isGoogleLinked: Boolean(row.google_sub),
   };
   (req as any)._sessionUser = user;
   return user;
@@ -549,6 +562,9 @@ app.get('/api/bootstrap', (req, res) => {
           role: session.role,
           displayName: session.displayName,
           emailVerified: session.emailVerified,
+          leaderboardHidden: session.leaderboardHidden,
+          hasPassword: session.hasPassword,
+          isGoogleLinked: session.isGoogleLinked,
         }
       : null,
   });
@@ -661,6 +677,7 @@ function issueUserSession(req: express.Request, res: express.Response, userRow: 
       role: activeRole,
       displayName: userRow.display_name,
       emailVerified: userRow.email_verified !== 0,
+      leaderboardHidden: userRow.leaderboard_hidden === 1,
       hasPassword: Boolean(userRow.password_hash),
       isGoogleLinked: Boolean(userRow.google_sub),
     },
@@ -1329,20 +1346,9 @@ app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
     return res.status(404).json({ success: false, error: 'User record not found.' });
   }
 
-  if (userRow.password_hash) {
-    const { currentPassword } = req.body || {};
-    if (!currentPassword || typeof currentPassword !== 'string') {
-      return res.status(400).json({ success: false, error: 'Current password is required to delete your account.' });
-    }
-    if (!(await verifyPassword(String(currentPassword), userRow.password_hash))) {
-      return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
-    }
-  } else {
-    // Google-only account: require fresh Google credential
-    const { credential } = req.body || {};
-    if (!credential || typeof credential !== 'string') {
-      return res.status(400).json({ success: false, error: 'Google re-authentication is required to delete your account.' });
-    }
+  const { currentPassword, credential } = req.body || {};
+
+  if (userRow.google_sub && typeof credential === 'string' && credential.trim()) {
     const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!googleClientId) {
       return res.status(400).json({ success: false, error: 'Google authentication is not configured on this server.' });
@@ -1360,6 +1366,16 @@ app.delete('/api/auth/account', accountDeleteLimiter, async (req, res) => {
     if (!payload || payload.sub !== userRow.google_sub) {
       return res.status(401).json({ success: false, error: 'Google re-authentication failed.' });
     }
+  } else if (userRow.password_hash) {
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      return res.status(400).json({ success: false, error: 'Current password is required to delete your account.' });
+    }
+    if (!(await verifyPassword(String(currentPassword), userRow.password_hash))) {
+      return res.status(400).json({ success: false, error: 'Current password is incorrect.' });
+    }
+  } else {
+    // Google-only account without a credential
+    return res.status(400).json({ success: false, error: 'Google re-authentication is required to delete your account.' });
   }
 
   // Refuse if user is the last superadmin
