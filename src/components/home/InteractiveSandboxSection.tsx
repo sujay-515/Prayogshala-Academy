@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
-  BarChart3,
   CheckCircle2,
-  FileSearch,
   RotateCcw,
   Timer,
   XCircle,
@@ -125,11 +123,10 @@ export const InteractiveSandboxSection: React.FC<InteractiveSandboxSectionProps>
   const tabs: {
     id: SandboxTabId;
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
   }[] = [
-    { id: 'practice', label: 'Rationale Sample', icon: FileSearch },
-    { id: 'mistakes', label: '2-Streak Sample', icon: RotateCcw },
-    { id: 'analytics', label: 'Pacing Sample', icon: BarChart3 },
+    { id: 'practice', label: 'Rationale Sample' },
+    { id: 'mistakes', label: '2-Streak Sample' },
+    { id: 'analytics', label: 'Pacing Sample' },
   ];
 
   const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
@@ -157,35 +154,25 @@ export const InteractiveSandboxSection: React.FC<InteractiveSandboxSectionProps>
         className={`hp-reveal ${isVisible ? 'is-visible' : ''} max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8`}
       >
         {/* Short Heading */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="space-y-2 max-w-xl">
-            <div className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-400">
-              03 · Sample Preview
-            </div>
-            <h2
-              id="demo-heading"
-              className="font-serif-heading text-3xl sm:text-4xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-tight text-balance"
-            >
-              Interactive Sample Study Sandbox
-            </h2>
-            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 line-clamp-2">
-              Try sample rationales, 2-streak clearing, and pacing visuals below.
-            </p>
-          </div>
-
-          <span className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-50 border border-cyan-200 text-xs font-bold text-cyan-800 dark:text-cyan-300">
-            Sample Data Only
-          </span>
+        <div className="space-y-2 max-w-xl">
+          <h2
+            id="demo-heading"
+            className="font-serif-heading text-3xl sm:text-4xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-tight text-balance"
+          >
+            Interactive Sample Study Sandbox
+          </h2>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 line-clamp-2">
+            Try sample rationales, 2-streak clearing, and pacing visuals below.
+          </p>
         </div>
 
         {/* Keyboard-Operable Tab Strip */}
         <div
           role="tablist"
           aria-label="Interactive sample preview modes"
-          className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-3"
+          className="flex flex-wrap gap-6 border-b border-slate-200 dark:border-slate-800"
         >
           {tabs.map((tab, idx) => {
-            const Icon = tab.icon;
             const selected = activeTab === tab.id;
             return (
               <button
@@ -198,13 +185,12 @@ export const InteractiveSandboxSection: React.FC<InteractiveSandboxSectionProps>
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
                 onKeyDown={(e) => handleTabKeyDown(e, idx)}
-                className={`inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl text-xs sm:text-sm font-bold transition-[background-color,color,border-color,transform] duration-150 ease-out active:scale-[0.98] cursor-pointer touch-manipulation border ${
+                className={`pb-3 min-h-[44px] text-xs sm:text-sm font-bold border-b-2 -mb-px transition-colors cursor-pointer touch-manipulation ${
                   selected
-                    ? 'bg-cyan-700 text-white border-cyan-700 dark:bg-cyan-400 dark:text-[#04131d] dark:border-cyan-400 shadow-xs'
-                    : 'hp-card text-slate-700 dark:text-slate-300'
+                    ? 'border-cyan-700 text-cyan-700 dark:border-cyan-400 dark:text-cyan-400'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span>{tab.label}</span>
               </button>
             );
@@ -322,12 +308,12 @@ export const InteractiveSandboxSection: React.FC<InteractiveSandboxSectionProps>
                   <span
                     role="status"
                     aria-live="polite"
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold border tabular-nums ${
+                    className={`text-xs font-mono font-bold tabular-nums ${
                       !isQueued
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:text-emerald-300'
+                        ? 'text-emerald-700 dark:text-emerald-400'
                         : currentStreak === 1
-                        ? 'bg-amber-50 border-amber-300 text-amber-800 dark:text-amber-300'
-                        : 'bg-rose-50 border-rose-300 text-rose-800 dark:text-rose-300'
+                        ? 'text-amber-700 dark:text-amber-400'
+                        : 'text-rose-700 dark:text-rose-400'
                     }`}
                   >
                     {!isQueued
@@ -423,14 +409,9 @@ export const InteractiveSandboxSection: React.FC<InteractiveSandboxSectionProps>
             className="hp-card rounded-2xl p-5 sm:p-6 space-y-5"
           >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
-                  Sample Candidate Telemetry
-                </h3>
-                <span className="hp-well px-2 py-0.5 rounded text-[10px] font-bold uppercase text-slate-600 dark:text-slate-300">
-                  Sample
-                </span>
-              </div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100">
+                Sample Candidate Telemetry
+              </h3>
 
               <div className="flex flex-wrap gap-2" role="group" aria-label="Sample pacing profile selector">
                 {TELEMETRY_DEMO_PROFILES.map((profile) => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, Crown, Lock, UserPlus } from 'lucide-react';
+import { ArrowRight, Check, Lock, UserPlus } from 'lucide-react';
 import type { UserAccount } from '../../types';
 import {
   DEFAULT_BILLING_PLANS,
@@ -71,10 +71,6 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-400">
-              <Crown className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span>04 · Free vs Full Access</span>
-            </div>
             <h2
               id="pricing-heading"
               className="font-serif-heading text-3xl sm:text-4xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-tight text-balance"
@@ -101,9 +97,9 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
           <article className="hp-card rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-1">
             <div className="space-y-4">
               <div className="space-y-1">
-                <span className="hp-well inline-block text-[10px] font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 rounded-full px-2.5 py-0.5">
-                  Free Account
-                </span>
+                <div className="text-xs font-mono font-semibold text-slate-500 dark:text-slate-400">
+                  Free tier
+                </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 pt-1">
                   Starter Access
                 </h3>
@@ -164,15 +160,14 @@ export const PricingPreviewSection: React.FC<PricingPreviewSectionProps> = ({
               >
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    {isPopular ? (
-                      <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-cyan-800 dark:text-cyan-300 bg-cyan-50 border border-cyan-200 rounded-full px-2.5 py-0.5">
-                        Most popular
-                      </span>
-                    ) : (
-                      <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
-                        Full Access
-                      </span>
-                    )}
+                    <div className="flex items-center justify-between gap-2 text-xs font-mono font-semibold">
+                      <span className="text-slate-500 dark:text-slate-400">Full Access</span>
+                      {isPopular && (
+                        <span className="text-cyan-700 dark:text-cyan-400 font-bold uppercase tracking-wider">
+                          Most popular
+                        </span>
+                      )}
+                    </div>
 
                     <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 pt-1">
                       {plan.name}

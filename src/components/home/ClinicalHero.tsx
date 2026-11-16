@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
 import {
   ArrowRight,
-  BarChart3,
   BookOpen,
-  Bookmark,
   CheckCircle2,
-  FlaskConical,
   LayoutDashboard,
   Lock,
   LogIn,
   RotateCcw,
-  ShieldCheck,
   Sparkles,
-  Timer,
   UserPlus,
   XCircle,
 } from 'lucide-react';
@@ -103,14 +98,6 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
     { rawValue: ALL_EXAM_CATEGORIES.length, suffix: '', label: 'Exam Tracks' },
   ].filter((item) => item.rawValue > 0);
 
-  const featureChips = [
-    { label: 'Practice', icon: BookOpen, action: onStartPractice },
-    { label: 'Mocks', icon: Timer, action: onTakeMock },
-    { label: '2-Streak Fix', icon: RotateCcw, action: onOpenDashboard },
-    { label: 'Bookmarks', icon: Bookmark, action: onStartPractice },
-    { label: 'Analytics', icon: BarChart3, action: onOpenDashboard },
-  ];
-
   return (
     <section
       aria-labelledby="hero-heading"
@@ -120,17 +107,16 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
           {/* Left Column: Short Headline, Account-First CTAs, Real Count-Up Stats */}
           <div className="lg:col-span-6 space-y-5">
-            <div className="hp-hero-stage-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-50 border border-cyan-200 text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-800 dark:text-cyan-300">
-              <FlaskConical className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span>{ALL_EXAM_CATEGORIES.join(' · ')}</span>
-            </div>
+            <p className="hp-hero-stage-1 font-mono text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700 dark:text-cyan-400">
+              {ALL_EXAM_CATEGORIES.join(' · ')}
+            </p>
 
             <div className="hp-hero-stage-2 space-y-3">
               <h1
                 id="hero-heading"
                 className="font-serif-heading text-3xl sm:text-4xl lg:text-[44px] font-semibold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.12] text-balance"
               >
-                Clinical Lab Board Prep, Built Right.
+                Medical Laboratory Board &amp; Entrance Exam Prep
               </h1>
 
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-[52ch] line-clamp-2">
@@ -194,24 +180,6 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
                   </>
                 )}
               </div>
-
-              {/* Clean Feature Filter Chips (no lock-icon spam) */}
-              <div className="flex flex-wrap items-center gap-2">
-                {featureChips.map((chip) => {
-                  const Icon = chip.icon;
-                  return (
-                    <button
-                      key={chip.label}
-                      type="button"
-                      onClick={() => (!currentUser ? openGuestSignup() : chip.action())}
-                      className="hp-well inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-lg hover:border-cyan-500 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-[border-color,transform] duration-150 hover:-translate-y-0.5 active:scale-[0.97] cursor-pointer touch-manipulation"
-                    >
-                      <Icon className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
-                      <span>{chip.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
 
             {/* Live Count-Up Telemetry (Strictly > 0 real stats) */}
@@ -234,19 +202,14 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
             )}
           </div>
 
-          {/* Right Column: Floating Sample Clinical Case Simulator */}
+          {/* Right Column: Sample Clinical Case Simulator */}
           <div className="lg:col-span-6 hp-hero-stage-4">
-            <div className="hp-float-slow hp-card rounded-2xl overflow-hidden">
+            <div className="hp-card rounded-2xl overflow-hidden">
               {/* Workbench Header */}
               <div className="px-4 sm:px-5 py-3 border-b border-slate-200/80 dark:border-slate-800 hp-well border-x-0 border-t-0 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-50 border border-cyan-200 text-[10px] font-bold uppercase tracking-wider text-cyan-800 dark:text-cyan-300 shrink-0">
-                    Sample
-                  </span>
-                  <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 tracking-tight truncate">
-                    {activeCase.code}
-                  </span>
-                </div>
+                <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 tracking-tight truncate">
+                  Sample Case · {activeCase.code}
+                </span>
 
                 <div className="flex items-center gap-1" role="group" aria-label="Sample case selector">
                   {CLINICAL_DEMO_CASES.map((item, idx) => {
@@ -362,7 +325,7 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
                 </div>
 
                 {/* Instant Feedback + Single Clean Unlock Prompt */}
-                {isAnswered ? (
+                {isAnswered && (
                   <div
                     role="status"
                     aria-live="polite"
@@ -391,13 +354,6 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
                         : correctOptionObj?.rationale}
                     </p>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-400">
-                    <span className="inline-flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-cyan-700 dark:text-cyan-400 shrink-0" aria-hidden="true" />
-                      <span>Tap any option to preview differential rationale</span>
-                    </span>
-                  </div>
                 )}
 
                 <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between gap-2">
@@ -407,7 +363,7 @@ export const ClinicalHero: React.FC<ClinicalHeroProps> = ({
                   <button
                     type="button"
                     onClick={() => (!currentUser ? openGuestSignup() : onStartPractice())}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-lg bg-cyan-50 border border-cyan-200 text-xs font-bold text-cyan-800 dark:text-cyan-300 hover:bg-cyan-100 transition-[background-color,transform] duration-150 active:scale-[0.98] cursor-pointer touch-manipulation"
+                    className="inline-flex items-center gap-1.5 min-h-[36px] text-xs font-bold text-cyan-700 dark:text-cyan-400 hover:underline cursor-pointer touch-manipulation"
                   >
                     {!currentUser && <Lock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
                     <span>{!currentUser ? 'Sign up to unlock' : 'Continue Practice'}</span>

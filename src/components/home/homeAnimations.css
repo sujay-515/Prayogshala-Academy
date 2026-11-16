@@ -13,15 +13,6 @@
   }
 }
 
-@keyframes hp-float-slow {
-  0% {
-    transform: translate3d(0, 0, 0);
-  }
-  100% {
-    transform: translate3d(0, -6px, 0);
-  }
-}
-
 @keyframes hp-demo-pulse {
   0%,
   100% {
@@ -141,16 +132,6 @@
 
 .hp-hero-stage-4 {
   animation: hp-fade-up 520ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
-}
-
-.hp-float-slow {
-  animation: hp-float-slow 5.2s ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-.hp-float-slow:hover,
-.hp-float-slow:focus-within {
-  animation-play-state: paused;
 }
 
 /* ── Section & Non-Uniform Step Wave Scroll Reveals ───────────────────── */
@@ -301,7 +282,6 @@
   .hp-hero-stage-2,
   .hp-hero-stage-3,
   .hp-hero-stage-4,
-  .hp-float-slow,
   .hp-demo-pulse {
     animation: none !important;
     transform: none !important;
